@@ -1,0 +1,38 @@
+# Auto Claude data directory
+.auto-claude/
+
+# Auto Claude generated files
+.auto-claude-security.json
+.auto-claude-status
+.claude_settings.json
+.worktrees/
+.security-key
+logs/security/
+
+# Claude Code local config
+.claude/
+
+# Node.js dependencies
+node_modules/
+frontend/node_modules/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Build artifacts
+frontend/dist/
+vscode-extension/out/
+vscode-extension/*.vsix
+
+# TypeScript build info
+*.tsbuildinfo
+frontend/vite.config.d.ts
+
+# Test/coverage
+.pytest_cache/
+.coverage
+htmlcov/

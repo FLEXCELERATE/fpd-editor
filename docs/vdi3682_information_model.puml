@@ -1,0 +1,134 @@
+@startuml VDI3682_InformationModel
+
+title VDI/VDE 3682-2 Informationsmodell\nFormalisierte Prozessbeschreibung
+
+skinparam classAttributeIconSize 0
+skinparam ranksep 50
+skinparam nodesep 30
+skinparam packageStyle rectangle
+
+skinparam class {
+    BackgroundColor<<Product>> #FFE0E0
+    BackgroundColor<<Energy>> #E0E8FF
+    BackgroundColor<<Information>> #D0D8FF
+    BackgroundColor<<ProcessOperator>> #D0FFD0
+    BackgroundColor<<TechnicalResource>> #E8E8E8
+    BackgroundColor<<SystemLimit>> #FFFFF0
+    BackgroundColor<<Identification>> #FFF8DC
+    BackgroundColor<<Characteristic>> #F0F0FF
+}
+
+' ============================================================
+' Bild 2: Klassendiagramm (Seite 5)
+' ============================================================
+package "Klassendiagramm (Bild 2)" as pkg_class {
+
+    class Process
+
+    abstract class State <<abstract>>
+
+    class Product <<Product>>
+    class Energy <<Energy>>
+    class Information <<Information>>
+
+    class ProcessOperator <<ProcessOperator>>
+    class TechnicalResource <<TechnicalResource>>
+    class SystemLimit <<SystemLimit>>
+
+    class Flow
+    class Usage
+
+    State <|-- Product
+    State <|-- Energy
+    State <|-- Information
+
+    Product --> ProcessOperator : assigned
+    Energy --> ProcessOperator : assigned
+    Information --> ProcessOperator : assigned
+
+    ProcessOperator <-- TechnicalResource : assigned
+
+    Process "*" --o Process : decomposition
+
+    Process o-- "1" SystemLimit
+    Process o-- "1..*" ProcessOperator
+    Process o-- "2..*" State
+}
+
+' ============================================================
+' Bild 3 + 4: Attribuierung und Kennzeichnung (Seite 5-6)
+' ============================================================
+package "Attributmodell (Bild 3-8)" as pkg_attr {
+
+    abstract class Entity <<abstract>> {
+
+    }
+
+    class Identification <<Identification>> {
+        + unique_ident : String
+        + long_name : String
+        + short_name : String
+        + reference_to : String
+        + version_number : String
+        + revision_number : String
+    }
+
+    class Characteristic <<Characteristic>>
+
+    class Category {
+        + name : String
+    }
+
+    class DescriptiveElement {
+        + value_determination_process : String
+        + representativity : String
+        + setpoint_value : Value
+        + validity_limits : ValidityLimits
+        + actual_values : ActualValue
+    }
+
+    class RelationalElement {
+        + view : String
+        + model: String
+        + regulations_for_generation : String
+    }
+
+
+    Entity o-- "1" Identification
+    Entity o-- "0..*" Characteristic
+
+    Characteristic o-- "1" Category
+    Characteristic o-- "1" DescriptiveElement
+    Characteristic o-- "1" RelationalElement
+
+}
+
+' ============================================================
+' Verbindung: Klassen aus Bild 2 realisieren Entity
+' ============================================================
+Product ..|> Entity
+Energy ..|> Entity
+Information ..|> Entity
+ProcessOperator ..|> Entity
+TechnicalResource ..|> Entity
+SystemLimit ..|> Entity
+
+' ============================================================
+' Legende
+' ============================================================
+legend right
+    |= Farbe |= Bedeutung |
+    | <#FFE0E0> | Produkt (Kreis) |
+    | <#E0E8FF> | Energie (Raute) |
+    | <#D0D8FF> | Information (Sechseck) |
+    | <#D0FFD0> | Prozessoperator (Rechteck) |
+    | <#E8E8E8> | Techn. Ressource (abgerundetes Rechteck) |
+    | <#FFFFF0> | Systemgrenze (gestrichelter Rahmen) |
+    | <#FFF8DC> | Kennzeichnung |
+    | <#F0F0FF> | Merkmal |
+    --
+    Quelle: VDI/VDE 3682 Blatt 2:2015-05
+    Abgeleitet aus Bild 2 bis 8
+endlegend
+
+@enduml
