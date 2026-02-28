@@ -1,0 +1,11 @@
+@startfpb
+// Test file for completion provider
+title "Test Diagram"
+
+// Type 'pro' to test product completion
+product P1 "Raw Material"
+
+// Type 'P1 ' to test connection operator completion
+P1 -->
+
+@endfpb

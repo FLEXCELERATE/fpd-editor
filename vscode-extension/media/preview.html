@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{cspSource}} 'unsafe-inline'; script-src {{cspSource}} 'unsafe-inline';">
+    <link rel="stylesheet" href="{{cssUri}}">
+    <title>FPB Diagram Preview</title>
+</head>
+<body>
+    <div id="diagram-container">
+        <!-- SVG diagram will be rendered here -->
+    </div>
+
+    <script>
+        (function() {
+            const vscode = acquireVsCodeApi();
+
+            // Handle messages from extension
+            window.addEventListener('message', event => {
+                const message = event.data;
+
+                switch (message.type) {
+                    case 'update':
+                        if (message.diagram) {
+                            renderDiagram(message.diagram);
+                        }
+                        if (message.error && !message.diagram) {
+                            showError(message.error);
+                        }
+                        break;
+                    case 'clear':
+                        clearDiagram();
+                        break;
+                }
+            });
+
+            /**
+             * Render the FPB diagram as SVG
+             */
+            function renderDiagram(diagram) {
+                const container = document.getElementById('diagram-container');
+
+                if (!diagram || !diagram.elements || diagram.elements.length === 0) {
+                    container.innerHTML = '<div class="placeholder">No diagram elements to display</div>';
+                    return;
+                }
+
+                // Calculate SVG dimensions from elements and system limits
+                const dims = calculateDimensions(diagram.elements, diagram.systemLimits || []);
+
+                // Create SVG element
+                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                svg.setAttribute('width', '100%');
+                svg.setAttribute('height', '100%');
+                svg.setAttribute('viewBox', `${dims.minX - 30} ${dims.minY - 30} ${dims.width + 60} ${dims.height + 60}`);
+                svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+                svg.classList.add('diagram-svg');
+
+                // Add defs for arrow markers
+                const defs = createMarkerDefs();
+                svg.appendChild(defs);
+
+                // Render system limit boundaries first (behind everything)
+                if (diagram.systemLimits) {
+                    diagram.systemLimits.forEach(sl => {
+                        const slGroup = renderSystemLimit(sl);
+                        svg.appendChild(slGroup);
+                    });
+                }
+
+                // Render connections (behind elements)
+                diagram.connections.forEach(conn => {
+                    const fromEl = diagram.elements.find(el => el.id === conn.sourceId);
+                    const toEl = diagram.elements.find(el => el.id === conn.targetId);
+
+                    if (fromEl && toEl) {
+                        const connGroup = renderConnection(conn, fromEl, toEl);
+                        svg.appendChild(connGroup);
+                    }
+                });
+
+                // Render elements on top
+                diagram.elements.forEach(element => {
+                    const elementGroup = renderElement(element);
+                    svg.appendChild(elementGroup);
+                });
+
+                // Replace content
+                container.innerHTML = '';
+                container.appendChild(svg);
+            }
+
+            /**
+             * Calculate SVG dimensions from all positioned objects
+             */
+            function calculateDimensions(elements, systemLimits) {
+                let minX = Infinity, minY = Infinity;
+                let maxX = -Infinity, maxY = -Infinity;
+
+                elements.forEach(el => {
+                    const x = el.x || 0;
+                    const y = el.y || 0;
+                    const w = el.width || 120;
+                    const h = el.height || 60;
+                    minX = Math.min(minX, x);
+                    minY = Math.min(minY, y);
+                    maxX = Math.max(maxX, x + w);
+                    maxY = Math.max(maxY, y + h);
+                });
+
+                systemLimits.forEach(sl => {
+                    minX = Math.min(minX, sl.x);
+                    minY = Math.min(minY, sl.y);
+                    maxX = Math.max(maxX, sl.x + sl.width);
+                    maxY = Math.max(maxY, sl.y + sl.height);
+                });
+
+                if (!isFinite(minX)) {
+                    return { width: 800, height: 600, minX: 0, minY: 0 };
+                }
+
+                return {
+                    width: maxX - minX,
+                    height: maxY - minY,
+                    minX,
+                    minY
+                };
+            }
+
+            /**
+             * Create SVG marker definitions for arrows
+             */
+            function createMarkerDefs() {
+                const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+
+                // Flow arrow (solid black)
+                const flowMarker = createArrowMarker('arrow-flow', '#000');
+                defs.appendChild(flowMarker);
+
+                // Usage marker (dotted, no arrow)
+                // Usages use dotted lines without arrowheads
+
+                return defs;
+            }
+
+            function createArrowMarker(id, color) {
+                const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+                marker.setAttribute('id', id);
+                marker.setAttribute('markerWidth', '10');
+                marker.setAttribute('markerHeight', '10');
+                marker.setAttribute('refX', '9');
+                marker.setAttribute('refY', '3');
+                marker.setAttribute('orient', 'auto');
+                marker.setAttribute('markerUnits', 'strokeWidth');
+
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', 'M0,0 L0,6 L9,3 z');
+                path.setAttribute('fill', color);
+
+                marker.appendChild(path);
+                return marker;
+            }
+
+            /**
+             * Render a system limit boundary (dashed rectangle with label)
+             */
+            function renderSystemLimit(sl) {
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                g.classList.add('system-limit');
+
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', sl.x);
+                rect.setAttribute('y', sl.y);
+                rect.setAttribute('width', sl.width);
+                rect.setAttribute('height', sl.height);
+                rect.setAttribute('fill', 'none');
+                rect.setAttribute('stroke', 'var(--vscode-foreground, #000)');
+                rect.setAttribute('stroke-width', '1.5');
+                rect.setAttribute('stroke-dasharray', '10,12');
+                g.appendChild(rect);
+
+                if (sl.label) {
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', sl.x + 10);
+                    text.setAttribute('y', sl.y - 5);
+                    text.setAttribute('font-size', '13');
+                    text.setAttribute('font-weight', 'bold');
+                    text.setAttribute('fill', 'var(--vscode-foreground, #000)');
+                    text.textContent = sl.label;
+                    g.appendChild(text);
+                }
+
+                return g;
+            }
+
+            /**
+             * Render a diagram element based on its type
+             */
+            function renderElement(element) {
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                g.classList.add('element');
+                g.setAttribute('data-id', element.id);
+
+                const x = element.x || 0;
+                const y = element.y || 0;
+                const w = element.width || 120;
+                const h = element.height || 60;
+
+                let shape;
+                switch (element.type) {
+                    case 'state':
+                        shape = renderStateShape(x, y, w, h, element.stateType);
+                        break;
+                    case 'processOperator':
+                        shape = createCircle(x + w / 2, y + h / 2, Math.min(w, h) / 2, 'element-process');
+                        break;
+                    case 'technicalResource':
+                        shape = createRectangle(x, y, w, h, 'element-technical');
+                        break;
+                    default:
+                        shape = createRectangle(x, y, w, h, 'element-default');
+                }
+
+                g.appendChild(shape);
+
+                // Label text
+                const label = element.label || element.id;
+                const text = createText(x + w / 2, y + h / 2, label);
+                g.appendChild(text);
+
+                return g;
+            }
+
+            /**
+             * Render a state shape based on VDI 3682 conventions
+             * Product = rectangle, Energy = trapezoid, Information = hexagon
+             */
+            function renderStateShape(x, y, w, h, stateType) {
+                switch (stateType) {
+                    case 'energy': {
+                        // Trapezoid
+                        const inset = w * 0.15;
+                        const path = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                        path.setAttribute('points',
+                            `${x + inset},${y} ${x + w - inset},${y} ${x + w},${y + h} ${x},${y + h}`
+                        );
+                        path.classList.add('element-shape', 'element-energy');
+                        return path;
+                    }
+                    case 'information': {
+                        // Hexagon
+                        const inset = w * 0.15;
+                        const midY = y + h / 2;
+                        const path = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                        path.setAttribute('points',
+                            `${x + inset},${y} ${x + w - inset},${y} ${x + w},${midY} ${x + w - inset},${y + h} ${x + inset},${y + h} ${x},${midY}`
+                        );
+                        path.classList.add('element-shape', 'element-information');
+                        return path;
+                    }
+                    default: {
+                        // Product = rectangle
+                        return createRectangle(x, y, w, h, 'element-product');
+                    }
+                }
+            }
+
+            /**
+             * Render a connection between two elements
+             */
+            function renderConnection(connection, fromEl, toEl) {
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                g.classList.add('connection');
+
+                const fromX = (fromEl.x || 0) + (fromEl.width || 120) / 2;
+                const fromY = (fromEl.y || 0) + (fromEl.height || 60) / 2;
+                const toX = (toEl.x || 0) + (toEl.width || 120) / 2;
+                const toY = (toEl.y || 0) + (toEl.height || 60) / 2;
+
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', fromX);
+                line.setAttribute('y1', fromY);
+                line.setAttribute('x2', toX);
+                line.setAttribute('y2', toY);
+                line.setAttribute('stroke', 'var(--vscode-foreground, #000)');
+                line.setAttribute('stroke-width', '1.5');
+
+                if (connection.isUsage) {
+                    // Usage: dotted, no arrow
+                    line.setAttribute('stroke-dasharray', '3,5');
+                } else {
+                    // Flow: solid with arrow
+                    line.setAttribute('marker-end', 'url(#arrow-flow)');
+
+                    // Dashed for alternative/parallel flows
+                    const ft = connection.flowType || '';
+                    if (ft === 'alternativeFlow') {
+                        line.setAttribute('stroke-dasharray', '8,4');
+                    } else if (ft === 'parallelFlow') {
+                        line.setAttribute('stroke-width', '3');
+                    }
+                }
+
+                g.appendChild(line);
+                return g;
+            }
+
+            /**
+             * Helper: Create SVG rectangle
+             */
+            function createRectangle(x, y, width, height, className) {
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', x);
+                rect.setAttribute('y', y);
+                rect.setAttribute('width', width);
+                rect.setAttribute('height', height);
+                rect.classList.add('element-shape', className);
+                return rect;
+            }
+
+            /**
+             * Helper: Create SVG circle
+             */
+            function createCircle(cx, cy, r, className) {
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', cx);
+                circle.setAttribute('cy', cy);
+                circle.setAttribute('r', r);
+                circle.classList.add('element-shape', className);
+                return circle;
+            }
+
+            /**
+             * Helper: Create SVG text
+             */
+            function createText(x, y, content, className) {
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', x);
+                text.setAttribute('y', y);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('dominant-baseline', 'middle');
+                text.classList.add(className || 'element-label');
+                text.textContent = content;
+                return text;
+            }
+
+            /**
+             * Show error message
+             */
+            function showError(error) {
+                const container = document.getElementById('diagram-container');
+                container.innerHTML = `
+                    <div class="error">
+                        <h3>Error</h3>
+                        <p>${error}</p>
+                    </div>
+                `;
+            }
+
+            /**
+             * Clear diagram
+             */
+            function clearDiagram() {
+                const container = document.getElementById('diagram-container');
+                container.innerHTML = '<div class="placeholder">No diagram to display</div>';
+            }
+
+            // Request initial diagram update
+            vscode.postMessage({ type: 'ready' });
+        })();
+    </script>
+</body>
+</html>

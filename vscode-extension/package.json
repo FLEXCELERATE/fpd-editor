@@ -1,0 +1,148 @@
+{
+  "name": "fpb-vscode-extension",
+  "displayName": "FPB Language Support",
+  "description": "Syntax highlighting, IntelliSense, diagnostics, and live diagram preview for FPB (Flow-based Process Diagrams)",
+  "version": "0.1.0",
+  "publisher": "fpb-tools",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FLEXCELERATE/fpd-editor"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets",
+    "Visualization"
+  ],
+  "keywords": [
+    "fpb",
+    "flow-based",
+    "process",
+    "diagram",
+    "p&id",
+    "bpmn"
+  ],
+  "activationEvents": [
+    "onLanguage:fpb",
+    "onCommand:fpb.preview.show",
+    "onCommand:fpb.export.xml",
+    "onCommand:fpb.export.text",
+    "onCommand:fpb.import.file"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "fpb",
+        "aliases": [
+          "FPB",
+          "Flow-based Process Diagram"
+        ],
+        "extensions": [
+          ".fpb"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "fpb",
+        "scopeName": "source.fpb",
+        "path": "./syntaxes/fpb.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "fpb.preview.show",
+        "title": "FPB: Show Preview",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "fpb.export.xml",
+        "title": "FPB: Export as XML"
+      },
+      {
+        "command": "fpb.export.text",
+        "title": "FPB: Export as Text"
+      },
+      {
+        "command": "fpb.import.file",
+        "title": "FPB: Import File",
+        "icon": "$(folder-opened)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "when": "resourceLangId == fpb",
+          "command": "fpb.preview.show",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "fpb.preview.show",
+          "when": "resourceLangId == fpb"
+        },
+        {
+          "command": "fpb.export.xml",
+          "when": "resourceLangId == fpb"
+        },
+        {
+          "command": "fpb.export.text",
+          "when": "resourceLangId == fpb"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "FPB",
+      "properties": {
+        "fpb.backend.url": {
+          "type": "string",
+          "default": "http://localhost:8000",
+          "description": "URL of the FPB backend API server"
+        },
+        "fpb.backend.autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically start the FPB backend server if not running"
+        },
+        "fpb.preview.autoUpdate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically update the preview panel when editing"
+        },
+        "fpb.preview.updateDelay": {
+          "type": "number",
+          "default": 500,
+          "description": "Delay in milliseconds before updating the preview after typing (debounce)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.x",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.x",
+    "@typescript-eslint/parser": "^6.x",
+    "@vscode/test-electron": "^2.3.x",
+    "@vscode/vsce": "^2.22.0",
+    "eslint": "^8.x",
+    "typescript": "^5.3.x"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}

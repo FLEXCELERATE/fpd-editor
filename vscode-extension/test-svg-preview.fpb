@@ -1,0 +1,16 @@
+@startfpb
+title "Test SVG Rendering"
+
+product P1 "Raw Material"
+process_operator OP1 "Processing"
+product P2 "Intermediate Product"
+energy E1 "Heat"
+information I1 "Recipe"
+technical_resource T1 "Equipment"
+
+P1 --> OP1
+OP1 --> P2
+E1 ==> OP1
+I1 -.-> OP1
+T1 <..> OP1
+@endfpb

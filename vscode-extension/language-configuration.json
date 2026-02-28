@@ -1,0 +1,25 @@
+{
+  "comments": {
+    "lineComment": "//"
+  },
+  "brackets": [],
+  "autoClosingPairs": [
+    {
+      "open": "\"",
+      "close": "\""
+    }
+  ],
+  "surroundingPairs": [
+    {
+      "open": "\"",
+      "close": "\""
+    }
+  ],
+  "folding": {
+    "markers": {
+      "start": "^\\s*@startfpb\\b",
+      "end": "^\\s*@endfpb\\b"
+    }
+  },
+  "wordPattern": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\!\\@\\#\\%\\^\\&\\*\\(\\)\\-\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)"
+}

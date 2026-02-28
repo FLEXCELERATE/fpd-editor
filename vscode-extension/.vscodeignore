@@ -1,0 +1,31 @@
+# VS Code Extension Packaging - Exclude from .vsix
+
+# Source files
+src/**
+tsconfig.json
+.eslintrc.json
+
+# Build and test
+out/test/**
+.vscode-test/**
+*.vsix
+
+# Development
+.vscode/**
+.gitignore
+.gitattributes
+
+# Documentation (keep README.md, CHANGELOG.md, LICENSE)
+.github/**
+
+# Dependencies
+node_modules/**
+**/node_modules/**
+
+# Misc
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.editorconfig

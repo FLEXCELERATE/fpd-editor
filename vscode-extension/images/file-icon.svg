@@ -1,0 +1,32 @@
+<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <!-- FPB file icon - represents flow-based process diagram -->
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4A90E2;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#357ABD;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Document background -->
+  <rect x="2" y="1" width="12" height="14" rx="1" fill="url(#grad)" stroke="#2C5A8C" stroke-width="0.5"/>
+
+  <!-- Flow diagram representation -->
+  <!-- Circle (process operator) -->
+  <circle cx="5" cy="5" r="1.2" fill="#FFFFFF" opacity="0.9"/>
+
+  <!-- Rectangle (product/resource) -->
+  <rect x="8.5" y="4" width="2.5" height="2" fill="#FFFFFF" opacity="0.9"/>
+
+  <!-- Arrow/Connection -->
+  <line x1="6.2" y1="5" x2="8.5" y2="5" stroke="#FFFFFF" stroke-width="0.6" opacity="0.9"/>
+  <polygon points="8.5,5 7.8,4.6 7.8,5.4" fill="#FFFFFF" opacity="0.9"/>
+
+  <!-- Additional flow elements -->
+  <circle cx="5" cy="9.5" r="1.2" fill="#FFFFFF" opacity="0.9"/>
+  <rect x="8.5" y="8.5" width="2.5" height="2" fill="#FFFFFF" opacity="0.9"/>
+  <line x1="6.2" y1="9.5" x2="8.5" y2="9.5" stroke="#FFFFFF" stroke-width="0.6" opacity="0.9"/>
+  <polygon points="8.5,9.5 7.8,9.1 7.8,9.9" fill="#FFFFFF" opacity="0.9"/>
+
+  <!-- Text indicator -->
+  <text x="3" y="14" font-family="Arial, sans-serif" font-size="3" fill="#FFFFFF" font-weight="bold">FPB</text>
+</svg>

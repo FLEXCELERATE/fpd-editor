@@ -1,0 +1,26 @@
+@startfpb
+title "Diagnostics Test File"
+
+// Valid declarations
+product P1 "Input Material"
+process_operator O1 "Manufacturing Process"
+product P2 "Output Product"
+energy E1 "Electrical Energy"
+technical_resource T1 "Machine"
+
+// Valid connections
+P1 --> O1
+O1 --> P2
+E1 --> O1
+T1 <..> O1
+
+// INVALID: Product to Product connection (should show error)
+P1 --> P2
+
+// INVALID: Undeclared element reference (should show error)
+P3 --> O1
+
+// INVALID: Technical resource using flow operator (should show error)
+T1 --> O1
+
+@endfpb

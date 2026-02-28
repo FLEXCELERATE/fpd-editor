@@ -1,0 +1,32 @@
+@startfpb
+title "Herstellung und Verpackung"
+
+system "Fertigung" {
+  product P1 "Rohstoff" @boundary
+  energy E1 "Elektrische Energie" @boundary
+  process_operator PO1 "Bearbeiten"
+  product P2 "Halbzeug" @boundary
+  technical_resource TR1 "CNC-Fräse"
+
+  P1 --> PO1
+  E1 --> PO1
+  PO1 --> P2
+  PO1 <..> TR1
+}
+
+system "Verpackung" {
+  product P3 "Halbzeug" @boundary
+  product P4 "Verpackungsmaterial" @boundary
+  energy E2 "Druckluft" @boundary
+  process_operator PO2 "Verpacken"
+  product P5 "Fertigprodukt" @boundary
+  technical_resource TR2 "Verpackungsmaschine"
+
+  P3 --> PO2
+  P4 --> PO2
+  E2 --> PO2
+  PO2 --> P5
+  PO2 <..> TR2
+}
+
+@endfpb

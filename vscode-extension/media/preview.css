@@ -1,0 +1,187 @@
+/* FPB Diagram Preview Styles */
+
+:root {
+    /* Color scheme for different element types */
+    --color-product: #4CAF50;
+    --color-energy: #FF9800;
+    --color-information: #2196F3;
+    --color-process: #9C27B0;
+    --color-technical: #607D8B;
+    --color-material: #4CAF50;
+
+    /* VS Code theme colors */
+    --bg-color: var(--vscode-editor-background);
+    --fg-color: var(--vscode-editor-foreground);
+    --border-color: var(--vscode-panel-border);
+    --error-color: var(--vscode-errorForeground);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--vscode-font-family);
+    color: var(--fg-color);
+    background-color: var(--bg-color);
+    padding: 20px;
+    overflow: auto;
+}
+
+#diagram-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 400px;
+}
+
+/* SVG Diagram Styles */
+.diagram-svg {
+    max-width: 100%;
+    height: auto;
+    background-color: var(--vscode-editor-background);
+}
+
+/* Element Shapes */
+.element-shape {
+    stroke: var(--fg-color);
+    stroke-width: 2;
+    fill: none;
+    transition: all 0.3s ease;
+}
+
+.element-shape:hover {
+    stroke-width: 3;
+    filter: brightness(1.2);
+}
+
+.element-product {
+    fill: var(--color-product);
+    fill-opacity: 0.2;
+    stroke: var(--color-product);
+}
+
+.element-energy {
+    fill: var(--color-energy);
+    fill-opacity: 0.2;
+    stroke: var(--color-energy);
+}
+
+.element-information {
+    fill: var(--color-information);
+    fill-opacity: 0.2;
+    stroke: var(--color-information);
+}
+
+.element-process {
+    fill: var(--color-process);
+    fill-opacity: 0.2;
+    stroke: var(--color-process);
+}
+
+.element-technical {
+    fill: var(--color-technical);
+    fill-opacity: 0.2;
+    stroke: var(--color-technical);
+}
+
+.element-default {
+    fill: var(--fg-color);
+    fill-opacity: 0.1;
+    stroke: var(--fg-color);
+}
+
+/* Element Text Labels */
+.element-label {
+    fill: var(--fg-color);
+    font-size: 14px;
+    font-weight: 600;
+    pointer-events: none;
+    user-select: none;
+}
+
+.element-id {
+    fill: var(--fg-color);
+    opacity: 0.6;
+    font-size: 10px;
+    font-family: var(--vscode-editor-font-family);
+    pointer-events: none;
+    user-select: none;
+}
+
+/* Connection Lines */
+.connection-line {
+    stroke-width: 2;
+    fill: none;
+    transition: stroke-width 0.3s ease;
+}
+
+.connection-line:hover {
+    stroke-width: 3;
+}
+
+.connection-material {
+    stroke: var(--color-material);
+}
+
+.connection-energy {
+    stroke: var(--color-energy);
+}
+
+.connection-information {
+    stroke: var(--color-information);
+}
+
+.connection-technical {
+    stroke: var(--color-technical);
+}
+
+/* Placeholder and Error States */
+.placeholder,
+.error {
+    text-align: center;
+    padding: 40px;
+    color: var(--fg-color);
+    opacity: 0.6;
+}
+
+.placeholder {
+    font-style: italic;
+}
+
+.error {
+    color: var(--error-color);
+    background-color: var(--vscode-inputValidation-errorBackground);
+    border: 1px solid var(--vscode-inputValidation-errorBorder);
+    border-radius: 4px;
+    opacity: 1;
+}
+
+.error h3 {
+    margin-bottom: 10px;
+    font-size: 16px;
+}
+
+.error p {
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+    body {
+        padding: 10px;
+    }
+
+    .element-label {
+        font-size: 12px;
+    }
+
+    .element-id {
+        font-size: 9px;
+    }
+}
