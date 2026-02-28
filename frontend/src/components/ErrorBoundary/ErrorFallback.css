@@ -1,0 +1,111 @@
+.error-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: var(--bg-tertiary);
+  height: 100%;
+  width: 100%;
+}
+
+.error-fallback__content {
+  max-width: 600px;
+  width: 100%;
+  background: var(--bg-secondary);
+  border: 1px solid #f48771;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.error-fallback__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(244, 135, 113, 0.1);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.error-fallback__icon {
+  font-size: 20px;
+  color: #f48771;
+}
+
+.error-fallback__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #f48771;
+}
+
+.error-fallback__body {
+  padding: 16px;
+}
+
+.error-fallback__message {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.error-fallback__message strong {
+  color: #f48771;
+}
+
+.error-fallback__details {
+  margin-top: 12px;
+}
+
+.error-fallback__summary {
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 0;
+}
+
+.error-fallback__summary:hover {
+  color: var(--text-primary);
+}
+
+.error-fallback__stack {
+  margin: 8px 0 0 0;
+  padding: 12px;
+  font-size: 11px;
+  font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.error-fallback__actions {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.error-fallback__button {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #ffffff;
+  background: #f48771;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.error-fallback__button:hover {
+  background: #e57461;
+}
+
+.error-fallback__button:active {
+  background: #d66351;
+}

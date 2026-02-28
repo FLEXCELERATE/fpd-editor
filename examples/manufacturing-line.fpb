@@ -1,0 +1,61 @@
+@startfpb
+title "Manufacturing Line"
+
+system "Fabrication" {
+  product P1 "Sheet Metal"
+  product P2 "Cut Parts"
+  product P3A "Bent Parts"
+  product P3B "Welded Parts"
+  product P4 "Assembled Frame"
+  energy E1 "Electrical Power"
+  information I1 "CAD Data"
+  process_operator PO1 "Laser Cutting"
+  process_operator PO2 "Bending"
+  process_operator PO3 "Welding"
+  process_operator PO4 "Assembly"
+  technical_resource TR1 "Laser Cutter"
+  technical_resource TR2 "Press Brake"
+
+  // Main flow
+  P1 --> PO1
+  E1 --> PO1
+  I1 --> PO1
+  PO1 <..> TR1
+
+  // Parallel branches after cutting
+  PO1 ==> P2
+  P2 --> PO2
+  PO2 --> P3A
+  PO2 <..> TR2
+  PO1 ==> P3B
+
+  // Merge into assembly
+  P3A --> PO4
+  P3B --> PO4
+  PO4 --> P4
+}
+
+system "Quality Control" {
+  product P5 "Frame for Inspection"
+  product P6 "Approved Frame"
+  product P7 "Rejected Frame"
+  product P8 "Reworked Frame"
+  energy E2 "Compressed Air"
+  information I2 "Test Protocol"
+  process_operator PO5 "Inspection"
+  process_operator PO6 "Rework"
+  technical_resource TR3 "CMM Station"
+
+  P5 --> PO5
+  E2 --> PO5
+  I2 --> PO5
+  PO5 <..> TR3
+
+  // Alternative paths: pass or fail
+  PO5 -.-> P6
+  PO5 -.-> P7
+  P7 --> PO6
+  PO6 --> P8
+}
+
+@endfpb

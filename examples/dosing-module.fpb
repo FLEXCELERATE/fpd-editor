@@ -1,0 +1,90 @@
+@startfpb
+title "DosingModule_v01"
+
+system "DosingModule_v01" {
+  // === Input Products ===
+  product P1 "Medium A"
+  product P2 "Medium B"
+  product P3 "(Inert) Gas"
+  product P4 "Cleansing Medium"
+
+  // === Intermediate Products ===
+  product P7 "Stored Medium"
+  product P8 "Transported Medium"
+  product P9 "Circulation"
+  product P10 "Circulated Medium"
+
+  // === Output Products ===
+  product P5 "Exhaust Gas"
+  product P6 "(Inert) Gas"
+  product P11 "Waste"
+  product P12 "Product"
+
+  // === Energy ===
+  energy E1 "Electrical Energy"
+
+  // === Information Inputs ===
+  information I1 "Pressure"
+  information I2 "Level"
+  information I5 "Flow"
+  information I6 "Circulation Time"
+  information I9 "Pressure"
+  information I10 "Flow"
+  information I11 "Amount"
+
+  // === Information Outputs ===
+  information I3 "Level"
+  information I4 "Pressure"
+  information I7 "Flow"
+  information I8 "Flow-Ratio"
+  information I12 "Flow"
+  information I13 "Pressure"
+  information I14 "Energy Consumption"
+
+  // === Process Operators ===
+  process_operator O1 "Storing"
+  process_operator O2 "Transporting"
+  process_operator O3 "Circulation"
+  process_operator O4 "Dosing"
+
+  // === O1 Storing ===
+  P1 --> O1
+  P2 --> O1
+  P3 --> O1
+  P4 --> O1
+  I1 --> O1
+  I2 --> O1
+  O1 --> P5
+  O1 --> P6
+  O1 --> P7
+
+  // === O2 Transporting ===
+  P7 --> O2
+  E1 --> O2
+  P9 -.-> O2
+  O2 --> P8
+  O2 --> I3
+  O2 --> I4
+
+  // === O3 Circulation ===
+  P8 --> O3
+  I5 --> O3
+  I6 --> O3
+  O3 --> P9
+  O3 --> P10
+  O3 --> I7
+  O3 --> I8
+
+  // === O4 Dosing ===
+  P10 --> O4
+  I9 --> O4
+  I10 --> O4
+  I11 --> O4
+  O4 --> P11
+  O4 --> P12
+  O4 --> I12
+  O4 --> I13
+  O4 --> I14
+}
+
+@endfpb
