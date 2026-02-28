@@ -4,6 +4,8 @@
 
 A text-based editor for creating **VDI 3682 Formalized Process Descriptions** (FPB diagrams) using a PlantUML-inspired syntax. Write FPB code on the left, see the rendered SVG diagram on the right — in real time.
 
+![FPD Editor](media/editor-Screenshot.png)
+
 ## Getting Started
 
 ### Prerequisites
