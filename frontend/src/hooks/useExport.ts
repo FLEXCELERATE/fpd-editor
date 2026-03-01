@@ -13,10 +13,14 @@ import { exportSvgToPdf } from "../services/pdfExport";
 export type ExportFormat = "xml" | "text" | "pdf";
 
 const FORMAT_EXTENSIONS: Record<ExportFormat, string> = {
-  xml: "process.xml",
-  text: "process.fpb",
-  pdf: "diagram.pdf",
+  xml: ".xml",
+  text: ".fpb",
+  pdf: ".pdf",
 };
+
+function sanitizeFilename(title: string): string {
+  return title.replace(/["/\\]/g, "_").trim() || "diagram";
+}
 
 interface UseExportOptions {
   getSvgElement?: () => SVGSVGElement | null;
@@ -38,18 +42,19 @@ export function useExport(options?: UseExportOptions): UseExportResult {
     async (format: ExportFormat, sessionId: string) => {
       setExporting(true);
       try {
+        const baseFilename = sanitizeFilename(options?.processTitle || "diagram");
         if (format === "pdf") {
           const svgEl = options?.getSvgElement?.();
           if (!svgEl) throw new Error("No diagram to export");
           await exportSvgToPdf({
             svgElement: svgEl,
             title: options?.processTitle || "Untitled Process",
-            filename: FORMAT_EXTENSIONS.pdf,
+            filename: baseFilename + FORMAT_EXTENSIONS.pdf,
           });
         } else {
           const exportFn = format === "xml" ? exportXml : exportText;
           const blob = await exportFn({ session_id: sessionId });
-          downloadBlob(blob, FORMAT_EXTENSIONS[format]);
+          downloadBlob(blob, baseFilename + FORMAT_EXTENSIONS[format]);
         }
       } finally {
         setExporting(false);

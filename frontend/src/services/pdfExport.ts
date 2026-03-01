@@ -18,30 +18,35 @@ export interface PdfExportOptions {
 function prepareSvgForExport(svgElement: SVGSVGElement): SVGSVGElement {
   const clone = svgElement.cloneNode(true) as SVGSVGElement;
 
-  // Reset the viewport transform group (pan/zoom state).
-  // The first direct child <g> with a transform is the viewport group.
-  const viewportGroup = clone.querySelector(":scope > g[transform]");
-  if (viewportGroup) {
-    viewportGroup.removeAttribute("transform");
-  }
-
   // Remove selection highlight filters (glow effect).
   clone.querySelectorAll("[filter]").forEach((el) => {
     el.removeAttribute("filter");
   });
 
-  // Set explicit width/height from viewBox so svg2pdf.js knows the intrinsic size.
-  const viewBox = clone.getAttribute("viewBox");
-  if (viewBox) {
-    const parts = viewBox.split(/[\s,]+/).map(Number);
-    if (parts.length === 4) {
-      clone.setAttribute("width", String(parts[2]));
-      clone.setAttribute("height", String(parts[3]));
-    }
-  }
-
   // Remove background style (PDF has white background by default).
   clone.style.background = "";
+
+  // Temporarily insert clone to compute the actual content bounding box,
+  // which is independent of the current pan/zoom viewBox.
+  clone.style.position = "absolute";
+  clone.style.left = "-9999px";
+  clone.style.top = "-9999px";
+  document.body.appendChild(clone);
+  const bbox = clone.getBBox();
+  document.body.removeChild(clone);
+  clone.style.position = "";
+  clone.style.left = "";
+  clone.style.top = "";
+
+  // Reset viewBox to encompass all content (ignoring pan/zoom state).
+  const margin = 50;
+  const vbX = bbox.x - margin;
+  const vbY = bbox.y - margin;
+  const vbW = bbox.width + 2 * margin;
+  const vbH = bbox.height + 2 * margin;
+  clone.setAttribute("viewBox", `${vbX} ${vbY} ${vbW} ${vbH}`);
+  clone.setAttribute("width", String(vbW));
+  clone.setAttribute("height", String(vbH));
 
   return clone;
 }

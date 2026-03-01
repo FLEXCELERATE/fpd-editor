@@ -20,10 +20,14 @@ const FORMAT_LABELS: Record<ExportFormat, string> = {
 };
 
 const FORMAT_EXTENSIONS: Record<ExportFormat, string> = {
-  xml: "process.xml",
-  text: "process.fpb",
-  pdf: "diagram.pdf",
+  xml: ".xml",
+  text: ".fpb",
+  pdf: ".pdf",
 };
+
+function sanitizeFilename(title: string): string {
+  return title.replace(/["/\\]/g, "_").trim() || "diagram";
+}
 
 export function ExportMenu({ sessionId, disabled, getSvgElement, processTitle }: ExportMenuProps) {
   const [open, setOpen] = useState(false);
@@ -34,6 +38,7 @@ export function ExportMenu({ sessionId, disabled, getSvgElement, processTitle }:
       setOpen(false);
       setExporting(true);
       try {
+        const baseFilename = sanitizeFilename(processTitle || "diagram");
         if (format === "pdf") {
           // Browser-based PDF export from the rendered SVG
           const svgEl = getSvgElement?.();
@@ -44,14 +49,14 @@ export function ExportMenu({ sessionId, disabled, getSvgElement, processTitle }:
           await exportSvgToPdf({
             svgElement: svgEl,
             title: processTitle || "Untitled Process",
-            filename: FORMAT_EXTENSIONS.pdf,
+            filename: baseFilename + FORMAT_EXTENSIONS.pdf,
           });
         } else {
           // XML and text export through backend API
           if (!sessionId) return;
           const exportFn = format === "xml" ? exportXml : exportText;
           const blob = await exportFn({ session_id: sessionId });
-          downloadBlob(blob, FORMAT_EXTENSIONS[format]);
+          downloadBlob(blob, baseFilename + FORMAT_EXTENSIONS[format]);
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : "Export failed";

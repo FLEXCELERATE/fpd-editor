@@ -37,15 +37,21 @@ def _get_model_from_session(session_id: str) -> ProcessModel:
     return ProcessModel(**model_data)
 
 
+def _sanitize_filename(title: str, fallback: str = "diagram") -> str:
+    """Derive a safe filename from the model title."""
+    return title.replace('"', "").replace("/", "_").replace("\\", "_").strip() or fallback
+
+
 @router.post("/export/text")
 async def export_text_endpoint(request: ExportRequest) -> Response:
     """Export the current model as FPB text."""
     model = _get_model_from_session(request.session_id)
     content = export_text(model)
+    filename = _sanitize_filename(model.title)
     return Response(
         content=content,
         media_type="text/plain; charset=utf-8",
-        headers={"Content-Disposition": 'attachment; filename="diagram.fpb"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}.fpb"'},
     )
 
 
@@ -54,10 +60,11 @@ async def export_xml_endpoint(request: ExportRequest) -> Response:
     """Export the current model as VDI 3682 XML."""
     model = _get_model_from_session(request.session_id)
     content = export_xml(model)
+    filename = _sanitize_filename(model.title)
     return Response(
         content=content,
         media_type="application/xml; charset=utf-8",
-        headers={"Content-Disposition": 'attachment; filename="diagram.xml"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}.xml"'},
     )
 
 
@@ -66,8 +73,9 @@ async def export_pdf_endpoint(request: ExportRequest) -> Response:
     """Export the current model as a PDF document."""
     model = _get_model_from_session(request.session_id)
     content = export_pdf(model)
+    filename = _sanitize_filename(model.title)
     return Response(
         content=content,
         media_type="application/pdf",
-        headers={"Content-Disposition": 'attachment; filename="diagram.pdf"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}.pdf"'},
     )

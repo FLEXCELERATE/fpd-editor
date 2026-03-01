@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A text-based editor for creating **VDI 3682 Formalized Process Descriptions** (FPB diagrams) using a PlantUML-inspired syntax. Write FPB code on the left, see the rendered SVG diagram on the right — in real time.
+A text-based editor for creating **VDI 3682 Formalized Process Descriptions** (FPD diagrams) using a PlantUML-inspired syntax. Write FPB code on the left, see the rendered SVG diagram on the right — in real time.
 
 ![FPD Editor](media/editor-Screenshot.png)
 
