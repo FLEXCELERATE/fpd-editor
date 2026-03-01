@@ -49,6 +49,18 @@ export interface DiagramRendererRef {
   getSvgElement(): SVGSVGElement | null;
 }
 
+/** Compute a lightweight fingerprint from model element IDs to detect structural changes. */
+function modelFingerprint(model: ProcessModel | null): string {
+  if (!model) return "";
+  const ids = [
+    ...model.states.map((s) => s.id),
+    ...model.process_operators.map((p) => p.id),
+    ...model.technical_resources.map((t) => t.id),
+    ...model.flows.map((f) => f.id),
+  ];
+  return ids.join(",");
+}
+
 /** SVG-based VDI 3682 diagram renderer. */
 export const DiagramRenderer = forwardRef<DiagramRendererRef, DiagramRendererProps>(
   function DiagramRenderer({
@@ -72,6 +84,10 @@ export const DiagramRenderer = forwardRef<DiagramRendererRef, DiagramRendererPro
 
   const [hoveredElement, setHoveredElement] = useState<DiagramElement | null>(null);
   const prevBoundsRef = useRef<DiagramBounds | null>(null);
+
+  // Fingerprint forces React to unmount/remount SVG when model structure changes,
+  // preventing stale DOM elements from persisting across edits.
+  const fingerprint = useMemo(() => modelFingerprint(model), [model]);
 
   const diagramData: DiagramData | null = useMemo(() => {
     if (!model) return null;
@@ -214,6 +230,7 @@ export const DiagramRenderer = forwardRef<DiagramRendererRef, DiagramRendererPro
 
   return (
     <svg
+      key={fingerprint}
       ref={svgRef}
       width="100%"
       height="100%"

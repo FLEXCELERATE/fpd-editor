@@ -150,8 +150,8 @@ def _topological_sort_pos(
             for succ in po_successors.get(po_id, set()):
                 if succ in remaining:
                     in_degree[succ] = in_degree.get(succ, 1) - 1
-
-        current_rank += 1
+            # Each PO gets its own rank so it receives a unique row position.
+            current_rank += 1
 
     return po_order, po_rank
 
@@ -426,12 +426,15 @@ def _compute_single_system_layout(
 
     disconnected_pos = [p for p in process_operators if p.id not in graph["all_flow_refs"]]
 
-    # Position forward-edge internal states (between adjacent PO rows)
+    # Position forward-edge internal states (between PO rows)
     for key, gap_states in internals_by_gap.items():
         s_rank, t_rank = (int(x) for x in key.split("-"))
         source_po_y = po_row_y.get(s_rank, start_y)
-        target_po_y = po_row_y.get(t_rank, start_y)
-        mid_y = (source_po_y + PROCESS_H + target_po_y) / 2 - STATE_H / 2
+        # For spans crossing intermediate PO ranks, place the state in the gap
+        # directly below the source PO (between s_rank and s_rank+1) to avoid
+        # overlapping with POs at intermediate ranks.
+        next_row_y = po_row_y.get(min(s_rank + 1, t_rank), po_row_y.get(t_rank, start_y))
+        mid_y = (source_po_y + PROCESS_H + next_row_y) / 2 - STATE_H / 2
 
         xs = _distribute_centered(len(gap_states), STATE_MAX_W, config.h_gap, po_center_x)
 
@@ -664,6 +667,17 @@ def _compute_single_system_layout(
     return elements, connections, system_limit
 
 
+def _deduplicate_elements(elements: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Remove duplicate elements by ID, keeping the first occurrence."""
+    seen: set[str] = set()
+    result: list[dict[str, Any]] = []
+    for el in elements:
+        if el["id"] not in seen:
+            seen.add(el["id"])
+            result.append(el)
+    return result
+
+
 # ---------- Main layout function ----------
 
 def compute_layout(
@@ -752,7 +766,7 @@ def compute_layout(
         all_connections.extend(conns)
 
     return {
-        "elements": all_elements,
+        "elements": _deduplicate_elements(all_elements),
         "connections": all_connections,
         "systemLimits": system_limits,
         "systemLimit": system_limits[0] if system_limits else None,

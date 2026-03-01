@@ -200,8 +200,9 @@ function topologicalSortPOs(
           inDegree.set(succ, (inDegree.get(succ) ?? 1) - 1);
         }
       }
+      // Each PO gets its own rank so it receives a unique row position.
+      currentRank++;
     }
-    currentRank++;
   }
 
   return { poOrder, poRank };
@@ -507,15 +508,18 @@ function layoutSingleSystem(
 
   const disconnectedPOs = processOperators.filter((p) => !graph.allFlowRefs.has(p.id));
 
-  // 4c) Position forward-edge internal states (between adjacent PO rows)
+  // 4c) Position forward-edge internal states (between PO rows)
   for (const [key, gapStates] of internalsByGap.entries()) {
     const [sRankStr, tRankStr] = key.split("-");
     const sRank = parseInt(sRankStr);
     const tRank = parseInt(tRankStr);
 
     const sourcePoY = poRowY.get(sRank) ?? startY;
-    const targetPoY = poRowY.get(tRank) ?? startY;
-    const midY = (sourcePoY + PROCESS_SIZE.h + targetPoY) / 2 - STATE_H / 2;
+    // For spans crossing intermediate PO ranks, place the state in the gap
+    // directly below the source PO (between sRank and sRank+1) to avoid
+    // overlapping with POs at intermediate ranks.
+    const nextRowY = poRowY.get(Math.min(sRank + 1, tRank)) ?? (poRowY.get(tRank) ?? startY);
+    const midY = (sourcePoY + PROCESS_SIZE.h + nextRowY) / 2 - STATE_H / 2;
 
     const xs = distributeCentered(gapStates.length, STATE_MAX_W, hGap, poCenterX);
 
@@ -818,6 +822,16 @@ function layoutSingleSystem(
 
 /* ---------- Main layout function ---------- */
 
+/** Remove duplicate elements by ID, keeping the first occurrence. */
+function deduplicateElements(elements: DiagramElement[]): DiagramElement[] {
+  const seen = new Set<string>();
+  return elements.filter((el) => {
+    if (seen.has(el.id)) return false;
+    seen.add(el.id);
+    return true;
+  });
+}
+
 export function layoutProcessModel(
   model: ProcessModel,
   config: Partial<LayoutConfig> = {},
@@ -847,7 +861,7 @@ export function layoutProcessModel(
     }
 
     return {
-      elements: result.elements,
+      elements: deduplicateElements(result.elements),
       connections: result.connections,
       systemLimits,
     };
@@ -891,7 +905,7 @@ export function layoutProcessModel(
   }
 
   return {
-    elements: allElements,
+    elements: deduplicateElements(allElements),
     connections: allConnections,
     systemLimits,
   };
