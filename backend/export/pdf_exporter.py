@@ -9,7 +9,7 @@ from reportlab.lib.pagesizes import A4, LETTER, landscape, portrait
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 
-from models.fpb_model import FlowType, StateType
+from models.fpd_model import FlowType, StateType
 from models.process_model import ProcessModel
 
 

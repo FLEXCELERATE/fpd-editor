@@ -1,7 +1,7 @@
 /** Hook that manages bidirectional synchronization between diagram and text editor. */
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import type { ProcessModel } from "../types/fpb";
+import type { ProcessModel } from "../types/fpd";
 
 interface ElementMapping {
   /** Element ID at this line number. */

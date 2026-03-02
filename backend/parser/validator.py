@@ -1,7 +1,7 @@
 """VDI 3682 connection rule validation for Formalized Process Descriptions."""
 
 from models.process_model import ProcessModel
-from models.fpb_model import Flow, FlowType, Usage
+from models.fpd_model import Flow, FlowType, Usage
 
 
 def _classify_element(element_id: str, model: ProcessModel) -> str | None:

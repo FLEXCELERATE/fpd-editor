@@ -6,7 +6,7 @@ from pydantic import BaseModel
 class Settings(BaseModel):
     """Application settings."""
 
-    app_name: str = "FPB Editor API"
+    app_name: str = "FPD Editor API"
     app_version: str = "0.1.0"
     debug: bool = False
     cors_origins: list[str] = ["http://localhost:5173"]

@@ -1,7 +1,7 @@
-/** Hook that provides export and import operations for FPB diagrams. */
+/** Hook that provides export and import operations for FPD diagrams. */
 
 import { useCallback, useState } from "react";
-import type { ProcessModel } from "../types/fpb";
+import type { ProcessModel } from "../types/fpd";
 import {
   exportXml,
   exportText,
@@ -14,7 +14,7 @@ export type ExportFormat = "xml" | "text" | "pdf";
 
 const FORMAT_EXTENSIONS: Record<ExportFormat, string> = {
   xml: ".xml",
-  text: ".fpb",
+  text: ".fpd",
   pdf: ".pdf",
 };
 

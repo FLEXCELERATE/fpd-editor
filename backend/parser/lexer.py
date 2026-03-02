@@ -1,4 +1,4 @@
-"""Lexer that tokenizes FPB text into a stream of typed tokens."""
+"""Lexer that tokenizes FPD text into a stream of typed tokens."""
 
 from dataclasses import dataclass
 from typing import Optional
@@ -33,7 +33,7 @@ class LexerError(Exception):
 
 
 class Lexer:
-    """Tokenizer for FPB text syntax."""
+    """Tokenizer for FPD text syntax."""
 
     def __init__(self, source: str) -> None:
         self.source = source
@@ -134,9 +134,9 @@ class Lexer:
         self.tokens.append(Token(TokenType.COMMENT, value.strip(), start_line, start_col))
 
     def _read_delimiter(self) -> None:
-        """Read @startfpb, @endfpb delimiter or @annotation token."""
+        """Read @startfpd, @endfpd delimiter or @annotation token."""
         start_col = self.column
-        for delim, ttype in [(START_DELIMITER, TokenType.START_FPB), (END_DELIMITER, TokenType.END_FPB)]:
+        for delim, ttype in [(START_DELIMITER, TokenType.START_FPD), (END_DELIMITER, TokenType.END_FPD)]:
             if self.source[self.pos:self.pos + len(delim)] == delim:
                 self._emit(ttype, delim)
                 for _ in range(len(delim)):

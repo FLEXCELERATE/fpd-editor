@@ -15,7 +15,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from models.fpb_model import FlowType, StatePlacement, StateType
+from models.fpd_model import FlowType, StatePlacement, StateType
 from models.process_model import ProcessModel
 
 

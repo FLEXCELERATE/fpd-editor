@@ -14,7 +14,7 @@ from collections import defaultdict
 
 from lxml import etree
 
-from models.fpb_model import FlowType, StateType
+from models.fpd_model import FlowType, StateType
 from models.process_model import ProcessModel
 
 VDI3682_NAMESPACE = "http://www.vdivde.de/3682"

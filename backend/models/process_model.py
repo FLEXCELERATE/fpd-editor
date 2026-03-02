@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 
-from .fpb_model import Flow, ProcessOperator, State, SystemLimit, TechnicalResource, Usage
+from .fpd_model import Flow, ProcessOperator, State, SystemLimit, TechnicalResource, Usage
 
 
 class ProcessModel(BaseModel):

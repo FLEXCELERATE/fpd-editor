@@ -13,8 +13,8 @@
  * Multi-system: each system is laid out independently and placed side-by-side horizontally.
  */
 
-import { FlowType } from "../../types/fpb";
-import type { ProcessModel, State, ProcessOperator, TechnicalResource, Flow, Usage } from "../../types/fpb";
+import { FlowType } from "../../types/fpd";
+import type { ProcessModel, State, ProcessOperator, TechnicalResource, Flow, Usage } from "../../types/fpd";
 import type {
   DiagramData,
   DiagramElement,

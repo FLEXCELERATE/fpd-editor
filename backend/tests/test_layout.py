@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from models.fpb_model import (
+from models.fpd_model import (
     Flow,
     FlowType,
     Identification,

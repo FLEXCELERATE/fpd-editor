@@ -3,7 +3,7 @@
 import pytest
 
 from parser.lexer import Lexer, Token
-from parser.parser import FpbParser, ParseError
+from parser.parser import FpdParser, ParseError
 from parser.syntax import TokenType
 from parser.validator import validate_connections
 
@@ -19,9 +19,9 @@ class TestLexerTokens:
         return [(t.type.value, t.value) for t in tokens]
 
     def test_start_end_delimiters(self):
-        tokens = self._token_types("@startfpb\n@endfpb")
-        assert ("START_FPB", "@startfpb") in tokens
-        assert ("END_FPB", "@endfpb") in tokens
+        tokens = self._token_types("@startfpd\n@endfpd")
+        assert ("START_FPD", "@startfpd") in tokens
+        assert ("END_FPD", "@endfpd") in tokens
 
     def test_element_keywords(self):
         tokens = self._token_types("product energy information process_operator technical_resource")
@@ -59,7 +59,7 @@ class TestLexerTokens:
         assert any(t == "COMMENT" for t, _ in tokens)
 
     def test_braces_in_full_source(self):
-        source = '@startfpb\nsystem "S" {\n  product p1 "X"\n}\n@endfpb'
+        source = '@startfpd\nsystem "S" {\n  product p1 "X"\n}\n@endfpd'
         tokens = self._token_types(source)
         assert ("LBRACE", "{") in tokens
         assert ("RBRACE", "}") in tokens
@@ -72,14 +72,14 @@ class TestParserSystemBlocks:
     """Verify that system blocks are parsed correctly."""
 
     def test_single_system_block(self):
-        source = """@startfpb
+        source = """@startfpd
 system "Manufacturing" {
   product p1 "Steel"
   process_operator po1 "Cutting"
   p1 --> po1
 }
-@endfpb"""
-        model = FpbParser(source).parse()
+@endfpd"""
+        model = FpdParser(source).parse()
         assert len(model.errors) == 0
         assert len(model.system_limits) == 1
         assert model.system_limits[0].label == "Manufacturing"
@@ -91,7 +91,7 @@ system "Manufacturing" {
         assert model.flows[0].system_id == model.system_limits[0].id
 
     def test_multiple_system_blocks(self):
-        source = """@startfpb
+        source = """@startfpd
 system "System A" {
   product p1 "Input"
   process_operator po1 "Process"
@@ -102,8 +102,8 @@ system "System B" {
   process_operator po2 "Process B"
   p2 --> po2
 }
-@endfpb"""
-        model = FpbParser(source).parse()
+@endfpd"""
+        model = FpdParser(source).parse()
         assert len(model.errors) == 0
         assert len(model.system_limits) == 2
         assert model.system_limits[0].label == "System A"
@@ -113,7 +113,7 @@ system "System B" {
         assert model.states[1].system_id == model.system_limits[1].id
 
     def test_system_with_all_element_types(self):
-        source = """@startfpb
+        source = """@startfpd
 system "Full" {
   product p1 "Material"
   energy e1 "Power"
@@ -125,8 +125,8 @@ system "Full" {
   i1 --> po1
   po1 <..> tr1
 }
-@endfpb"""
-        model = FpbParser(source).parse()
+@endfpd"""
+        model = FpdParser(source).parse()
         assert len(model.errors) == 0
         assert len(model.states) == 3
         assert len(model.process_operators) == 1
@@ -147,13 +147,13 @@ class TestBackwardCompatibility:
     """Verify that documents without system blocks still work."""
 
     def test_no_system_blocks(self):
-        source = """@startfpb
+        source = """@startfpd
 title "Legacy"
 product p1 "Input"
 process_operator po1 "Work"
 p1 --> po1
-@endfpb"""
-        model = FpbParser(source).parse()
+@endfpd"""
+        model = FpdParser(source).parse()
         assert len(model.errors) == 0
         assert len(model.system_limits) == 0
         assert model.title == "Legacy"
@@ -165,20 +165,20 @@ p1 --> po1
         assert model.flows[0].system_id is None
 
     def test_empty_document(self):
-        source = "@startfpb\n@endfpb"
-        model = FpbParser(source).parse()
+        source = "@startfpd\n@endfpd"
+        model = FpdParser(source).parse()
         assert len(model.errors) == 0
         assert len(model.system_limits) == 0
         assert len(model.states) == 0
 
     def test_title_outside_system(self):
-        source = """@startfpb
+        source = """@startfpd
 title "My Process"
 system "S1" {
   product p1 "X"
 }
-@endfpb"""
-        model = FpbParser(source).parse()
+@endfpd"""
+        model = FpdParser(source).parse()
         assert len(model.errors) == 0
         assert model.title == "My Process"
 
@@ -190,24 +190,24 @@ class TestEmptySystemBlocks:
     """Verify that empty system blocks are handled."""
 
     def test_empty_system_block(self):
-        source = """@startfpb
+        source = """@startfpd
 system "Empty" {
 }
-@endfpb"""
-        model = FpbParser(source).parse()
+@endfpd"""
+        model = FpdParser(source).parse()
         assert len(model.errors) == 0
         assert len(model.system_limits) == 1
         assert model.system_limits[0].label == "Empty"
         assert len(model.states) == 0
 
     def test_multiple_empty_systems(self):
-        source = """@startfpb
+        source = """@startfpd
 system "A" {
 }
 system "B" {
 }
-@endfpb"""
-        model = FpbParser(source).parse()
+@endfpd"""
+        model = FpdParser(source).parse()
         assert len(model.errors) == 0
         assert len(model.system_limits) == 2
 
@@ -219,22 +219,22 @@ class TestTitleInsideSystemError:
     """Verify that title inside a system block produces an error."""
 
     def test_title_inside_system_block(self):
-        source = """@startfpb
+        source = """@startfpd
 system "S1" {
   title "Bad Title"
 }
-@endfpb"""
-        model = FpbParser(source).parse()
+@endfpd"""
+        model = FpdParser(source).parse()
         assert len(model.errors) == 1
         assert "title cannot be used inside a system block" in model.errors[0]
 
     def test_title_not_set_when_inside_system(self):
-        source = """@startfpb
+        source = """@startfpd
 system "S1" {
   title "Bad Title"
 }
-@endfpb"""
-        model = FpbParser(source).parse()
+@endfpd"""
+        model = FpdParser(source).parse()
         assert model.title == "Untitled Process"
 
 
@@ -245,36 +245,36 @@ class TestParserErrors:
     """Verify parser error handling."""
 
     def test_missing_system_name(self):
-        source = """@startfpb
+        source = """@startfpd
 system {
 }
-@endfpb"""
-        model = FpbParser(source).parse()
+@endfpd"""
+        model = FpdParser(source).parse()
         assert any("Expected string after 'system'" in e for e in model.errors)
 
     def test_missing_opening_brace(self):
-        source = """@startfpb
+        source = """@startfpd
 system "Test"
   product p1 "X"
 }
-@endfpb"""
-        model = FpbParser(source).parse()
+@endfpd"""
+        model = FpdParser(source).parse()
         assert any("Expected '{'" in e for e in model.errors)
 
     def test_missing_closing_brace(self):
-        source = """@startfpb
+        source = """@startfpd
 system "Test" {
   product p1 "X"
-@endfpb"""
-        model = FpbParser(source).parse()
+@endfpd"""
+        model = FpdParser(source).parse()
         assert any("Missing '}'" in e for e in model.errors)
 
     def test_duplicate_element_id(self):
-        source = """@startfpb
+        source = """@startfpd
 product p1 "A"
 product p1 "B"
-@endfpb"""
-        model = FpbParser(source).parse()
+@endfpd"""
+        model = FpdParser(source).parse()
         assert any("Duplicate element ID 'p1'" in e for e in model.errors)
 
 
@@ -285,7 +285,7 @@ class TestCrossSystemValidation:
     """Verify that cross-system references are detected by the validator."""
 
     def test_cross_system_flow_error(self):
-        source = """@startfpb
+        source = """@startfpd
 system "A" {
   product p1 "Input"
 }
@@ -293,12 +293,12 @@ system "B" {
   process_operator po1 "Work"
 }
 p1 --> po1
-@endfpb"""
+@endfpd"""
         # Parse but note: connections outside system blocks reference elements
         # with different system_ids. We need to build this manually since
         # the parser requires elements to be defined before connections.
         from models.process_model import ProcessModel
-        from models.fpb_model import Flow, FlowType, Identification, ProcessOperator, State, StateType, SystemLimit
+        from models.fpd_model import Flow, FlowType, Identification, ProcessOperator, State, StateType, SystemLimit
 
         model = ProcessModel(
             system_limits=[
@@ -336,7 +336,7 @@ p1 --> po1
 
     def test_same_system_flow_valid(self):
         from models.process_model import ProcessModel
-        from models.fpb_model import Flow, FlowType, Identification, ProcessOperator, State, StateType, SystemLimit
+        from models.fpd_model import Flow, FlowType, Identification, ProcessOperator, State, StateType, SystemLimit
 
         model = ProcessModel(
             system_limits=[SystemLimit(id="sys_1", identification=Identification(unique_ident="sys_1", long_name="A"), label="A")],
@@ -371,7 +371,7 @@ p1 --> po1
 
     def test_cross_system_usage_error(self):
         from models.process_model import ProcessModel
-        from models.fpb_model import Identification, ProcessOperator, SystemLimit, TechnicalResource, Usage
+        from models.fpd_model import Identification, ProcessOperator, SystemLimit, TechnicalResource, Usage
 
         model = ProcessModel(
             system_limits=[
@@ -408,7 +408,7 @@ p1 --> po1
     def test_no_system_elements_valid(self):
         """Elements without system_id (backward compat) should validate fine."""
         from models.process_model import ProcessModel
-        from models.fpb_model import Flow, FlowType, State, StateType, ProcessOperator, Identification
+        from models.fpd_model import Flow, FlowType, State, StateType, ProcessOperator, Identification
 
         model = ProcessModel(
             states=[

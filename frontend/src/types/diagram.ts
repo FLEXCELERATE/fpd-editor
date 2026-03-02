@@ -1,6 +1,6 @@
 /** TypeScript type definitions for diagram rendering. */
 
-import type { FlowType, StateType } from "./fpb";
+import type { FlowType, StateType } from "./fpd";
 
 export type DiagramElementType =
   | "state"

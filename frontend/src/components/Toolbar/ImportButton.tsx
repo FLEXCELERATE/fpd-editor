@@ -1,15 +1,15 @@
-/** Button that triggers file import for FPB text or XML files. */
+/** Button that triggers file import for FPD text or XML files. */
 
 import { useCallback, useRef, useState } from "react";
 import { importFile } from "../../services/api";
-import type { ProcessModel } from "../../types/fpb";
+import type { ProcessModel } from "../../types/fpd";
 
 interface ImportButtonProps {
   onImport: (source: string, model: ProcessModel) => void;
   disabled?: boolean;
 }
 
-const ACCEPTED_TYPES = ".fpb,.txt,.xml";
+const ACCEPTED_TYPES = ".fpd,.fpb,.txt,.xml";
 
 export function ImportButton({ onImport, disabled }: ImportButtonProps) {
   const inputRef = useRef<HTMLInputElement>(null);

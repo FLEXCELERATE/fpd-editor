@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import './App.css';
-import FpbEditor, { FpbEditorRef } from './components/Editor/FpbEditor';
+import FpdEditor, { FpdEditorRef } from './components/Editor/FpdEditor';
 import { DiagramRenderer, DiagramRendererRef } from './components/Diagram/DiagramRenderer';
 import { ViewportControls } from './components/Diagram/ViewportControls';
 import { Toolbar } from './components/Toolbar/Toolbar';
 import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
-import { useFpbParser } from './hooks/useFpbParser';
+import { useFpdParser } from './hooks/useFpdParser';
 import { useDiagramSync } from './hooks/useDiagramSync';
 import { useHistoryManager } from './hooks/useHistoryManager';
 import { useViewport } from './hooks/useViewport';
-import type { ProcessModel } from './types/fpb';
+import type { ProcessModel } from './types/fpd';
 import type { DiagramBounds } from './types/diagram';
 
-const DEFAULT_SOURCE = `@startfpb
+const DEFAULT_SOURCE = `@startfpd
 title "FLEXCELERATE DosingModule_v01"
 
 system "DosingModule_v01" {
@@ -101,12 +101,12 @@ system "DosingModule_v01" {
   O4 ==> I14
 }
 
-@endfpb
+@endfpd
 `;
 
 export default function App() {
   const splitPaneRef = useRef<HTMLDivElement>(null);
-  const editorRef = useRef<FpbEditorRef>(null);
+  const editorRef = useRef<FpdEditorRef>(null);
   const diagramRef = useRef<DiagramRendererRef>(null);
   const diagramContainerRef = useRef<HTMLDivElement>(null);
   const contentBoundsRef = useRef<DiagramBounds | null>(null);
@@ -116,7 +116,7 @@ export default function App() {
   const historyManager = useHistoryManager(DEFAULT_SOURCE);
   const source = historyManager.currentState;
 
-  const { model, error, loading, sessionId } = useFpbParser(source);
+  const { model, error, loading, sessionId } = useFpdParser(source);
   const { lineToElement, selectedElementId, setSelectedElementId } = useDiagramSync(model);
   const {
     viewport,
@@ -249,7 +249,7 @@ export default function App() {
       <div className="split-pane" ref={splitPaneRef}>
         <div className="split-pane__editor" style={editorStyle}>
           <ErrorBoundary componentName="Editor">
-            <FpbEditor
+            <FpdEditor
               ref={editorRef}
               value={source}
               onChange={historyManager.pushState}

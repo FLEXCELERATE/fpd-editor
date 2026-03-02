@@ -158,7 +158,7 @@ export async function exportSvgToPdf({
   pdf.setProperties({
     title: title,
     subject: "VDI 3682 Formalized Process Description",
-    creator: "FPB Editor",
+    creator: "FPD Editor",
   });
 
   // Trigger download

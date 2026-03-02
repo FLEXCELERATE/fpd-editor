@@ -10,7 +10,7 @@
  */
 
 import type { DiagramElement } from "../../types/diagram";
-import { StateType } from "../../types/fpb";
+import { StateType } from "../../types/fpd";
 import { colors, typography, effects, shapes, STATE_MAX_W, STATE_H, PROCESS_SIZE, RESOURCE_SIZE } from "../../theme/designTokens";
 
 /* Re-export shape dimension constants for layout */

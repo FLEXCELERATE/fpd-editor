@@ -11,7 +11,7 @@
  */
 
 import type { RoutedConnection, Point } from "../../types/diagram";
-import { FlowType } from "../../types/fpb";
+import { FlowType } from "../../types/fpd";
 import { colors } from "../../theme/designTokens";
 
 /* ---------- Arrow marker definitions ---------- */

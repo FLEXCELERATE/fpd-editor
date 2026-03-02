@@ -15,13 +15,13 @@ type ExportFormat = "xml" | "text" | "pdf";
 
 const FORMAT_LABELS: Record<ExportFormat, string> = {
   xml: "Export VDI 3682 XML",
-  text: "Export FPB Text",
+  text: "Export FPD Text",
   pdf: "Export PDF Document",
 };
 
 const FORMAT_EXTENSIONS: Record<ExportFormat, string> = {
   xml: ".xml",
-  text: ".fpb",
+  text: ".fpd",
   pdf: ".pdf",
 };
 
@@ -43,7 +43,7 @@ export function ExportMenu({ sessionId, disabled, getSvgElement, processTitle }:
           // Browser-based PDF export from the rendered SVG
           const svgEl = getSvgElement?.();
           if (!svgEl) {
-            alert("No diagram to export. Write FPB text to create a diagram first.");
+            alert("No diagram to export. Write FPD text to create a diagram first.");
             return;
           }
           await exportSvgToPdf({

@@ -1,4 +1,4 @@
-"""Parse router for FPB text processing."""
+"""Parse router for FPD text processing."""
 
 from typing import Any
 
@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from models.process_model import ProcessModel
 from parser.lexer import LexerError
-from parser.parser import FpbParser, ParseError
+from parser.parser import FpdParser, ParseError
 from parser.validator import validate_connections
 from services.layout import compute_layout
 from services.session import SessionManager
@@ -32,12 +32,12 @@ class ParseResponse(BaseModel):
 
 
 @router.post("/parse", response_model=ParseResponse)
-async def parse_fpb(request: ParseRequest) -> ParseResponse:
-    """Parse FPB text, validate, compute layout, and return model + diagram data."""
+async def parse_fpd(request: ParseRequest) -> ParseResponse:
+    """Parse FPD text, validate, compute layout, and return model + diagram data."""
     source = request.source
 
     try:
-        parser = FpbParser(source)
+        parser = FpdParser(source)
         model = parser.parse()
     except (LexerError, ParseError) as exc:
         model = ProcessModel(errors=[str(exc)])

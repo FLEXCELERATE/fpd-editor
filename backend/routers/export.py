@@ -44,14 +44,14 @@ def _sanitize_filename(title: str, fallback: str = "diagram") -> str:
 
 @router.post("/export/text")
 async def export_text_endpoint(request: ExportRequest) -> Response:
-    """Export the current model as FPB text."""
+    """Export the current model as FPD text."""
     model = _get_model_from_session(request.session_id)
     content = export_text(model)
     filename = _sanitize_filename(model.title)
     return Response(
         content=content,
         media_type="text/plain; charset=utf-8",
-        headers={"Content-Disposition": f'attachment; filename="{filename}.fpb"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}.fpd"'},
     )
 
 

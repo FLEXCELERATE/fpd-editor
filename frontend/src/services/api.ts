@@ -1,6 +1,6 @@
 /** API client service for backend communication. */
 
-import type { ProcessModel } from "../types/fpb";
+import type { ProcessModel } from "../types/fpd";
 
 const API_BASE = "/api";
 

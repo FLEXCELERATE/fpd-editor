@@ -11,7 +11,7 @@
  */
 
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import type { ProcessModel } from "../../types/fpb";
+import type { ProcessModel } from "../../types/fpd";
 import type {
   DiagramData,
   DiagramElement,
@@ -212,7 +212,7 @@ export const DiagramRenderer = forwardRef<DiagramRendererRef, DiagramRendererPro
           fontSize: typography.fontSize.editor,
         }}
       >
-        No diagram to display. Write FPB text on the left to get started.
+        No diagram to display. Write FPD text on the left to get started.
       </div>
     );
   }
