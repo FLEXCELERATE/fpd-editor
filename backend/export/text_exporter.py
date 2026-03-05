@@ -109,6 +109,15 @@ def export_text(model: ProcessModel) -> str:
             lines.extend(system_lines)
             lines.append("}")
             lines.append("")
+
+        # Cross-system connections (flows with system_id=None)
+        cross_flows = [f for f in model.flows if f.system_id is None]
+        if cross_flows:
+            for flow in cross_flows:
+                flow_type = flow.flow_type if flow.flow_type else FlowType.FLOW
+                operator = _FLOW_TYPE_OPERATORS.get(flow_type, "-->")
+                lines.append(f"{flow.source_ref} {operator} {flow.target_ref}")
+            lines.append("")
     else:
         # Flat export (no systems)
         flat_lines = _export_elements_for_system(model, None, indent="")

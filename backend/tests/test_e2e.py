@@ -376,7 +376,7 @@ p1 --> p2
         assert resp.status_code == 200
         model = resp.json()["model"]
         assert len(model["errors"]) > 0
-        assert any("State" in e and "ProcessOperator" in e for e in model["errors"])
+        assert any("State -> State" in e for e in model["errors"])
 
     def test_tr_to_state_usage_error(self):
         source = """\

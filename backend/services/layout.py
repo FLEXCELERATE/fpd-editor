@@ -727,10 +727,18 @@ def compute_layout(
 
     system_gap = config.h_gap * 3
 
-    all_elements: list[dict[str, Any]] = []
-    all_connections: list[dict[str, Any]] = []
-    system_limits: list[dict[str, Any]] = []
-    current_offset_x = 0
+    # Cross-system flows (State -> State between different systems)
+    cross_system_flows = [f for f in model.flows if f.system_id is None]
+
+    # State-to-system lookup
+    state_system_map: dict[str, str] = {}
+    for s in model.states:
+        if s.system_id is not None:
+            state_system_map[s.id] = s.system_id
+
+    # --- Phase 1: Layout each system at origin (0,0) to get sizes ---
+
+    system_results: list[dict[str, Any]] = []
 
     for sid in system_ids:
         sys_states = _filter_by_system(model.states, sid)
@@ -749,21 +757,291 @@ def compute_layout(
             flows=sys_flows,
             usages=sys_usages,
             config=config,
-            offset_x=current_offset_x,
+            offset_x=0,
             offset_y=0,
         )
 
-        if sl is not None:
-            sl["id"] = sid
-            sl["label"] = system_labels.get(sid, "System")
-            system_limits.append(sl)
-            current_offset_x = sl["x"] + sl["width"] + system_gap
-        elif elems:
-            max_elem_x = max(e["x"] + e["width"] for e in elems)
-            current_offset_x = max_elem_x + system_gap
+        system_results.append({
+            "sid": sid,
+            "label": system_labels.get(sid, "System"),
+            "elements": elems,
+            "connections": conns,
+            "bounds": sl,
+        })
 
-        all_elements.extend(elems)
-        all_connections.extend(conns)
+    # --- Phase 2: Place systems with optimal (dx, dy) offsets ---
+    # For each system after the first, evaluate two candidate placements:
+    #   A) Below: same X as connected neighbor, Y shifted for alignment
+    #   B) Right: X to the right of all placed systems, Y shifted for alignment
+    # Pick whichever gives shorter mean Euclidean distance between connected states.
+
+    import math
+
+    def _get_shifted_bounds(sr: dict, dx: float, dy: float) -> dict | None:
+        sl = sr["bounds"]
+        if sl is not None:
+            return {"x": sl["x"] + dx, "y": sl["y"] + dy,
+                    "width": sl["width"], "height": sl["height"]}
+        elems = sr["elements"]
+        if not elems:
+            return None
+        min_x = min(e["x"] + dx for e in elems)
+        min_y = min(e["y"] + dy for e in elems)
+        max_x = max(e["x"] + dx + e["width"] for e in elems)
+        max_y = max(e["y"] + dy + e["height"] for e in elems)
+        return {"x": min_x, "y": min_y, "width": max_x - min_x, "height": max_y - min_y}
+
+    def _boxes_overlap(a: dict, b: dict, gap: float) -> bool:
+        return (
+            a["x"] < b["x"] + b["width"] + gap
+            and a["x"] + a["width"] + gap > b["x"]
+            and a["y"] < b["y"] + b["height"] + gap
+            and a["y"] + a["height"] + gap > b["y"]
+        )
+
+    def _resolve_overlaps_down(
+        sr: dict, dx: float, dy: float, placed: list[dict],
+    ) -> float:
+        box = _get_shifted_bounds(sr, dx, dy)
+        if not box:
+            return dy
+        max_iter = 50
+        has_overlap = True
+        while has_overlap and max_iter > 0:
+            has_overlap = False
+            max_iter -= 1
+            for p in placed:
+                if _boxes_overlap(box, p, system_gap):
+                    dy += p["y"] + p["height"] + system_gap - box["y"]
+                    box = _get_shifted_bounds(sr, dx, dy)
+                    has_overlap = True
+                    break
+        return dy
+
+    def _resolve_overlaps_right(
+        sr: dict, dx: float, dy: float, placed: list[dict],
+    ) -> float:
+        box = _get_shifted_bounds(sr, dx, dy)
+        if not box:
+            return dx
+        max_iter = 50
+        has_overlap = True
+        while has_overlap and max_iter > 0:
+            has_overlap = False
+            max_iter -= 1
+            for p in placed:
+                if _boxes_overlap(box, p, system_gap):
+                    dx += p["x"] + p["width"] + system_gap - box["x"]
+                    box = _get_shifted_bounds(sr, dx, dy)
+                    has_overlap = True
+                    break
+        return dx
+
+    # Element position lookup (absolute positions including offsets)
+    element_pos: dict[str, dict] = {}
+
+    # Offsets per system
+    system_offset: dict[str | None, tuple[float, float]] = {}
+    placed_boxes: list[dict] = []
+
+    # Place first system at origin
+    if system_results:
+        first = system_results[0]
+        system_offset[first["sid"]] = (0.0, 0.0)
+        for el in first["elements"]:
+            element_pos[el["id"]] = {
+                "x": el["x"], "y": el["y"],
+                "w": el["width"], "h": el["height"],
+            }
+        box = _get_shifted_bounds(first, 0, 0)
+        if box:
+            placed_boxes.append(box)
+
+    for i in range(1, len(system_results)):
+        sr = system_results[i]
+        sr_sid = sr["sid"]
+
+        # Find cross-system flows connecting this system to already-placed systems
+        connected_pairs: list[dict] = []
+        for flow in cross_system_flows:
+            s_sys = state_system_map.get(flow.source_ref)
+            t_sys = state_system_map.get(flow.target_ref)
+            if t_sys == sr_sid and s_sys != sr_sid and s_sys in system_offset:
+                connected_pairs.append({
+                    "src_id": flow.source_ref, "tgt_id": flow.target_ref,
+                })
+            if s_sys == sr_sid and t_sys != sr_sid and t_sys in system_offset:
+                connected_pairs.append({
+                    "src_id": flow.target_ref, "tgt_id": flow.source_ref,
+                })
+
+        def _compute_align_delta_y(dx: float) -> float:
+            if not connected_pairs:
+                return 0.0
+            total = 0.0
+            for pair in connected_pairs:
+                placed_el = element_pos.get(pair["src_id"])
+                local_el = next(
+                    (e for e in sr["elements"] if e["id"] == pair["tgt_id"]),
+                    None,
+                )
+                if placed_el and local_el:
+                    placed_cy = placed_el["y"] + placed_el["h"] / 2
+                    local_cy = local_el["y"] + local_el["height"] / 2
+                    total += placed_cy - local_cy
+            return total / len(connected_pairs)
+
+        def _compute_mean_dist(dx: float, dy: float) -> float:
+            if not connected_pairs:
+                return float("inf")
+            total = 0.0
+            for pair in connected_pairs:
+                placed_el = element_pos.get(pair["src_id"])
+                local_el = next(
+                    (e for e in sr["elements"] if e["id"] == pair["tgt_id"]),
+                    None,
+                )
+                if placed_el and local_el:
+                    pcx = placed_el["x"] + placed_el["w"] / 2
+                    pcy = placed_el["y"] + placed_el["h"] / 2
+                    lcx = local_el["x"] + local_el["width"] / 2 + dx
+                    lcy = local_el["y"] + local_el["height"] / 2 + dy
+                    total += math.sqrt((pcx - lcx) ** 2 + (pcy - lcy) ** 2)
+            return total / len(connected_pairs)
+
+        best_dx = 0.0
+        best_dy = 0.0
+
+        if connected_pairs:
+            # Find the connected neighbor's X offset
+            neighbor_dx = 0.0
+            for pair in connected_pairs:
+                placed_el = element_pos.get(pair["src_id"])
+                if placed_el:
+                    neighbor_sys = state_system_map.get(pair["src_id"])
+                    if neighbor_sys and neighbor_sys in system_offset:
+                        neighbor_dx = system_offset[neighbor_sys][0]
+                        break
+
+            # Candidate A: Below (same X as neighbor, Y aligned + row offset)
+            align_dy_a = _compute_align_delta_y(neighbor_dx)
+            cand_a_dx = neighbor_dx
+            cand_a_dy = align_dy_a + STATE_H + config.v_gap
+            cand_a_dy = _resolve_overlaps_down(sr, cand_a_dx, cand_a_dy, placed_boxes)
+
+            # Candidate B: Right (X = right edge of all placed, Y aligned)
+            right_edge = (
+                max(b["x"] + b["width"] for b in placed_boxes) + system_gap
+                if placed_boxes else 0.0
+            )
+            align_dy_b = _compute_align_delta_y(right_edge)
+            cand_b_dx = right_edge
+            cand_b_dy = align_dy_b
+            if connected_pairs:
+                cand_b_dy += STATE_H + config.v_gap
+            cand_b_dx = _resolve_overlaps_right(
+                sr, cand_b_dx, cand_b_dy, placed_boxes,
+            )
+            cand_b_dy = _resolve_overlaps_down(
+                sr, cand_b_dx, cand_b_dy, placed_boxes,
+            )
+
+            dist_a = _compute_mean_dist(cand_a_dx, cand_a_dy)
+            dist_b = _compute_mean_dist(cand_b_dx, cand_b_dy)
+
+            if dist_b < dist_a:
+                best_dx = cand_b_dx
+                best_dy = cand_b_dy
+            else:
+                best_dx = cand_a_dx
+                best_dy = cand_a_dy
+        else:
+            # No cross-system connections: place side-by-side to the right
+            right_edge = (
+                max(b["x"] + b["width"] for b in placed_boxes) + system_gap
+                if placed_boxes else 0.0
+            )
+            best_dx = right_edge
+            best_dy = 0.0
+            best_dx = _resolve_overlaps_right(
+                sr, best_dx, best_dy, placed_boxes,
+            )
+            best_dy = _resolve_overlaps_down(
+                sr, best_dx, best_dy, placed_boxes,
+            )
+
+        system_offset[sr_sid] = (best_dx, best_dy)
+        for el in sr["elements"]:
+            element_pos[el["id"]] = {
+                "x": el["x"] + best_dx, "y": el["y"] + best_dy,
+                "w": el["width"], "h": el["height"],
+            }
+        box = _get_shifted_bounds(sr, best_dx, best_dy)
+        if box:
+            placed_boxes.append(box)
+
+    # --- Phase 3: Apply offsets and collect results ---
+
+    all_elements: list[dict[str, Any]] = []
+    all_connections: list[dict[str, Any]] = []
+    system_limits: list[dict[str, Any]] = []
+
+    for sr in system_results:
+        dx, dy = system_offset.get(sr["sid"], (0.0, 0.0))
+
+        for el in sr["elements"]:
+            shifted = dict(el)
+            shifted["x"] = el["x"] + dx
+            shifted["y"] = el["y"] + dy
+            all_elements.append(shifted)
+
+        all_connections.extend(sr["connections"])
+
+        sl = sr["bounds"]
+        if sl is not None:
+            shifted_sl = dict(sl)
+            shifted_sl["x"] = sl["x"] + dx
+            shifted_sl["y"] = sl["y"] + dy
+            shifted_sl["id"] = sr["sid"]
+            shifted_sl["label"] = sr["label"]
+            system_limits.append(shifted_sl)
+
+    # Build system bounds lookup for source-side detection
+    system_bounds_map: dict[str, dict] = {}
+    for sl_entry in system_limits:
+        system_bounds_map[sl_entry["id"]] = sl_entry
+
+    def _cross_system_source_side(state_id: str) -> str:
+        """Determine exit side for a cross-system source state.
+        If the state sits on the left/right edge of its system, exit from
+        that side. Otherwise default to 'bottom'."""
+        sys_id = state_system_map.get(state_id)
+        if not sys_id:
+            return "bottom"
+        bounds = system_bounds_map.get(sys_id)
+        pos = element_pos.get(state_id)
+        if not bounds or not pos:
+            return "bottom"
+        el_cx = pos["x"] + pos["w"] / 2
+        third_w = bounds["width"] / 3
+        if el_cx < bounds["x"] + third_w:
+            return "left"
+        if el_cx > bounds["x"] + bounds["width"] - third_w:
+            return "right"
+        return "bottom"
+
+    # Cross-system connections
+    for flow in cross_system_flows:
+        all_connections.append({
+            "id": flow.id,
+            "sourceId": flow.source_ref,
+            "targetId": flow.target_ref,
+            "flowType": flow.flow_type.value,
+            "isUsage": False,
+            "isCrossSystem": True,
+            "sourceSide": _cross_system_source_side(flow.source_ref),
+            "targetSide": "top",
+        })
 
     return {
         "elements": _deduplicate_elements(all_elements),

@@ -282,124 +282,135 @@ product p1 "B"
 # Validator: cross-system validation
 # ---------------------------------------------------------------------------
 class TestCrossSystemValidation:
-    """Verify that cross-system references are detected by the validator."""
+    """Verify cross-system connection rules."""
 
-    def test_cross_system_flow_error(self):
-        source = """@startfpd
-system "A" {
-  product p1 "Input"
-}
-system "B" {
-  process_operator po1 "Work"
-}
-p1 --> po1
-@endfpd"""
-        # Parse but note: connections outside system blocks reference elements
-        # with different system_ids. We need to build this manually since
-        # the parser requires elements to be defined before connections.
+    def _make_ident(self, uid, name=None):
+        from models.fpd_model import Identification
+        return Identification(unique_ident=uid, long_name=name or uid)
+
+    def test_cross_system_state_to_state_valid(self):
+        """State -> State across systems (outside system blocks) is allowed."""
         from models.process_model import ProcessModel
-        from models.fpd_model import Flow, FlowType, Identification, ProcessOperator, State, StateType, SystemLimit
+        from models.fpd_model import Flow, FlowType, State, StateType, SystemLimit
 
         model = ProcessModel(
             system_limits=[
-                SystemLimit(id="sys_1", identification=Identification(unique_ident="sys_1", long_name="A"), label="A"),
-                SystemLimit(id="sys_2", identification=Identification(unique_ident="sys_2", long_name="B"), label="B"),
+                SystemLimit(id="sys_1", identification=self._make_ident("sys_1", "A"), label="A"),
+                SystemLimit(id="sys_2", identification=self._make_ident("sys_2", "B"), label="B"),
             ],
             states=[
-                State(
-                    id="p1",
-                    state_type=StateType.PRODUCT,
-                    identification=Identification(unique_ident="p1", long_name="Input"),
-                    label="Input",
-                    system_id="sys_1",
-                ),
-            ],
-            process_operators=[
-                ProcessOperator(
-                    id="po1",
-                    identification=Identification(unique_ident="po1", long_name="Work"),
-                    label="Work",
-                    system_id="sys_2",
-                ),
+                State(id="p1", state_type=StateType.PRODUCT, identification=self._make_ident("p1", "Output"), label="Output", system_id="sys_1"),
+                State(id="p2", state_type=StateType.PRODUCT, identification=self._make_ident("p2", "Input"), label="Input", system_id="sys_2"),
             ],
             flows=[
-                Flow(
-                    id="flow_1",
-                    source_ref="p1",
-                    target_ref="po1",
-                    flow_type=FlowType.FLOW,
-                ),
+                Flow(id="flow_1", source_ref="p1", target_ref="p2", flow_type=FlowType.FLOW, system_id=None),
+            ],
+        )
+        errors = validate_connections(model)
+        assert len(errors) == 0
+
+    def test_state_to_state_same_system_invalid(self):
+        """State -> State within the same system is not allowed."""
+        from models.process_model import ProcessModel
+        from models.fpd_model import Flow, FlowType, State, StateType, SystemLimit
+
+        model = ProcessModel(
+            system_limits=[
+                SystemLimit(id="sys_1", identification=self._make_ident("sys_1", "A"), label="A"),
+            ],
+            states=[
+                State(id="p1", state_type=StateType.PRODUCT, identification=self._make_ident("p1"), label="P1", system_id="sys_1"),
+                State(id="p2", state_type=StateType.PRODUCT, identification=self._make_ident("p2"), label="P2", system_id="sys_1"),
+            ],
+            flows=[
+                Flow(id="flow_1", source_ref="p1", target_ref="p2", flow_type=FlowType.FLOW, system_id=None),
+            ],
+        )
+        errors = validate_connections(model)
+        assert any("State -> State" in e for e in errors)
+
+    def test_state_to_state_inside_system_block_invalid(self):
+        """State -> State inside a system block (system_id set) is not allowed."""
+        from models.process_model import ProcessModel
+        from models.fpd_model import Flow, FlowType, State, StateType, SystemLimit
+
+        model = ProcessModel(
+            system_limits=[
+                SystemLimit(id="sys_1", identification=self._make_ident("sys_1", "A"), label="A"),
+                SystemLimit(id="sys_2", identification=self._make_ident("sys_2", "B"), label="B"),
+            ],
+            states=[
+                State(id="p1", state_type=StateType.PRODUCT, identification=self._make_ident("p1"), label="P1", system_id="sys_1"),
+                State(id="p2", state_type=StateType.PRODUCT, identification=self._make_ident("p2"), label="P2", system_id="sys_2"),
+            ],
+            flows=[
+                Flow(id="flow_1", source_ref="p1", target_ref="p2", flow_type=FlowType.FLOW, system_id="sys_1"),
+            ],
+        )
+        errors = validate_connections(model)
+        assert any("State -> State" in e for e in errors)
+
+    def test_cross_system_state_to_po_error(self):
+        """State -> ProcessOperator across systems should produce an error."""
+        from models.process_model import ProcessModel
+        from models.fpd_model import Flow, FlowType, ProcessOperator, State, StateType, SystemLimit
+
+        model = ProcessModel(
+            system_limits=[
+                SystemLimit(id="sys_1", identification=self._make_ident("sys_1", "A"), label="A"),
+                SystemLimit(id="sys_2", identification=self._make_ident("sys_2", "B"), label="B"),
+            ],
+            states=[
+                State(id="p1", state_type=StateType.PRODUCT, identification=self._make_ident("p1", "Input"), label="Input", system_id="sys_1"),
+            ],
+            process_operators=[
+                ProcessOperator(id="po1", identification=self._make_ident("po1", "Work"), label="Work", system_id="sys_2"),
+            ],
+            flows=[
+                Flow(id="flow_1", source_ref="p1", target_ref="po1", flow_type=FlowType.FLOW),
             ],
         )
         errors = validate_connections(model)
         assert any("cross-system reference" in e for e in errors)
 
     def test_same_system_flow_valid(self):
+        """State -> PO within the same system is valid."""
         from models.process_model import ProcessModel
-        from models.fpd_model import Flow, FlowType, Identification, ProcessOperator, State, StateType, SystemLimit
+        from models.fpd_model import Flow, FlowType, ProcessOperator, State, StateType, SystemLimit
 
         model = ProcessModel(
-            system_limits=[SystemLimit(id="sys_1", identification=Identification(unique_ident="sys_1", long_name="A"), label="A")],
+            system_limits=[SystemLimit(id="sys_1", identification=self._make_ident("sys_1", "A"), label="A")],
             states=[
-                State(
-                    id="p1",
-                    state_type=StateType.PRODUCT,
-                    identification=Identification(unique_ident="p1", long_name="Input"),
-                    label="Input",
-                    system_id="sys_1",
-                ),
+                State(id="p1", state_type=StateType.PRODUCT, identification=self._make_ident("p1", "Input"), label="Input", system_id="sys_1"),
             ],
             process_operators=[
-                ProcessOperator(
-                    id="po1",
-                    identification=Identification(unique_ident="po1", long_name="Work"),
-                    label="Work",
-                    system_id="sys_1",
-                ),
+                ProcessOperator(id="po1", identification=self._make_ident("po1", "Work"), label="Work", system_id="sys_1"),
             ],
             flows=[
-                Flow(
-                    id="flow_1",
-                    source_ref="p1",
-                    target_ref="po1",
-                    flow_type=FlowType.FLOW,
-                ),
+                Flow(id="flow_1", source_ref="p1", target_ref="po1", flow_type=FlowType.FLOW),
             ],
         )
         errors = validate_connections(model)
         assert len(errors) == 0
 
     def test_cross_system_usage_error(self):
+        """Usage across systems should produce an error."""
         from models.process_model import ProcessModel
-        from models.fpd_model import Identification, ProcessOperator, SystemLimit, TechnicalResource, Usage
+        from models.fpd_model import ProcessOperator, SystemLimit, TechnicalResource, Usage
 
         model = ProcessModel(
             system_limits=[
-                SystemLimit(id="sys_1", identification=Identification(unique_ident="sys_1", long_name="A"), label="A"),
-                SystemLimit(id="sys_2", identification=Identification(unique_ident="sys_2", long_name="B"), label="B"),
+                SystemLimit(id="sys_1", identification=self._make_ident("sys_1", "A"), label="A"),
+                SystemLimit(id="sys_2", identification=self._make_ident("sys_2", "B"), label="B"),
             ],
             process_operators=[
-                ProcessOperator(
-                    id="po1",
-                    identification=Identification(unique_ident="po1", long_name="Work"),
-                    label="Work",
-                    system_id="sys_1",
-                ),
+                ProcessOperator(id="po1", identification=self._make_ident("po1", "Work"), label="Work", system_id="sys_1"),
             ],
             technical_resources=[
-                TechnicalResource(
-                    id="tr1",
-                    identification=Identification(unique_ident="tr1", long_name="Machine"),
-                    label="Machine",
-                    system_id="sys_2",
-                ),
+                TechnicalResource(id="tr1", identification=self._make_ident("tr1", "Machine"), label="Machine", system_id="sys_2"),
             ],
             usages=[
-                Usage(
-                    id="usage_1",
-                    process_operator_ref="po1",
-                    technical_resource_ref="tr1",
-                ),
+                Usage(id="usage_1", process_operator_ref="po1", technical_resource_ref="tr1"),
             ],
         )
         errors = validate_connections(model)
@@ -408,31 +419,17 @@ p1 --> po1
     def test_no_system_elements_valid(self):
         """Elements without system_id (backward compat) should validate fine."""
         from models.process_model import ProcessModel
-        from models.fpd_model import Flow, FlowType, State, StateType, ProcessOperator, Identification
+        from models.fpd_model import Flow, FlowType, State, StateType, ProcessOperator
 
         model = ProcessModel(
             states=[
-                State(
-                    id="p1",
-                    state_type=StateType.PRODUCT,
-                    identification=Identification(unique_ident="p1", long_name="Input"),
-                    label="Input",
-                ),
+                State(id="p1", state_type=StateType.PRODUCT, identification=self._make_ident("p1", "Input"), label="Input"),
             ],
             process_operators=[
-                ProcessOperator(
-                    id="po1",
-                    identification=Identification(unique_ident="po1", long_name="Work"),
-                    label="Work",
-                ),
+                ProcessOperator(id="po1", identification=self._make_ident("po1", "Work"), label="Work"),
             ],
             flows=[
-                Flow(
-                    id="flow_1",
-                    source_ref="p1",
-                    target_ref="po1",
-                    flow_type=FlowType.FLOW,
-                ),
+                Flow(id="flow_1", source_ref="p1", target_ref="po1", flow_type=FlowType.FLOW),
             ],
         )
         errors = validate_connections(model)

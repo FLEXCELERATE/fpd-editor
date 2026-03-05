@@ -64,6 +64,17 @@ export function ConnectionDefs() {
       >
         <path d="M 0 0 L 10 5 L 0 10 Z" fill={colors.connections.usage} />
       </marker>
+      <marker
+        id="arrow-crossSystem"
+        viewBox="0 0 10 10"
+        refX={10}
+        refY={5}
+        markerWidth={8}
+        markerHeight={8}
+        orient="auto-start-reverse"
+      >
+        <path d="M 0 0 L 10 5 L 0 10 Z" fill={colors.connections.crossSystem} />
+      </marker>
       <filter id="highlight-glow">
         <feGaussianBlur stdDeviation={2} result="coloredBlur" />
         <feMerge>
@@ -136,6 +147,22 @@ function ParallelFlowPath({ points, onClick }: RoutedPathProps) {
   );
 }
 
+/** CrossSystem: Dashed purple path for cross-system State→State links */
+function CrossSystemPath({ points, onClick }: RoutedPathProps) {
+  return (
+    <path
+      d={pointsToPathD(points)}
+      fill="none"
+      stroke={colors.connections.crossSystem}
+      strokeWidth={1.5}
+      strokeDasharray="8,4"
+      markerEnd="url(#arrow-crossSystem)"
+      onClick={onClick}
+      style={{ cursor: onClick ? "pointer" : "default" }}
+    />
+  );
+}
+
 /** Usage: Dashed gray bidirectional orthogonal path */
 function UsagePath({ points, onClick }: RoutedPathProps) {
   return (
@@ -168,6 +195,10 @@ export function RoutedConnectionLine({
   if (points.length < 2) return null;
 
   const pathProps: RoutedPathProps = { points, onClick };
+
+  if (connection.isCrossSystem) {
+    return <CrossSystemPath {...pathProps} />;
+  }
 
   if (connection.isUsage) {
     return <UsagePath {...pathProps} />;

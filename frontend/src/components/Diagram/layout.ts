@@ -21,6 +21,7 @@ import type {
   DiagramConnection,
   SystemLimitBounds,
   LayoutConfig,
+  Side,
 } from "../../types/diagram";
 import { shapes, STATE_MAX_W, STATE_H, PROCESS_SIZE, RESOURCE_SIZE } from "./elements";
 import { typography } from "../../theme/designTokens";
@@ -867,10 +868,28 @@ export function layoutProcessModel(
     };
   }
 
-  const allElements: DiagramElement[] = [];
-  const allConnections: DiagramConnection[] = [];
-  const systemLimits: SystemLimitBounds[] = [];
-  let currentOffsetX = 0;
+  // Cross-system flows (State -> State between different systems)
+  const crossSystemFlows = model.flows.filter(
+    (f) => f.system_id == null || f.system_id === undefined,
+  );
+
+  // Build state-to-system lookup
+  const stateSystemMap = new Map<string, string>();
+  for (const s of model.states) {
+    if (s.system_id) stateSystemMap.set(s.id, s.system_id);
+  }
+
+  // --- Phase 1: Layout each system at origin (0,0) to get sizes ---
+
+  interface SystemResult {
+    slId: string;
+    label: string;
+    elements: DiagramElement[];
+    connections: DiagramConnection[];
+    bounds: Omit<SystemLimitBounds, "id" | "label"> | null;
+  }
+
+  const systemResults: SystemResult[] = [];
 
   for (const sl of model.system_limits) {
     const sysStates = model.states.filter((s) => s.system_id === sl.id);
@@ -885,23 +904,289 @@ export function layoutProcessModel(
 
     const result = layoutSingleSystem(
       sysStates, sysPOs, sysTRs, sysFlows, sysUsages,
-      layoutConfig, currentOffsetX, 0,
+      layoutConfig, 0, 0,
     );
 
-    if (result.systemLimitBounds) {
-      systemLimits.push({
-        ...result.systemLimitBounds,
-        id: sl.id,
-        label: sl.label,
-      });
-      currentOffsetX = result.systemLimitBounds.x + result.systemLimitBounds.width + systemGap;
-    } else if (result.elements.length > 0) {
-      const maxElemX = Math.max(...result.elements.map((e) => e.x + e.width));
-      currentOffsetX = maxElemX + systemGap;
+    systemResults.push({
+      slId: sl.id,
+      label: sl.label,
+      elements: result.elements,
+      connections: result.connections,
+      bounds: result.systemLimitBounds,
+    });
+  }
+
+  // --- Phase 2: Place systems with optimal (dx, dy) offsets ---
+  // For each system after the first, evaluate two candidate placements:
+  //   A) Below: same X as connected neighbor, Y shifted for alignment
+  //   B) Right: X to the right of all placed systems, Y shifted for alignment
+  // Pick whichever gives shorter mean Euclidean distance between connected states.
+
+  interface PlacedBox {
+    x: number; y: number; width: number; height: number;
+  }
+
+  function getShiftedBounds(sr: SystemResult, dx: number, dy: number): PlacedBox | null {
+    if (sr.bounds) {
+      return { x: sr.bounds.x + dx, y: sr.bounds.y + dy, width: sr.bounds.width, height: sr.bounds.height };
+    }
+    if (sr.elements.length === 0) return null;
+    const minX = Math.min(...sr.elements.map(e => e.x + dx));
+    const minY = Math.min(...sr.elements.map(e => e.y + dy));
+    const maxX = Math.max(...sr.elements.map(e => e.x + dx + e.width));
+    const maxY = Math.max(...sr.elements.map(e => e.y + dy + e.height));
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  }
+
+  function boxesOverlap(a: PlacedBox, b: PlacedBox, gap: number): boolean {
+    return (
+      a.x < b.x + b.width + gap &&
+      a.x + a.width + gap > b.x &&
+      a.y < b.y + b.height + gap &&
+      a.y + a.height + gap > b.y
+    );
+  }
+
+  /** Push box down until it no longer overlaps any placed box. Returns adjusted dy. */
+  function resolveOverlapsDown(sr: SystemResult, dx: number, dy: number, placed: PlacedBox[]): number {
+    let box = getShiftedBounds(sr, dx, dy);
+    if (!box) return dy;
+    let maxIter = 50;
+    let hasOverlap = true;
+    while (hasOverlap && maxIter-- > 0) {
+      hasOverlap = false;
+      for (const p of placed) {
+        if (boxesOverlap(box!, p, systemGap)) {
+          dy += p.y + p.height + systemGap - box!.y;
+          box = getShiftedBounds(sr, dx, dy);
+          hasOverlap = true;
+          break;
+        }
+      }
+    }
+    return dy;
+  }
+
+  /** Push box right until it no longer overlaps any placed box. Returns adjusted dx. */
+  function resolveOverlapsRight(sr: SystemResult, dx: number, dy: number, placed: PlacedBox[]): number {
+    let box = getShiftedBounds(sr, dx, dy);
+    if (!box) return dx;
+    let maxIter = 50;
+    let hasOverlap = true;
+    while (hasOverlap && maxIter-- > 0) {
+      hasOverlap = false;
+      for (const p of placed) {
+        if (boxesOverlap(box!, p, systemGap)) {
+          dx += p.x + p.width + systemGap - box!.x;
+          box = getShiftedBounds(sr, dx, dy);
+          hasOverlap = true;
+          break;
+        }
+      }
+    }
+    return dx;
+  }
+
+  // Element position lookup (absolute positions including offsets)
+  const elementPos = new Map<string, { x: number; y: number; w: number; h: number }>();
+
+  // Offsets per system
+  const systemOffset = new Map<string, { dx: number; dy: number }>();
+  const placedBoxes: PlacedBox[] = [];
+
+  // Place first system at origin
+  if (systemResults.length > 0) {
+    const first = systemResults[0];
+    systemOffset.set(first.slId, { dx: 0, dy: 0 });
+    for (const el of first.elements) {
+      elementPos.set(el.id, { x: el.x, y: el.y, w: el.width, h: el.height });
+    }
+    const box = getShiftedBounds(first, 0, 0);
+    if (box) placedBoxes.push(box);
+  }
+
+  for (let i = 1; i < systemResults.length; i++) {
+    const sr = systemResults[i];
+
+    // Find cross-system flows connecting this system to already-placed systems
+    const connectedPairs: { srcId: string; tgtId: string; srcInThis: boolean }[] = [];
+    for (const flow of crossSystemFlows) {
+      const sSys = stateSystemMap.get(flow.source_ref);
+      const tSys = stateSystemMap.get(flow.target_ref);
+      if (tSys === sr.slId && sSys !== sr.slId && systemOffset.has(sSys!)) {
+        connectedPairs.push({ srcId: flow.source_ref, tgtId: flow.target_ref, srcInThis: false });
+      }
+      if (sSys === sr.slId && tSys !== sr.slId && systemOffset.has(tSys!)) {
+        connectedPairs.push({ srcId: flow.target_ref, tgtId: flow.source_ref, srcInThis: true });
+      }
     }
 
-    allElements.push(...result.elements);
-    allConnections.push(...result.connections);
+    /** Compute mean Y-delta to align connected states. */
+    function computeAlignDeltaY(_dx: number): number {
+      if (connectedPairs.length === 0) return 0;
+      let sum = 0;
+      for (const pair of connectedPairs) {
+        const placed = elementPos.get(pair.srcId);
+        const local = sr.elements.find(e => e.id === pair.tgtId);
+        if (placed && local) {
+          const placedCY = placed.y + placed.h / 2;
+          const localCY = local.y + local.height / 2 + 0; // no dy yet
+          sum += placedCY - localCY;
+        }
+      }
+      return sum / connectedPairs.length;
+    }
+
+    /** Compute mean Euclidean distance for connected state pairs given offsets. */
+    function computeMeanDist(dx: number, dy: number): number {
+      if (connectedPairs.length === 0) return Infinity;
+      let sum = 0;
+      for (const pair of connectedPairs) {
+        const placed = elementPos.get(pair.srcId);
+        const local = sr.elements.find(e => e.id === pair.tgtId);
+        if (placed && local) {
+          const pcx = placed.x + placed.w / 2;
+          const pcy = placed.y + placed.h / 2;
+          const lcx = local.x + local.width / 2 + dx;
+          const lcy = local.y + local.height / 2 + dy;
+          sum += Math.sqrt((pcx - lcx) ** 2 + (pcy - lcy) ** 2);
+        }
+      }
+      return sum / connectedPairs.length;
+    }
+
+    let bestDx = 0;
+    let bestDy = 0;
+
+    if (connectedPairs.length > 0) {
+      // Find the connected neighbor's X offset
+      let neighborDx = 0;
+      for (const pair of connectedPairs) {
+        const placedEl = elementPos.get(pair.srcId);
+        if (placedEl) {
+          // Find which system this element belongs to
+          const neighborSys = stateSystemMap.get(pair.srcId);
+          if (neighborSys && systemOffset.has(neighborSys)) {
+            neighborDx = systemOffset.get(neighborSys)!.dx;
+            break;
+          }
+        }
+      }
+
+      // --- Candidate A: Below (same X as neighbor, Y aligned + row offset) ---
+      const alignDyA = computeAlignDeltaY(neighborDx);
+      let candA_dx = neighborDx;
+      let candA_dy = alignDyA + STATE_H + layoutConfig.vGap;
+      candA_dy = resolveOverlapsDown(sr, candA_dx, candA_dy, placedBoxes);
+
+      // --- Candidate B: Right (X = right edge of all placed, Y aligned) ---
+      const rightEdge = placedBoxes.length > 0
+        ? Math.max(...placedBoxes.map(b => b.x + b.width)) + systemGap
+        : 0;
+      const alignDyB = computeAlignDeltaY(rightEdge);
+      let candB_dx = rightEdge;
+      let candB_dy = alignDyB;
+      // Ensure cross-system connections still flow downward slightly
+      if (connectedPairs.length > 0) {
+        candB_dy += STATE_H + layoutConfig.vGap;
+      }
+      candB_dx = resolveOverlapsRight(sr, candB_dx, candB_dy, placedBoxes);
+      candB_dy = resolveOverlapsDown(sr, candB_dx, candB_dy, placedBoxes);
+
+      const distA = computeMeanDist(candA_dx, candA_dy);
+      const distB = computeMeanDist(candB_dx, candB_dy);
+
+      if (distB < distA) {
+        bestDx = candB_dx;
+        bestDy = candB_dy;
+      } else {
+        bestDx = candA_dx;
+        bestDy = candA_dy;
+      }
+    } else {
+      // No cross-system connections: place side-by-side to the right
+      const rightEdge = placedBoxes.length > 0
+        ? Math.max(...placedBoxes.map(b => b.x + b.width)) + systemGap
+        : 0;
+      bestDx = rightEdge;
+      bestDy = 0;
+      bestDx = resolveOverlapsRight(sr, bestDx, bestDy, placedBoxes);
+      bestDy = resolveOverlapsDown(sr, bestDx, bestDy, placedBoxes);
+    }
+
+    systemOffset.set(sr.slId, { dx: bestDx, dy: bestDy });
+    for (const el of sr.elements) {
+      elementPos.set(el.id, {
+        x: el.x + bestDx, y: el.y + bestDy,
+        w: el.width, h: el.height,
+      });
+    }
+    const box = getShiftedBounds(sr, bestDx, bestDy);
+    if (box) placedBoxes.push(box);
+  }
+
+  // --- Phase 3: Apply offsets and collect results ---
+
+  const allElements: DiagramElement[] = [];
+  const allConnections: DiagramConnection[] = [];
+  const systemLimits: SystemLimitBounds[] = [];
+
+  for (const sr of systemResults) {
+    const off = systemOffset.get(sr.slId) ?? { dx: 0, dy: 0 };
+
+    for (const el of sr.elements) {
+      allElements.push({ ...el, x: el.x + off.dx, y: el.y + off.dy });
+    }
+    allConnections.push(...sr.connections);
+
+    if (sr.bounds) {
+      systemLimits.push({
+        ...sr.bounds,
+        x: sr.bounds.x + off.dx,
+        y: sr.bounds.y + off.dy,
+        id: sr.slId,
+        label: sr.label,
+      });
+    }
+  }
+
+  // Build system bounds lookup for source-side detection
+  const systemBoundsMap = new Map<string, PlacedBox>();
+  for (const sl of systemLimits) {
+    systemBoundsMap.set(sl.id, sl);
+  }
+
+  /** Determine the exit side for a cross-system source state.
+   *  If the state sits on the left/right edge of its system, exit from that side.
+   *  Otherwise default to "bottom". */
+  function crossSystemSourceSide(stateId: string): Side {
+    const sysId = stateSystemMap.get(stateId);
+    if (!sysId) return "bottom";
+    const bounds = systemBoundsMap.get(sysId);
+    const pos = elementPos.get(stateId);
+    if (!bounds || !pos) return "bottom";
+
+    const elCenterX = pos.x + pos.w / 2;
+    // State is in the left or right third of the system → exit from that side
+    const thirdW = bounds.width / 3;
+    if (elCenterX < bounds.x + thirdW) return "left";
+    if (elCenterX > bounds.x + bounds.width - thirdW) return "right";
+    return "bottom";
+  }
+
+  // Cross-system connections
+  for (const flow of crossSystemFlows) {
+    allConnections.push({
+      id: flow.id,
+      sourceId: flow.source_ref,
+      targetId: flow.target_ref,
+      flowType: flow.flow_type,
+      isUsage: false,
+      isCrossSystem: true,
+      sourceSide: crossSystemSourceSide(flow.source_ref),
+      targetSide: "top",
+      line_number: flow.line_number,
+    });
   }
 
   return {

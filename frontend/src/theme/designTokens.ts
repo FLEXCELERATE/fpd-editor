@@ -30,6 +30,7 @@ export const colors = {
     alternativeFlow: "#f5a623",
     parallelFlow: "#4a90d9",
     usage: "#888889",
+    crossSystem: "#9b59b6",
   },
 
   /** Common colors */
