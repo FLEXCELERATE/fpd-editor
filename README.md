@@ -13,6 +13,14 @@ A text-based editor for creating **VDI 3682 Formalized Process Descriptions** (F
 - Python 3.10+ with pip
 - Node.js 18+ with npm
 
+### Clone (with submodules)
+
+```bash
+git clone --recurse-submodules https://github.com/FLEXCELERATE/fpd-editor.git
+# or, if already cloned:
+git submodule update --init
+```
+
 ### Backend
 
 ```bash
@@ -120,7 +128,7 @@ PO1 <..> TR1
 
 ## Export Formats
 
-- **VDI 3682 XML** — Compatible with [HSU Hamburg FPD_Schema.xsd](https://github.com/hsu-aut/IndustrialStandard-XSD-VDI3682)
+- **VDI 3682 XML** — Compatible with [HSU Hamburg FPD_Schema.xsd](https://github.com/hsu-aut/IndustrialStandard-XSD-VDI3682), validated against the XSD schema on export and import
 - **PDF** — Document export with diagram rendering
 - **FPD Text** — Re-export the text representation
 

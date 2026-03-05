@@ -1,17 +1,9 @@
 """Import router for FPD text and VDI 3682 XML file uploads."""
 
-import logging
-from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, UploadFile
 from pydantic import BaseModel
-
-logger = logging.getLogger(__name__)
-
-# Path to optional HSU FPD_Schema.xsd for XSD validation
-_SCHEMA_DIR = Path(__file__).resolve().parent.parent / "schemas"
-_XSD_PATH = _SCHEMA_DIR / "FPD_Schema.xsd"
 
 from export.text_exporter import export_text
 from models.fpd_model import (
@@ -336,30 +328,25 @@ def _parse_xml_hsu(root, ns: dict) -> ProcessModel:
                     Flow(id=fid, source_ref=src, target_ref=tgt, flow_type=flow_type)
                 )
 
+    # Assign system_id to all elements so the text exporter places them
+    # inside the correct system block.
+    if model.system_limits:
+        sl_id = model.system_limits[0].id
+        for state in model.states:
+            state.system_id = sl_id
+        for po in model.process_operators:
+            po.system_id = sl_id
+        for tr in model.technical_resources:
+            tr.system_id = sl_id
+        for flow in model.flows:
+            flow.system_id = sl_id
+        for usage in model.usages:
+            usage.system_id = sl_id
+
     return model
 
 
-def _validate_xsd(root, etree) -> list[str]:
-    """Validate XML against HSU FPD_Schema.xsd if available.
-
-    Returns a list of validation warning strings (empty if valid or schema not found).
-    """
-    if not _XSD_PATH.is_file():
-        return []
-
-    try:
-        schema_doc = etree.parse(str(_XSD_PATH))
-        schema = etree.XMLSchema(schema_doc)
-    except etree.XMLSchemaParseError as exc:
-        logger.warning("Could not parse XSD schema at %s: %s", _XSD_PATH, exc)
-        return [f"XSD schema could not be loaded: {exc}"]
-
-    if not schema.validate(root):
-        return [
-            f"XSD validation: {err.message}"
-            for err in schema.error_log  # type: ignore[union-attr]
-        ]
-    return []
+from schemas import validate_xsd
 
 
 def _import_xml(content: str) -> tuple[ProcessModel, str, list[str]]:
@@ -383,7 +370,7 @@ def _import_xml(content: str) -> tuple[ProcessModel, str, list[str]]:
         ) from exc
 
     # Optional XSD validation (non-blocking — warnings only)
-    xsd_warnings = _validate_xsd(root, etree)
+    xsd_warnings = validate_xsd(root)
 
     ns = {"fpb": "http://www.vdivde.de/3682"}
 

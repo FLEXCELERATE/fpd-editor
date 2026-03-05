@@ -1,0 +1,3 @@
+[submodule "backend/schemas/IndustrialStandard-XSD-VDI3682"]
+	path = backend/schemas/IndustrialStandard-XSD-VDI3682
+	url = https://github.com/hsu-aut/IndustrialStandard-XSD-VDI3682

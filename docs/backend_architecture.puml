@@ -1,0 +1,319 @@
+@startuml Backend_Architecture
+
+title FPD Editor -- Backend Software Architecture
+
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam ranksep 40
+skinparam nodesep 25
+
+skinparam class {
+    BackgroundColor<<Router>> #C8E6C9
+    BackgroundColor<<Model>> #BBDEFB
+    BackgroundColor<<Service>> #FFF9C4
+    BackgroundColor<<Exporter>> #FFE0B2
+    BackgroundColor<<Parser>> #E1BEE7
+    BackgroundColor<<Schema>> #FFCCBC
+    BackgroundColor<<Config>> #F5F5F5
+}
+
+' ============================================================
+' Entry Point
+' ============================================================
+package "Application" as app_pkg {
+    class FastAPI <<Config>> {
+        + app : FastAPI
+        --
+        /api/parse
+        /api/export/text
+        /api/export/xml
+        /api/export/pdf
+        /api/import
+        /api/health
+    }
+
+    class Settings <<Config>> {
+        + app_name : str
+        + app_version : str
+        + cors_origins : list[str]
+        + api_prefix : str
+        + session_ttl_seconds : int
+        + max_sessions : int
+    }
+}
+
+' ============================================================
+' Routers
+' ============================================================
+package "routers" as router_pkg {
+    class ParseRouter <<Router>> {
+        + parse_fpd(source, session_id?)
+        --
+        POST /api/parse
+    }
+
+    class ExportRouter <<Router>> {
+        + export_text_endpoint(session_id)
+        + export_xml_endpoint(session_id)
+        + export_pdf_endpoint(session_id)
+        --
+        POST /api/export/text
+        POST /api/export/xml
+        POST /api/export/pdf
+        ..
+        XML export validates against
+        XSD and returns warnings in
+        X-XSD-Warnings header
+    }
+
+    class ImportRouter <<Router>> {
+        + import_file(file: UploadFile)
+        - _detect_format(filename, content)
+        - _import_text(content)
+        - _import_xml(content)
+        - _parse_xml_hsu(root, ns)
+        - _parse_xml_legacy(root, ns)
+        - _validate_xsd(root, etree)
+        --
+        POST /api/import
+        ..
+        Auto-detects HSU vs legacy
+        XML format on import
+    }
+}
+
+' ============================================================
+' Models
+' ============================================================
+package "models" as model_pkg {
+    class ProcessModel <<Model>> {
+        + title : str
+        + system_limits : list[SystemLimit]
+        + states : list[State]
+        + process_operators : list[ProcessOperator]
+        + technical_resources : list[TechnicalResource]
+        + flows : list[Flow]
+        + usages : list[Usage]
+        + errors : list[str]
+        + warnings : list[str]
+    }
+
+    abstract class "FPD Elements" as fpd_elements <<Model>> {
+        ..State..
+        id, state_type, identification,
+        label, placement?, system_id?
+        ..ProcessOperator..
+        id, identification, label, system_id?
+        ..TechnicalResource..
+        id, identification, label, system_id?
+        ..SystemLimit..
+        id, identification, label
+        ..Flow..
+        id, source_ref, target_ref,
+        flow_type, system_id?
+        ..Usage..
+        id, process_operator_ref,
+        technical_resource_ref, system_id?
+    }
+
+    class Identification <<Model>> {
+        + unique_ident : str
+        + long_name : str?
+        + short_name : str?
+    }
+
+    enum StateType <<Model>> {
+        PRODUCT
+        ENERGY
+        INFORMATION
+    }
+
+    enum FlowType <<Model>> {
+        FLOW
+        ALTERNATIVE_FLOW
+        PARALLEL_FLOW
+    }
+
+    ProcessModel *-- fpd_elements
+    fpd_elements *-- Identification
+    fpd_elements ..> StateType
+    fpd_elements ..> FlowType
+}
+
+' ============================================================
+' Parser
+' ============================================================
+package "parser" as parser_pkg {
+    class Lexer <<Parser>> {
+        + tokenize(source) : list[Token]
+        --
+        Converts FPD text to tokens
+    }
+
+    class FpdParser <<Parser>> {
+        + parse() : ProcessModel
+        --
+        Converts tokens to
+        ProcessModel
+    }
+
+    class Validator <<Parser>> {
+        + validate_connections(model)
+        --
+        VDI 3682 connection rules:
+        State <-> ProcessOperator
+        PO <-> TechnicalResource
+    }
+
+    class Syntax <<Parser>> {
+        + TokenType : Enum
+        + ELEMENT_KEYWORDS
+        + CONNECTION_OPERATORS
+        + PLACEMENT_ANNOTATIONS
+    }
+
+    Lexer ..> Syntax
+    FpdParser --> Lexer : uses
+    FpdParser ..> Syntax
+}
+
+' ============================================================
+' Export
+' ============================================================
+package "export" as export_pkg {
+    class XmlExporter <<Exporter>> {
+        + export_xml(model) : str
+        --
+        Generates HSU FPD_Schema.xsd-
+        compatible VDI 3682 XML
+        ..
+        flowContainer (registry)
+        + entry/exit bindings
+        + SystemLimit @id/@name
+    }
+
+    class TextExporter <<Exporter>> {
+        + export_text(model) : str
+        --
+        Generates FPD text syntax
+        with system blocks
+    }
+
+    class PdfExporter <<Exporter>> {
+        + export_pdf(model) : bytes
+        --
+        PDF document with
+        diagram rendering
+    }
+}
+
+' ============================================================
+' Schemas (XSD Validation)
+' ============================================================
+package "schemas" as schema_pkg {
+    class "validate_xsd()" as xsd_validator <<Schema>> {
+        + validate_xsd(root) : list[str]
+        + XSD_PATH : Path
+        --
+        Uses xmlschema (XSD 1.1)
+        Returns [] if valid,
+        list of warnings otherwise
+    }
+
+    class "FPD_Schema.xsd" as xsd_file <<Schema>> {
+        Git Submodule (MIT License)
+        hsu-aut/IndustrialStandard-
+        XSD-VDI3682
+    }
+
+    xsd_validator --> xsd_file : reads
+}
+
+' ============================================================
+' Services
+' ============================================================
+package "services" as service_pkg {
+    class SessionManager <<Service>> {
+        + create_session() : str
+        + get_session(id) : Session?
+        + update_session_data(id, data)
+        + delete_session(id)
+        --
+        In-memory store
+        TTL-based expiration
+    }
+
+    class LayoutEngine <<Service>> {
+        + compute_layout(model) : dict
+        --
+        Phase 0: Connectivity graph
+        Phase 1: Topological sort POs
+        Phase 2: Classify states
+        Phase 3: State-to-PO affinity
+        Phase 4: Compute coordinates
+        Phase 5: System limit bounds
+        Phase 6: Disconnected elements
+        Phase 7: Connection routing
+    }
+}
+
+' ============================================================
+' Dependencies between packages
+' ============================================================
+
+' App -> Routers
+FastAPI --> ParseRouter : includes
+FastAPI --> ExportRouter : includes
+FastAPI --> ImportRouter : includes
+FastAPI ..> Settings : reads
+
+' Parse Router
+ParseRouter --> FpdParser : parses FPD text
+ParseRouter --> Validator : validates
+ParseRouter --> LayoutEngine : computes layout
+ParseRouter --> SessionManager : stores
+
+' Export Router
+ExportRouter --> XmlExporter : generates XML
+ExportRouter --> TextExporter : generates FPD text
+ExportRouter --> PdfExporter : generates PDF
+ExportRouter --> SessionManager : reads
+ExportRouter --> xsd_validator : validates export
+
+' Import Router
+ImportRouter --> TextExporter : regenerates FPD text
+ImportRouter --> Validator : validates
+ImportRouter --> LayoutEngine : computes layout
+ImportRouter --> SessionManager : stores
+ImportRouter --> xsd_validator : validates import
+
+' Exporters -> Model
+XmlExporter --> ProcessModel : reads
+TextExporter --> ProcessModel : reads
+PdfExporter --> ProcessModel : reads
+
+' Parser -> Model
+FpdParser --> ProcessModel : creates
+Validator --> ProcessModel : inspects
+
+' Layout -> Model
+LayoutEngine --> ProcessModel : reads
+
+' ============================================================
+' Legend
+' ============================================================
+legend right
+    |= Color |= Layer |
+    | <#C8E6C9> | Router (API endpoints) |
+    | <#BBDEFB> | Model (Pydantic data classes) |
+    | <#FFF9C4> | Service (layout, sessions) |
+    | <#FFE0B2> | Exporter (XML, text, PDF) |
+    | <#E1BEE7> | Parser (lexer, parser, validator) |
+    | <#FFCCBC> | Schema (XSD validation) |
+    | <#F5F5F5> | Config / Entry point |
+    --
+    XSD Schema: git submodule
+    hsu-aut/IndustrialStandard-XSD-VDI3682
+endlegend
+
+@enduml

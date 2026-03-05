@@ -32,6 +32,10 @@ attribution when redistributing.
 - **URL:** https://www.reportlab.com/
 - **Copyright:** Copyright (c) 2000-2024, ReportLab Inc.
 
+### xmlschema
+- **License:** MIT
+- **URL:** https://github.com/sissaschool/xmlschema
+
 ## JavaScript/TypeScript Dependencies
 
 ### React
@@ -62,15 +66,14 @@ attribution when redistributing.
 - **License:** MIT
 - **URL:** https://github.com/axios/axios
 
-## References
+## Bundled Schemas
 
 ### HSU Hamburg VDI 3682 XSD Schema
 - **Repository:** https://github.com/hsu-aut/IndustrialStandard-XSD-VDI3682
-- **License:** No license file present in repository (as of February 2026)
-- **Note:** Our XML export format is structurally compatible with the FPD_Schema.xsd
-  defined by HSU Hamburg. We do not redistribute their schema files. Users can
-  optionally download `FPD_Schema.xsd` into `backend/schemas/` to enable XSD
-  validation during XML import.
+- **License:** MIT
+- **Copyright:** Copyright (c) HSU Hamburg
+- **Note:** Included as a Git submodule in `backend/schemas/IndustrialStandard-XSD-VDI3682/`.
+  Used for XSD validation of XML imports and exports.
 - **Reference:** H. Nabizada, T. Jeleniewski, A. Köcher, A. Fay, "Vorschlag für eine
   XML-Repräsentation der Formalisierten Prozessbeschreibung nach VDI/VDE 3682",
   17. Fachtagung EKA, 2022.

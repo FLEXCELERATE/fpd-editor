@@ -6,7 +6,6 @@ from io import BytesIO
 
 from reportlab.lib.colors import Color, HexColor
 from reportlab.lib.pagesizes import A4, LETTER, landscape, portrait
-from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 
 from models.fpd_model import FlowType, StateType
