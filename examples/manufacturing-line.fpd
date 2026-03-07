@@ -1,4 +1,4 @@
-@startfpb
+@startfpd
 title "Manufacturing Line"
 
 system "Fabrication" {
@@ -58,4 +58,4 @@ system "Quality Control" {
   PO6 --> P8
 }
 
-@endfpb
+@endfpd

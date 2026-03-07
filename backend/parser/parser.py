@@ -1,6 +1,6 @@
 """Parser that converts a token stream into a ProcessModel."""
 
-from models.fpb_model import (
+from models.fpd_model import (
     Flow,
     FlowType,
     Identification,
@@ -11,7 +11,7 @@ from models.fpb_model import (
     TechnicalResource,
     Usage,
 )
-from models.fpb_model import SystemLimit
+from models.fpd_model import SystemLimit
 from models.process_model import ProcessModel
 from parser.lexer import Lexer, Token
 from parser.syntax import ELEMENT_KEYWORDS, TokenType
@@ -41,8 +41,8 @@ _FLOW_TOKEN_MAP = {
 }
 
 
-class FpbParser:
-    """Parser that converts FPB text into a ProcessModel."""
+class FpdParser:
+    """Parser that converts FPD text into a ProcessModel."""
 
     def __init__(self, source: str) -> None:
         self.source = source
@@ -61,17 +61,17 @@ class FpbParser:
         self.pos = 0
 
         self._skip_trivial()
-        self._expect(TokenType.START_FPB)
+        self._expect(TokenType.START_FPD)
         self._skip_trivial()
 
-        while not self._check(TokenType.END_FPB) and not self._check(TokenType.EOF):
+        while not self._check(TokenType.END_FPD) and not self._check(TokenType.EOF):
             self._parse_statement()
             self._skip_trivial()
 
-        if self._check(TokenType.END_FPB):
+        if self._check(TokenType.END_FPD):
             self._advance()
         else:
-            self.model.errors.append("Missing @endfpb delimiter")
+            self.model.errors.append("Missing @endfpd delimiter")
 
         return self.model
 
@@ -164,7 +164,7 @@ class FpbParser:
         self._current_system_id = system_id
         self._skip_trivial()
 
-        while not self._check(TokenType.RBRACE) and not self._check(TokenType.EOF) and not self._check(TokenType.END_FPB):
+        while not self._check(TokenType.RBRACE) and not self._check(TokenType.EOF) and not self._check(TokenType.END_FPD):
             self._parse_statement()
             self._skip_trivial()
 

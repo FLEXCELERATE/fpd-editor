@@ -1,12 +1,12 @@
-"""Syntax constants and grammar rules for the FPB text language."""
+"""Syntax constants and grammar rules for the FPD text language."""
 
 from enum import Enum
 
 
 class TokenType(str, Enum):
-    """Token types produced by the FPB lexer."""
-    START_FPB = "START_FPB"
-    END_FPB = "END_FPB"
+    """Token types produced by the FPD lexer."""
+    START_FPD = "START_FPD"
+    END_FPD = "END_FPD"
     KEYWORD = "KEYWORD"
     IDENTIFIER = "IDENTIFIER"
     STRING = "STRING"
@@ -23,8 +23,8 @@ class TokenType(str, Enum):
 
 
 # Block delimiters
-START_DELIMITER = "@startfpb"
-END_DELIMITER = "@endfpb"
+START_DELIMITER = "@startfpd"
+END_DELIMITER = "@endfpd"
 
 # Element keywords
 ELEMENT_KEYWORDS = frozenset({

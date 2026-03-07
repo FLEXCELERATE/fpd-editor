@@ -1,4 +1,4 @@
-"""End-to-end tests for the FPB Editor API.
+"""End-to-end tests for the FPD Editor API.
 
 Covers all VDI 3682 element types, connection types, export/import round-trip,
 validation error handling, empty documents, and large diagrams.
@@ -15,10 +15,10 @@ from main import app
 client = TestClient(app)
 
 # ---------------------------------------------------------------------------
-# Fixture: full FPB source with all element and connection types
+# Fixture: full FPD source with all element and connection types
 # ---------------------------------------------------------------------------
-FULL_FPB_SOURCE = """\
-@startfpb
+FULL_FPD_SOURCE = """\
+@startfpd
 title "Complete Process"
 
 product p1 "Raw Material"
@@ -36,12 +36,12 @@ p1 -.-> po1
 po1 ==> p2
 po1 <..> tr1
 
-@endfpb
+@endfpd
 """
 
-EMPTY_FPB_SOURCE = """\
-@startfpb
-@endfpb
+EMPTY_FPD_SOURCE = """\
+@startfpd
+@endfpd
 """
 
 
@@ -57,7 +57,7 @@ class TestParseAllElements:
         return resp.json()
 
     def test_all_element_types_present(self):
-        data = self._parse(FULL_FPB_SOURCE)
+        data = self._parse(FULL_FPD_SOURCE)
         model = data["model"]
         assert model["title"] == "Complete Process"
         assert len(model["states"]) == 4  # p1, p2, e1, i1
@@ -70,7 +70,7 @@ class TestParseAllElements:
         assert "information" in state_types
 
     def test_all_connection_types_present(self):
-        data = self._parse(FULL_FPB_SOURCE)
+        data = self._parse(FULL_FPD_SOURCE)
         model = data["model"]
         flow_types = {f["flow_type"] for f in model["flows"]}
         assert "flow" in flow_types
@@ -79,12 +79,12 @@ class TestParseAllElements:
         assert len(model["usages"]) == 1
 
     def test_session_id_returned(self):
-        data = self._parse(FULL_FPB_SOURCE)
+        data = self._parse(FULL_FPD_SOURCE)
         assert "session_id" in data
         assert len(data["session_id"]) > 0
 
     def test_diagram_layout_returned(self):
-        data = self._parse(FULL_FPB_SOURCE)
+        data = self._parse(FULL_FPD_SOURCE)
         diagram = data["diagram"]
         assert "elements" in diagram
         assert "connections" in diagram
@@ -99,7 +99,7 @@ class TestExport:
 
     @pytest.fixture(autouse=True)
     def _setup_session(self):
-        resp = client.post("/api/parse", json={"source": FULL_FPB_SOURCE})
+        resp = client.post("/api/parse", json={"source": FULL_FPD_SOURCE})
         self.session_id = resp.json()["session_id"]
 
     def test_export_xml_hsu_structure(self):
@@ -160,12 +160,12 @@ class TestExport:
         assert len(entries) > 0
         assert len(exits) > 0
 
-    def test_export_text_fpb_content(self):
+    def test_export_text_fpd_content(self):
         resp = client.post("/api/export/text", json={"session_id": self.session_id})
         assert resp.status_code == 200
         content = resp.text
-        assert "@startfpb" in content
-        assert "@endfpb" in content
+        assert "@startfpd" in content
+        assert "@endfpd" in content
         assert "product p1" in content
         assert "energy e1" in content
         assert "information i1" in content
@@ -183,7 +183,7 @@ class TestExportPdf:
 
     @pytest.fixture(autouse=True)
     def _setup_session(self):
-        resp = client.post("/api/parse", json={"source": FULL_FPB_SOURCE})
+        resp = client.post("/api/parse", json={"source": FULL_FPD_SOURCE})
         self.session_id = resp.json()["session_id"]
 
     def test_export_pdf_valid(self):
@@ -199,7 +199,7 @@ class TestExportPdf:
 
     def test_export_pdf_empty_document(self):
         """Verify PDF export works with empty diagrams."""
-        resp = client.post("/api/parse", json={"source": EMPTY_FPB_SOURCE})
+        resp = client.post("/api/parse", json={"source": EMPTY_FPD_SOURCE})
         session_id = resp.json()["session_id"]
         pdf_resp = client.post("/api/export/pdf", json={"session_id": session_id})
         assert pdf_resp.status_code == 200
@@ -219,7 +219,7 @@ class TestImportTextRoundTrip:
 
     def test_text_round_trip(self):
         # Parse original
-        parse_resp = client.post("/api/parse", json={"source": FULL_FPB_SOURCE})
+        parse_resp = client.post("/api/parse", json={"source": FULL_FPD_SOURCE})
         session_id = parse_resp.json()["session_id"]
         original_model = parse_resp.json()["model"]
 
@@ -231,14 +231,14 @@ class TestImportTextRoundTrip:
         file = io.BytesIO(exported_text.encode("UTF-8"))
         import_resp = client.post(
             "/api/import",
-            files={"file": ("process.fpb", file, "text/plain")},
+            files={"file": ("process.fpd", file, "text/plain")},
         )
         assert import_resp.status_code == 200
         imported = import_resp.json()
 
         # Verify source is returned
-        assert "@startfpb" in imported["source"]
-        assert "@endfpb" in imported["source"]
+        assert "@startfpd" in imported["source"]
+        assert "@endfpd" in imported["source"]
 
         # Verify model equivalence
         im = imported["model"]
@@ -255,7 +255,7 @@ class TestImportXmlRoundTrip:
 
     def test_xml_round_trip(self):
         # Parse original
-        parse_resp = client.post("/api/parse", json={"source": FULL_FPB_SOURCE})
+        parse_resp = client.post("/api/parse", json={"source": FULL_FPD_SOURCE})
         session_id = parse_resp.json()["session_id"]
         original_model = parse_resp.json()["model"]
 
@@ -272,8 +272,8 @@ class TestImportXmlRoundTrip:
         assert import_resp.status_code == 200
         imported = import_resp.json()
 
-        # Verify FPB source regenerated
-        assert "@startfpb" in imported["source"]
+        # Verify FPD source regenerated
+        assert "@startfpd" in imported["source"]
 
         # Verify model has same element counts
         im = imported["model"]
@@ -346,14 +346,14 @@ class TestImportLegacyXml:
         assert len(im["flows"]) == 2
         assert len(im["usages"]) == 1
 
-    def test_legacy_xml_generates_fpb_text(self):
+    def test_legacy_xml_generates_fpd_text(self):
         file = io.BytesIO(self.LEGACY_XML.encode("UTF-8"))
         resp = client.post(
             "/api/import",
             files={"file": ("legacy.xml", file, "application/xml")},
         )
         source = resp.json()["source"]
-        assert "@startfpb" in source
+        assert "@startfpd" in source
         assert "product p1" in source
         assert "-->" in source
 
@@ -366,25 +366,25 @@ class TestInvalidConnections:
 
     def test_state_to_state_flow_error(self):
         source = """\
-@startfpb
+@startfpd
 product p1 "A"
 product p2 "B"
 p1 --> p2
-@endfpb
+@endfpd
 """
         resp = client.post("/api/parse", json={"source": source})
         assert resp.status_code == 200
         model = resp.json()["model"]
         assert len(model["errors"]) > 0
-        assert any("State" in e and "ProcessOperator" in e for e in model["errors"])
+        assert any("State -> State" in e for e in model["errors"])
 
     def test_tr_to_state_usage_error(self):
         source = """\
-@startfpb
+@startfpd
 product p1 "A"
 technical_resource tr1 "Machine"
 p1 <..> tr1
-@endfpb
+@endfpd
 """
         resp = client.post("/api/parse", json={"source": source})
         model = resp.json()["model"]
@@ -392,10 +392,10 @@ p1 <..> tr1
 
     def test_undefined_element_reference(self):
         source = """\
-@startfpb
+@startfpd
 product p1 "A"
 p1 --> nonexistent
-@endfpb
+@endfpd
 """
         resp = client.post("/api/parse", json={"source": source})
         model = resp.json()["model"]
@@ -406,10 +406,10 @@ p1 --> nonexistent
 # 6. Empty document
 # ---------------------------------------------------------------------------
 class TestEmptyDocument:
-    """Verify empty FPB document doesn't crash."""
+    """Verify empty FPD document doesn't crash."""
 
     def test_empty_document_parses(self):
-        resp = client.post("/api/parse", json={"source": EMPTY_FPB_SOURCE})
+        resp = client.post("/api/parse", json={"source": EMPTY_FPD_SOURCE})
         assert resp.status_code == 200
         model = resp.json()["model"]
         assert model["states"] == []
@@ -417,7 +417,7 @@ class TestEmptyDocument:
         assert model["flows"] == []
 
     def test_empty_document_export_xml(self):
-        resp = client.post("/api/parse", json={"source": EMPTY_FPB_SOURCE})
+        resp = client.post("/api/parse", json={"source": EMPTY_FPD_SOURCE})
         session_id = resp.json()["session_id"]
         xml_resp = client.post("/api/export/xml", json={"session_id": session_id})
         assert xml_resp.status_code == 200
@@ -431,7 +431,7 @@ class TestLargeDiagram:
     """Verify layout handles large diagrams."""
 
     def test_large_diagram_parses_and_exports(self):
-        lines = ['@startfpb', 'title "Large Process"']
+        lines = ['@startfpd', 'title "Large Process"']
         for i in range(6):
             lines.append(f'product p{i} "Product {i}"')
         for i in range(3):
@@ -451,7 +451,7 @@ class TestLargeDiagram:
             lines.append(f"po{i} --> p{i + 3}")
         for i in range(2):
             lines.append(f"po{i} <..> tr{i}")
-        lines.append("@endfpb")
+        lines.append("@endfpd")
         source = "\n".join(lines)
 
         # Parse
@@ -482,9 +482,9 @@ class TestHealth:
 # ---------------------------------------------------------------------------
 class TestSessionReuse:
     def test_session_reuse_on_reparse(self):
-        resp1 = client.post("/api/parse", json={"source": FULL_FPB_SOURCE})
+        resp1 = client.post("/api/parse", json={"source": FULL_FPD_SOURCE})
         sid = resp1.json()["session_id"]
-        resp2 = client.post("/api/parse", json={"source": FULL_FPB_SOURCE, "session_id": sid})
+        resp2 = client.post("/api/parse", json={"source": FULL_FPD_SOURCE, "session_id": sid})
         assert resp2.json()["session_id"] == sid
 
 

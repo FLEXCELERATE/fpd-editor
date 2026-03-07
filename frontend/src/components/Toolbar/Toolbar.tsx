@@ -2,7 +2,7 @@
 
 import { ExportMenu } from "./ExportMenu";
 import { ImportButton } from "./ImportButton";
-import type { ProcessModel } from "../../types/fpb";
+import type { ProcessModel } from "../../types/fpd";
 
 interface ToolbarProps {
   loading: boolean;
@@ -31,7 +31,7 @@ export function Toolbar({
 }: ToolbarProps) {
   return (
     <div className="toolbar">
-      <span className="toolbar__title">FPB Editor</span>
+      <span className="toolbar__title">FPD Editor</span>
       <div className="toolbar__actions">
         <button
           className="toolbar__button"

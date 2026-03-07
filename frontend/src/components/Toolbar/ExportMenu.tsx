@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { exportXml, exportText, downloadBlob } from "../../services/api";
-import { exportSvgToPdf } from "../../services/pdfExport";
+import { exportSvgToPdf, exportSvgToSvg, exportSvgToPng } from "../../services/pdfExport";
 
 interface ExportMenuProps {
   sessionId: string | undefined;
@@ -11,19 +11,27 @@ interface ExportMenuProps {
   processTitle?: string;
 }
 
-type ExportFormat = "xml" | "text" | "pdf";
+type ExportFormat = "xml" | "text" | "pdf" | "svg" | "png";
 
 const FORMAT_LABELS: Record<ExportFormat, string> = {
   xml: "Export VDI 3682 XML",
-  text: "Export FPB Text",
+  text: "Export FPD Text",
   pdf: "Export PDF Document",
+  svg: "Export SVG Image",
+  png: "Export PNG Image",
 };
 
 const FORMAT_EXTENSIONS: Record<ExportFormat, string> = {
-  xml: "process.xml",
-  text: "process.fpb",
-  pdf: "diagram.pdf",
+  xml: ".xml",
+  text: ".fpd",
+  pdf: ".pdf",
+  svg: ".svg",
+  png: ".png",
 };
+
+function sanitizeFilename(title: string): string {
+  return title.replace(/["/\\]/g, "_").trim() || "diagram";
+}
 
 export function ExportMenu({ sessionId, disabled, getSvgElement, processTitle }: ExportMenuProps) {
   const [open, setOpen] = useState(false);
@@ -34,24 +42,32 @@ export function ExportMenu({ sessionId, disabled, getSvgElement, processTitle }:
       setOpen(false);
       setExporting(true);
       try {
-        if (format === "pdf") {
-          // Browser-based PDF export from the rendered SVG
+        const baseFilename = sanitizeFilename(processTitle || "diagram");
+        if (format === "pdf" || format === "svg" || format === "png") {
+          // Browser-based export from the rendered SVG
           const svgEl = getSvgElement?.();
           if (!svgEl) {
-            alert("No diagram to export. Write FPB text to create a diagram first.");
+            alert("No diagram to export. Write FPD text to create a diagram first.");
             return;
           }
-          await exportSvgToPdf({
-            svgElement: svgEl,
-            title: processTitle || "Untitled Process",
-            filename: FORMAT_EXTENSIONS.pdf,
-          });
+          const fname = baseFilename + FORMAT_EXTENSIONS[format];
+          if (format === "pdf") {
+            await exportSvgToPdf({
+              svgElement: svgEl,
+              title: processTitle || "Untitled Process",
+              filename: fname,
+            });
+          } else if (format === "svg") {
+            exportSvgToSvg({ svgElement: svgEl, filename: fname });
+          } else {
+            await exportSvgToPng({ svgElement: svgEl, filename: fname });
+          }
         } else {
           // XML and text export through backend API
           if (!sessionId) return;
           const exportFn = format === "xml" ? exportXml : exportText;
           const blob = await exportFn({ session_id: sessionId });
-          downloadBlob(blob, FORMAT_EXTENSIONS[format]);
+          downloadBlob(blob, baseFilename + FORMAT_EXTENSIONS[format]);
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : "Export failed";

@@ -1,33 +1,33 @@
-/** Template data structure for FPB text examples. */
+/** Template data structure for FPD text examples. */
 
-export interface FpbTemplate {
+export interface FpdTemplate {
   id: string;
   name: string;
   description: string;
   content: string;
 }
 
-/** Curated library of FPB text templates for common VDI 3682 process patterns. */
-export const templates: FpbTemplate[] = [
+/** Curated library of FPD text templates for common VDI 3682 process patterns. */
+export const templates: FpdTemplate[] = [
   {
     id: 'minimal',
     name: 'Minimal Process',
-    description: 'Single process operator - the simplest valid FPB diagram',
-    content: `@startfpb
+    description: 'Single process operator - the simplest valid FPD diagram',
+    content: `@startfpd
 title "Minimal Process"
 
 // Minimal example: one process operator
 // A process operator represents a transformation or operation
 process_operator PO1 "Basic Operation"
 
-@endfpb
+@endfpd
 `,
   },
   {
     id: 'basic-flow',
     name: 'Basic Flow',
     description: 'Linear chain of product transformations through process operators',
-    content: `@startfpb
+    content: `@startfpd
 title "Basic Linear Flow"
 
 // Declare products (materials, goods, or workpieces)
@@ -46,14 +46,14 @@ PO1 --> P2
 P2 --> PO2
 PO2 --> P3
 
-@endfpb
+@endfpd
 `,
   },
   {
     id: 'parallel-flows',
     name: 'Parallel Flows',
     description: 'Process with parallel execution paths using the parallel flow operator',
-    content: `@startfpb
+    content: `@startfpd
 title "Parallel Processing"
 
 // Input products
@@ -85,14 +85,14 @@ P2 --> PO4
 P3 --> PO4
 PO4 --> P4
 
-@endfpb
+@endfpd
 `,
   },
   {
     id: 'alternative-flows',
     name: 'Alternative Flows',
     description: 'Process with conditional paths using the alternative flow operator',
-    content: `@startfpb
+    content: `@startfpd
 title "Alternative Process Paths"
 
 // Input and output products
@@ -119,14 +119,14 @@ PO2 -.-> P2A          // Quality fail path (alternative)
 P2A --> PO3           // Send to rework
 PO3 --> P3            // Rework output
 
-@endfpb
+@endfpd
 `,
   },
   {
     id: 'multi-process',
     name: 'Multi-Process System',
     description: 'Multiple process operators with energy and technical resources',
-    content: `@startfpb
+    content: `@startfpd
 title "Multi-Process Manufacturing"
 
 // Products at each stage
@@ -168,14 +168,14 @@ PO1 <..> TR1
 PO2 <..> TR2
 PO3 <..> TR3
 
-@endfpb
+@endfpd
 `,
   },
   {
     id: 'full-example',
     name: 'Complete VDI 3682 Example',
     description: 'Comprehensive example demonstrating all VDI 3682 element types and connection operators',
-    content: `@startfpb
+    content: `@startfpd
 title "Complete VDI 3682 Process Model"
 
 // === Products (materials, goods, workpieces) ===
@@ -259,13 +259,13 @@ PO3 <..> TR3
 PO4 <..> TR4
 PO5 <..> TR5
 
-@endfpb
+@endfpd
 `,
   },
 ];
 
 /** Get a template by its ID. */
-export function getTemplateById(id: string): FpbTemplate | undefined {
+export function getTemplateById(id: string): FpdTemplate | undefined {
   return templates.find((t) => t.id === id);
 }
 

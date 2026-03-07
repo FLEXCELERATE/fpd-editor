@@ -1,8 +1,8 @@
-/** Monaco autocomplete provider for FPB keywords and snippets. */
+/** Monaco autocomplete provider for FPD keywords and snippets. */
 
 import type * as monaco from 'monaco-editor';
 
-export function createFpbCompletionProvider(
+export function createFpdCompletionProvider(
   monacoInstance: typeof monaco,
 ): monaco.languages.CompletionItemProvider {
   const { CompletionItemKind, CompletionItemInsertTextRule } =
@@ -30,18 +30,18 @@ export function createFpbCompletionProvider(
       if (textBefore === '' || textBefore === '@') {
         suggestions.push(
           {
-            label: '@startfpb',
+            label: '@startfpd',
             kind: CompletionItemKind.Keyword,
-            insertText: '@startfpb',
+            insertText: '@startfpd',
             range,
-            detail: 'Begin FPB document',
+            detail: 'Begin FPD document',
           },
           {
-            label: '@endfpb',
+            label: '@endfpd',
             kind: CompletionItemKind.Keyword,
-            insertText: '@endfpb',
+            insertText: '@endfpd',
             range,
-            detail: 'End FPB document',
+            detail: 'End FPD document',
           },
         );
       }
@@ -182,10 +182,10 @@ export function createFpbCompletionProvider(
 
       // Snippet: full template
       suggestions.push({
-        label: 'fpb-template',
+        label: 'fpd-template',
         kind: CompletionItemKind.Snippet,
         insertText: [
-          '@startfpb',
+          '@startfpd',
           'title "${1:Process Name}"',
           '',
           '// States',
@@ -199,11 +199,11 @@ export function createFpbCompletionProvider(
           '${2:P1} --> ${6:PO1}',
           '${6:PO1} --> ${4:P2}',
           '',
-          '@endfpb',
+          '@endfpd',
         ].join('\n'),
         insertTextRules: CompletionItemInsertTextRule.InsertAsSnippet,
         range,
-        detail: 'Full FPB document template',
+        detail: 'Full FPD document template',
       });
 
       return { suggestions };

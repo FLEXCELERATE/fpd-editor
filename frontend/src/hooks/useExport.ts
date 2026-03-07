@@ -1,22 +1,28 @@
-/** Hook that provides export and import operations for FPB diagrams. */
+/** Hook that provides export and import operations for FPD diagrams. */
 
 import { useCallback, useState } from "react";
-import type { ProcessModel } from "../types/fpb";
+import type { ProcessModel } from "../types/fpd";
 import {
   exportXml,
   exportText,
   importFile,
   downloadBlob,
 } from "../services/api";
-import { exportSvgToPdf } from "../services/pdfExport";
+import { exportSvgToPdf, exportSvgToSvg, exportSvgToPng } from "../services/pdfExport";
 
-export type ExportFormat = "xml" | "text" | "pdf";
+export type ExportFormat = "xml" | "text" | "pdf" | "svg" | "png";
 
 const FORMAT_EXTENSIONS: Record<ExportFormat, string> = {
-  xml: "process.xml",
-  text: "process.fpb",
-  pdf: "diagram.pdf",
+  xml: ".xml",
+  text: ".fpd",
+  pdf: ".pdf",
+  svg: ".svg",
+  png: ".png",
 };
+
+function sanitizeFilename(title: string): string {
+  return title.replace(/["/\\]/g, "_").trim() || "diagram";
+}
 
 interface UseExportOptions {
   getSvgElement?: () => SVGSVGElement | null;
@@ -38,18 +44,26 @@ export function useExport(options?: UseExportOptions): UseExportResult {
     async (format: ExportFormat, sessionId: string) => {
       setExporting(true);
       try {
-        if (format === "pdf") {
+        const baseFilename = sanitizeFilename(options?.processTitle || "diagram");
+        if (format === "pdf" || format === "svg" || format === "png") {
           const svgEl = options?.getSvgElement?.();
           if (!svgEl) throw new Error("No diagram to export");
-          await exportSvgToPdf({
-            svgElement: svgEl,
-            title: options?.processTitle || "Untitled Process",
-            filename: FORMAT_EXTENSIONS.pdf,
-          });
+          const fname = baseFilename + FORMAT_EXTENSIONS[format];
+          if (format === "pdf") {
+            await exportSvgToPdf({
+              svgElement: svgEl,
+              title: options?.processTitle || "Untitled Process",
+              filename: fname,
+            });
+          } else if (format === "svg") {
+            exportSvgToSvg({ svgElement: svgEl, filename: fname });
+          } else {
+            await exportSvgToPng({ svgElement: svgEl, filename: fname });
+          }
         } else {
           const exportFn = format === "xml" ? exportXml : exportText;
           const blob = await exportFn({ session_id: sessionId });
-          downloadBlob(blob, FORMAT_EXTENSIONS[format]);
+          downloadBlob(blob, baseFilename + FORMAT_EXTENSIONS[format]);
         }
       } finally {
         setExporting(false);

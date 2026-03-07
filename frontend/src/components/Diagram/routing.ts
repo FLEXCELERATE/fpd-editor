@@ -12,7 +12,7 @@
  * - Each regular Flow / Usage gets its own port
  */
 
-import { FlowType } from "../../types/fpb";
+import { FlowType } from "../../types/fpd";
 import type {
   DiagramElement,
   DiagramConnection,

@@ -1,25 +1,25 @@
-/** Hook that sends FPB source text to the backend parser with debouncing. */
+/** Hook that sends FPD source text to the backend parser with debouncing. */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ProcessModel } from "../types/fpb";
+import type { ProcessModel } from "../types/fpd";
 import { parseSource } from "../services/api";
 
-interface UseFpbParserOptions {
+interface UseFpdParserOptions {
   /** Debounce delay in milliseconds. Defaults to 500. */
   debounceMs?: number;
 }
 
-interface UseFpbParserResult {
+interface UseFpdParserResult {
   model: ProcessModel | null;
   error: string | null;
   loading: boolean;
   sessionId: string | undefined;
 }
 
-export function useFpbParser(
+export function useFpdParser(
   source: string,
-  options?: UseFpbParserOptions,
-): UseFpbParserResult {
+  options?: UseFpdParserOptions,
+): UseFpdParserResult {
   const debounceMs = options?.debounceMs ?? 500;
   const [model, setModel] = useState<ProcessModel | null>(null);
   const [error, setError] = useState<string | null>(null);

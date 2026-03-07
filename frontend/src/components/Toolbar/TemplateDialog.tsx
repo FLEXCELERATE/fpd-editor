@@ -1,12 +1,12 @@
-/** Dialog for selecting FPB templates from the template library. */
+/** Dialog for selecting FPD templates from the template library. */
 
 import { useState } from "react";
-import { templates, type FpbTemplate } from "../../data/templates";
+import { templates, type FpdTemplate } from "../../data/templates";
 
 interface TemplateDialogProps {
   open: boolean;
   onClose: () => void;
-  onSelect: (template: FpbTemplate) => void;
+  onSelect: (template: FpdTemplate) => void;
 }
 
 export function TemplateDialog({ open, onClose, onSelect }: TemplateDialogProps) {

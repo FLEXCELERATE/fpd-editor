@@ -1,6 +1,6 @@
 /** TypeScript type definitions for diagram rendering. */
 
-import type { FlowType, StateType } from "./fpb";
+import type { FlowType, StateType } from "./fpd";
 
 export type DiagramElementType =
   | "state"
@@ -28,6 +28,8 @@ export interface DiagramConnection {
   flowType?: FlowType;
   /** True when connection represents a Usage rather than a Flow. */
   isUsage: boolean;
+  /** True when connection links states across different systems. */
+  isCrossSystem?: boolean;
   /** Line number in source text where connection is declared. */
   line_number?: number;
   /** Optional routing hint: which side of the source element to use. */

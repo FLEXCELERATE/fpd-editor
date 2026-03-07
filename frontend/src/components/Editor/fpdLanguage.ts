@@ -1,12 +1,12 @@
-/** Monarch tokenizer definition for the FPB text syntax. */
+/** Monarch tokenizer definition for the FPD text syntax. */
 
 import type * as monaco from 'monaco-editor';
 
-export const FPB_LANGUAGE_ID = 'fpb';
+export const FPD_LANGUAGE_ID = 'fpd';
 
-export const fpbLanguageDefinition: monaco.languages.IMonarchLanguage = {
+export const fpdLanguageDefinition: monaco.languages.IMonarchLanguage = {
   defaultToken: '',
-  tokenPostfix: '.fpb',
+  tokenPostfix: '.fpd',
 
   keywords: [
     'product',
@@ -18,12 +18,12 @@ export const fpbLanguageDefinition: monaco.languages.IMonarchLanguage = {
     'system',
   ],
 
-  controlKeywords: ['startfpb', 'endfpb'],
+  controlKeywords: ['startfpd', 'endfpd'],
 
   tokenizer: {
     root: [
       // Block delimiters
-      [/@(startfpb|endfpb)/, 'keyword.control'],
+      [/@(startfpd|endfpd)/, 'keyword.control'],
 
       // Placement annotations (longer patterns first)
       [/@(boundary-top|boundary-bottom|boundary-left|boundary-right|boundary|internal)/, 'keyword.annotation'],
@@ -60,7 +60,7 @@ export const fpbLanguageDefinition: monaco.languages.IMonarchLanguage = {
   },
 };
 
-export const fpbLanguageConfiguration: monaco.languages.LanguageConfiguration = {
+export const fpdLanguageConfiguration: monaco.languages.LanguageConfiguration = {
   comments: {
     lineComment: '//',
   },

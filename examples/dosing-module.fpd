@@ -1,4 +1,4 @@
-@startfpb
+@startfpd
 title "DosingModule_v01"
 
 system "DosingModule_v01" {
@@ -87,4 +87,4 @@ system "DosingModule_v01" {
   O4 --> I14
 }
 
-@endfpb
+@endfpd

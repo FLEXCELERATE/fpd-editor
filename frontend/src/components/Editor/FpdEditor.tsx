@@ -1,17 +1,17 @@
-/** Monaco Editor wrapper with FPB custom language support. */
+/** Monaco Editor wrapper with FPD custom language support. */
 
 import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import Editor, { BeforeMount, OnMount } from '@monaco-editor/react';
 import type { editor as monacoEditor, IDisposable } from 'monaco-editor';
 import {
-  FPB_LANGUAGE_ID,
-  fpbLanguageDefinition,
-  fpbLanguageConfiguration,
-} from './fpbLanguage';
-import { createFpbCompletionProvider } from './fpbCompletion';
+  FPD_LANGUAGE_ID,
+  fpdLanguageDefinition,
+  fpdLanguageConfiguration,
+} from './fpdLanguage';
+import { createFpdCompletionProvider } from './fpdCompletion';
 import { typography } from '../../theme/designTokens';
 
-const DEFAULT_VALUE = `@startfpb
+const DEFAULT_VALUE = `@startfpd
 title "My Process"
 
 // Declare elements
@@ -27,7 +27,7 @@ E1 --> PO1
 PO1 --> P2
 PO1 <..> TR1
 
-@endfpb
+@endfpd
 `;
 
 /** Parse an error string to extract line number if present (e.g. "Line 5: ..."). */
@@ -36,7 +36,7 @@ function parseErrorLine(errorMsg: string): number {
   return match ? parseInt(match[1], 10) : 1;
 }
 
-interface FpbEditorProps {
+interface FpdEditorProps {
   value?: string;
   onChange?: (value: string) => void;
   /** Newline-separated parse error string from the backend. */
@@ -45,11 +45,11 @@ interface FpbEditorProps {
   onCursorPositionChange?: (lineNumber: number) => void;
 }
 
-export interface FpbEditorRef {
+export interface FpdEditorRef {
   scrollToLine: (lineNumber: number) => void;
 }
 
-const FpbEditor = forwardRef<FpbEditorRef, FpbEditorProps>(
+const FpdEditor = forwardRef<FpdEditorRef, FpdEditorProps>(
   ({ value, onChange, parseError, onCursorPositionChange }, ref) => {
     const editorRef = useRef<monacoEditor.IStandaloneCodeEditor | null>(null);
     const monacoRef = useRef<typeof import('monaco-editor') | null>(null);
@@ -80,18 +80,18 @@ const FpbEditor = forwardRef<FpbEditorRef, FpbEditorProps>(
     }));
 
     const handleBeforeMount: BeforeMount = (monaco) => {
-    monaco.languages.register({ id: FPB_LANGUAGE_ID });
+    monaco.languages.register({ id: FPD_LANGUAGE_ID });
     monaco.languages.setMonarchTokensProvider(
-      FPB_LANGUAGE_ID,
-      fpbLanguageDefinition,
+      FPD_LANGUAGE_ID,
+      fpdLanguageDefinition,
     );
     monaco.languages.setLanguageConfiguration(
-      FPB_LANGUAGE_ID,
-      fpbLanguageConfiguration,
+      FPD_LANGUAGE_ID,
+      fpdLanguageConfiguration,
     );
     monaco.languages.registerCompletionItemProvider(
-      FPB_LANGUAGE_ID,
-      createFpbCompletionProvider(monaco),
+      FPD_LANGUAGE_ID,
+      createFpdCompletionProvider(monaco),
     );
   };
 
@@ -121,7 +121,7 @@ const FpbEditor = forwardRef<FpbEditorRef, FpbEditorProps>(
     if (!monaco || !model) return;
 
     if (!parseError) {
-      monaco.editor.setModelMarkers(model, 'fpb-parser', []);
+      monaco.editor.setModelMarkers(model, 'fpd-parser', []);
       return;
     }
 
@@ -139,14 +139,14 @@ const FpbEditor = forwardRef<FpbEditorRef, FpbEditorProps>(
       };
     });
 
-    monaco.editor.setModelMarkers(model, 'fpb-parser', markers);
+    monaco.editor.setModelMarkers(model, 'fpd-parser', markers);
   }, [parseError]);
 
   return (
     <Editor
       defaultValue={DEFAULT_VALUE}
       value={value}
-      language={FPB_LANGUAGE_ID}
+      language={FPD_LANGUAGE_ID}
       theme="vs-dark"
       beforeMount={handleBeforeMount}
       onMount={handleMount}
@@ -164,6 +164,6 @@ const FpbEditor = forwardRef<FpbEditorRef, FpbEditorProps>(
   );
 });
 
-FpbEditor.displayName = 'FpbEditor';
+FpdEditor.displayName = 'FpdEditor';
 
-export default FpbEditor;
+export default FpdEditor;

@@ -1,8 +1,10 @@
-# Text-Based FPB Editor
+# Text-Based FPD Editor
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A text-based editor for creating **VDI 3682 Formalized Process Descriptions** (FPB diagrams) using a PlantUML-inspired syntax. Write FPB code on the left, see the rendered SVG diagram on the right — in real time.
+A text-based editor for creating **VDI 3682 Formalized Process Descriptions** (FPD diagrams) using a PlantUML-inspired syntax. Write FPD code on the left, see the rendered SVG diagram on the right — in real time.
+
+![FPD Editor](media/editor-Screenshot.png)
 
 ## Getting Started
 
@@ -10,6 +12,14 @@ A text-based editor for creating **VDI 3682 Formalized Process Descriptions** (F
 
 - Python 3.10+ with pip
 - Node.js 18+ with npm
+
+### Clone (with submodules)
+
+```bash
+git clone --recurse-submodules https://github.com/FLEXCELERATE/fpd-editor.git
+# or, if already cloned:
+git submodule update --init
+```
 
 ### Backend
 
@@ -33,26 +43,26 @@ Open http://localhost:5173 in your browser. The frontend proxies API requests to
 
 | Panel | Function |
 |-------|----------|
-| **Left** | Monaco text editor — write FPB code here |
+| **Left** | Monaco text editor — write FPD code here |
 | **Right** | Live SVG diagram preview |
-| **Toolbar** | Export (XML, PDF, Text) and import FPB files |
+| **Toolbar** | Export (XML, PDF, Text) and import FPD files |
 
 The diagram updates automatically as you type.
 
-## FPB Syntax Reference
+## FPD Syntax Reference
 
 ### Document Structure
 
 ```
-@startfpb
+@startfpd
 title "Process Name"
 
 // your elements and connections here
 
-@endfpb
+@endfpd
 ```
 
-- `@startfpb` / `@endfpb` — required document delimiters
+- `@startfpd` / `@endfpd` — required document delimiters
 - `title "Name"` — set the process name
 - `// text` — comment (ignored by parser)
 
@@ -79,8 +89,8 @@ Syntax: `keyword <id> "optional label"`
 
 ## Example
 
-```fpb
-@startfpb
+```fpd
+@startfpd
 title "My Process"
 
 // Declare elements
@@ -96,7 +106,7 @@ E1 --> PO1
 PO1 --> P2
 PO1 <..> TR1
 
-@endfpb
+@endfpd
 ```
 
 **Rendered output:** The diagram shows a VDI 3682 process view with **P1** (Input Material) and **E1** (Electrical Power) flowing into process operator **PO1** (Processing), which outputs **P2** (Output Product). **TR1** (Machine) is linked to PO1 via a usage connection. States appear as rounded shapes, the process operator as a rectangle, and the technical resource below the process connected by a dotted line.
@@ -112,15 +122,15 @@ PO1 <..> TR1
 ```
 ├── backend/          Python FastAPI backend (parser, layout, export)
 ├── frontend/         React + TypeScript web UI (Monaco editor, SVG diagram)
-├── examples/         Example .fpb files
+├── examples/         Example .fpd files
 └── docs/             Documentation and diagrams
 ```
 
 ## Export Formats
 
-- **VDI 3682 XML** — Compatible with [HSU Hamburg FPD_Schema.xsd](https://github.com/hsu-aut/IndustrialStandard-XSD-VDI3682)
+- **VDI 3682 XML** — Compatible with [HSU Hamburg FPD_Schema.xsd](https://github.com/hsu-aut/IndustrialStandard-XSD-VDI3682), validated against the XSD schema on export and import
 - **PDF** — Document export with diagram rendering
-- **FPB Text** — Re-export the text representation
+- **FPD Text** — Re-export the text representation
 
 ## Running Tests
 

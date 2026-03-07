@@ -1,20 +1,12 @@
-"""Import router for FPB text and VDI 3682 XML file uploads."""
+"""Import router for FPD text and VDI 3682 XML file uploads."""
 
-import logging
-from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, UploadFile
 from pydantic import BaseModel
 
-logger = logging.getLogger(__name__)
-
-# Path to optional HSU FPD_Schema.xsd for XSD validation
-_SCHEMA_DIR = Path(__file__).resolve().parent.parent / "schemas"
-_XSD_PATH = _SCHEMA_DIR / "FPD_Schema.xsd"
-
 from export.text_exporter import export_text
-from models.fpb_model import (
+from models.fpd_model import (
     Flow,
     FlowType,
     Identification,
@@ -27,7 +19,7 @@ from models.fpb_model import (
 )
 from models.process_model import ProcessModel
 from parser.lexer import LexerError
-from parser.parser import FpbParser, ParseError
+from parser.parser import FpdParser, ParseError
 from parser.validator import validate_connections
 from services.layout import compute_layout
 from services.session import SessionManager
@@ -49,7 +41,7 @@ def _detect_format(filename: str, content: str) -> str:
     """Detect file format from filename extension and content.
 
     Returns:
-        'text' for FPB text files, 'xml' for VDI 3682 XML files.
+        'text' for FPD text files, 'xml' for VDI 3682 XML files.
 
     Raises:
         HTTPException: If format cannot be determined.
@@ -57,26 +49,26 @@ def _detect_format(filename: str, content: str) -> str:
     lower_name = filename.lower()
     if lower_name.endswith(".xml"):
         return "xml"
-    if lower_name.endswith(".fpb") or lower_name.endswith(".txt"):
+    if lower_name.endswith(".fpd") or lower_name.endswith(".fpb") or lower_name.endswith(".txt"):
         return "text"
 
     # Fallback: inspect content
     stripped = content.strip()
     if stripped.startswith("<?xml") or stripped.startswith("<"):
         return "xml"
-    if "@startfpb" in stripped:
+    if "@startfpd" in stripped:
         return "text"
 
     raise HTTPException(
         status_code=400,
-        detail="Unable to detect file format. Use .fpb, .txt, or .xml extension.",
+        detail="Unable to detect file format. Use .fpd, .txt, or .xml extension.",
     )
 
 
 def _import_text(content: str) -> tuple[ProcessModel, str]:
-    """Import FPB text content, returning model and source text."""
+    """Import FPD text content, returning model and source text."""
     try:
-        parser = FpbParser(content)
+        parser = FpdParser(content)
         model = parser.parse()
     except (LexerError, ParseError) as exc:
         raise HTTPException(status_code=400, detail=f"Parse error: {exc}") from exc
@@ -336,30 +328,25 @@ def _parse_xml_hsu(root, ns: dict) -> ProcessModel:
                     Flow(id=fid, source_ref=src, target_ref=tgt, flow_type=flow_type)
                 )
 
+    # Assign system_id to all elements so the text exporter places them
+    # inside the correct system block.
+    if model.system_limits:
+        sl_id = model.system_limits[0].id
+        for state in model.states:
+            state.system_id = sl_id
+        for po in model.process_operators:
+            po.system_id = sl_id
+        for tr in model.technical_resources:
+            tr.system_id = sl_id
+        for flow in model.flows:
+            flow.system_id = sl_id
+        for usage in model.usages:
+            usage.system_id = sl_id
+
     return model
 
 
-def _validate_xsd(root, etree) -> list[str]:
-    """Validate XML against HSU FPD_Schema.xsd if available.
-
-    Returns a list of validation warning strings (empty if valid or schema not found).
-    """
-    if not _XSD_PATH.is_file():
-        return []
-
-    try:
-        schema_doc = etree.parse(str(_XSD_PATH))
-        schema = etree.XMLSchema(schema_doc)
-    except etree.XMLSchemaParseError as exc:
-        logger.warning("Could not parse XSD schema at %s: %s", _XSD_PATH, exc)
-        return [f"XSD schema could not be loaded: {exc}"]
-
-    if not schema.validate(root):
-        return [
-            f"XSD validation: {err.message}"
-            for err in schema.error_log  # type: ignore[union-attr]
-        ]
-    return []
+from schemas import validate_xsd
 
 
 def _import_xml(content: str) -> tuple[ProcessModel, str, list[str]]:
@@ -383,7 +370,7 @@ def _import_xml(content: str) -> tuple[ProcessModel, str, list[str]]:
         ) from exc
 
     # Optional XSD validation (non-blocking — warnings only)
-    xsd_warnings = _validate_xsd(root, etree)
+    xsd_warnings = validate_xsd(root)
 
     ns = {"fpb": "http://www.vdivde.de/3682"}
 
@@ -396,7 +383,7 @@ def _import_xml(content: str) -> tuple[ProcessModel, str, list[str]]:
     else:
         model = _parse_xml_hsu(root, ns)
 
-    # Generate FPB text from the imported model
+    # Generate FPD text from the imported model
     source = export_text(model)
 
     return model, source, xsd_warnings
@@ -404,10 +391,10 @@ def _import_xml(content: str) -> tuple[ProcessModel, str, list[str]]:
 
 @router.post("/import", response_model=ImportResponse)
 async def import_file(file: UploadFile) -> ImportResponse:
-    """Import an FPB text file or VDI 3682 XML file.
+    """Import an FPD text file or VDI 3682 XML file.
 
     Detects the format from the file extension and content, parses it into
-    a ProcessModel, and returns the model with generated FPB source text.
+    a ProcessModel, and returns the model with generated FPD source text.
     """
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")

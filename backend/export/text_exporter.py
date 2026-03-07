@@ -1,7 +1,7 @@
-"""Text exporter that converts ProcessModel back to FPB text syntax."""
+"""Text exporter that converts ProcessModel back to FPD text syntax."""
 
 from models.process_model import ProcessModel
-from models.fpb_model import FlowType, StateType
+from models.fpd_model import FlowType, StateType
 
 
 _FLOW_TYPE_OPERATORS = {
@@ -80,7 +80,7 @@ def _export_elements_for_system(
 
 
 def export_text(model: ProcessModel) -> str:
-    """Convert a ProcessModel back to FPB text syntax.
+    """Convert a ProcessModel back to FPD text syntax.
 
     Preserves system blocks when the model contains systems.
     Falls back to flat export for models without systems.
@@ -89,10 +89,10 @@ def export_text(model: ProcessModel) -> str:
         model: The process model to export.
 
     Returns:
-        A string containing valid FPB text that can be re-parsed.
+        A string containing valid FPD text that can be re-parsed.
     """
     lines: list[str] = []
-    lines.append("@startfpb")
+    lines.append("@startfpd")
 
     if model.title:
         lines.append(f'title "{_escape_label(model.title)}"')
@@ -109,13 +109,22 @@ def export_text(model: ProcessModel) -> str:
             lines.extend(system_lines)
             lines.append("}")
             lines.append("")
+
+        # Cross-system connections (flows with system_id=None)
+        cross_flows = [f for f in model.flows if f.system_id is None]
+        if cross_flows:
+            for flow in cross_flows:
+                flow_type = flow.flow_type if flow.flow_type else FlowType.FLOW
+                operator = _FLOW_TYPE_OPERATORS.get(flow_type, "-->")
+                lines.append(f"{flow.source_ref} {operator} {flow.target_ref}")
+            lines.append("")
     else:
         # Flat export (no systems)
         flat_lines = _export_elements_for_system(model, None, indent="")
         lines.extend(flat_lines)
         lines.append("")
 
-    lines.append("@endfpb")
+    lines.append("@endfpd")
     lines.append("")
 
     return "\n".join(lines)
