@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{cspSource}} 'unsafe-inline'; script-src {{cspSource}} 'unsafe-inline';">
     <link rel="stylesheet" href="{{cssUri}}">
-    <title>FPB Diagram Preview</title>
+    <title>FPD Diagram Preview</title>
 </head>
 <body>
     <div id="diagram-container">
@@ -16,10 +16,8 @@
         (function() {
             const vscode = acquireVsCodeApi();
 
-            // Handle messages from extension
             window.addEventListener('message', event => {
                 const message = event.data;
-
                 switch (message.type) {
                     case 'update':
                         if (message.diagram) {
@@ -35,9 +33,170 @@
                 }
             });
 
+            /* ============================================================
+             * Connection routing — matches frontend routing.ts logic
+             * ============================================================ */
+
+            function centerOf(el) {
+                return { x: el.x + el.width / 2, y: el.y + el.height / 2 };
+            }
+
+            /** Determine which side of `from` faces `to`. */
+            function determineSide(from, to) {
+                const fc = centerOf(from);
+                const tc = centerOf(to);
+                const dx = tc.x - fc.x;
+                const dy = tc.y - fc.y;
+                if (Math.abs(dy) >= Math.abs(dx)) {
+                    return dy >= 0 ? 'bottom' : 'top';
+                }
+                return dx >= 0 ? 'right' : 'left';
+            }
+
+            /** Port position on an element edge. */
+            function portPosition(el, side, index, count) {
+                switch (side) {
+                    case 'top': {
+                        const sp = el.width / (count + 1);
+                        return { x: el.x + sp * (index + 1), y: el.y };
+                    }
+                    case 'bottom': {
+                        const sp = el.width / (count + 1);
+                        return { x: el.x + sp * (index + 1), y: el.y + el.height };
+                    }
+                    case 'left': {
+                        const sp = el.height / (count + 1);
+                        return { x: el.x, y: el.y + sp * (index + 1) };
+                    }
+                    case 'right': {
+                        const sp = el.height / (count + 1);
+                        return { x: el.x + el.width, y: el.y + sp * (index + 1) };
+                    }
+                }
+            }
+
+            /** Orthogonal waypoints between source and target ports. */
+            function orthogonalWaypoints(source, target, sSide, tSide) {
+                const isVerticalSource = (sSide === 'top' || sSide === 'bottom');
+                const isVerticalTarget = (tSide === 'top' || tSide === 'bottom');
+
+                if (isVerticalSource && isVerticalTarget) {
+                    if (source.x === target.x) return [source, target];
+                    const midY = (source.y + target.y) / 2;
+                    return [source, {x: source.x, y: midY}, {x: target.x, y: midY}, target];
+                }
+
+                if (!isVerticalSource && !isVerticalTarget) {
+                    if (source.y === target.y) return [source, target];
+                    const midX = (source.x + target.x) / 2;
+                    return [source, {x: midX, y: source.y}, {x: midX, y: target.y}, target];
+                }
+
+                // Mixed: L-shaped
+                if (isVerticalSource) {
+                    return [source, {x: source.x, y: target.y}, target];
+                }
+                return [source, {x: target.x, y: source.y}, target];
+            }
+
             /**
-             * Render the FPB diagram as SVG
+             * Compute routed connections with edge ports.
+             * Simplified version of frontend routing.ts — computes port positions
+             * on element edges and orthogonal waypoints.
              */
+            function computeRouting(elements, connections) {
+                const lookup = new Map();
+                elements.forEach(el => lookup.set(el.id, el));
+
+                // Step 1: determine sides for each connection
+                const metas = [];
+                for (const conn of connections) {
+                    const source = lookup.get(conn.sourceId);
+                    const target = lookup.get(conn.targetId);
+                    if (!source || !target) continue;
+
+                    const sourceSide = conn.sourceSide || determineSide(source, target);
+                    const targetSide = conn.targetSide || determineSide(target, source);
+                    const isDirect = conn.flowType === 'alternativeFlow';
+
+                    metas.push({ conn, source, target, sourceSide, targetSide, isDirect });
+                }
+
+                // Step 2: group by (elementId, side) for port distribution
+                const portGroups = new Map();
+
+                for (let i = 0; i < metas.length; i++) {
+                    const m = metas[i];
+
+                    const sKey = m.source.id + ':' + m.sourceSide;
+                    if (!portGroups.has(sKey)) {
+                        portGroups.set(sKey, { element: m.source, side: m.sourceSide, entries: [] });
+                    }
+                    portGroups.get(sKey).entries.push({ metaIndex: i, role: 'source' });
+
+                    const tKey = m.target.id + ':' + m.targetSide;
+                    if (!portGroups.has(tKey)) {
+                        portGroups.set(tKey, { element: m.target, side: m.targetSide, entries: [] });
+                    }
+                    portGroups.get(tKey).entries.push({ metaIndex: i, role: 'target' });
+                }
+
+                // Step 3: assign port positions
+                const sourcePorts = new Array(metas.length);
+                const targetPorts = new Array(metas.length);
+
+                for (const group of portGroups.values()) {
+                    const { element, side, entries } = group;
+
+                    // Each entry gets its own slot (simplified — no alt/parallel sharing)
+                    const useY = (side === 'left' || side === 'right');
+                    entries.sort((a, b) => {
+                        const mA = metas[a.metaIndex];
+                        const mB = metas[b.metaIndex];
+                        const connA = a.role === 'source' ? mA.target : mA.source;
+                        const connB = b.role === 'source' ? mB.target : mB.source;
+                        const cA = centerOf(connA);
+                        const cB = centerOf(connB);
+                        return useY ? cA.y - cB.y : cA.x - cB.x;
+                    });
+
+                    const count = entries.length;
+                    for (let idx = 0; idx < count; idx++) {
+                        const entry = entries[idx];
+                        const port = portPosition(element, side, idx, count);
+                        if (entry.role === 'source') {
+                            sourcePorts[entry.metaIndex] = port;
+                        } else {
+                            targetPorts[entry.metaIndex] = port;
+                        }
+                    }
+                }
+
+                // Step 4: compute waypoints
+                const routed = [];
+                for (let i = 0; i < metas.length; i++) {
+                    const m = metas[i];
+                    const sp = sourcePorts[i];
+                    const tp = targetPorts[i];
+                    if (!sp || !tp) continue;
+
+                    let points;
+                    if (m.isDirect) {
+                        points = [sp, tp];
+                    } else {
+                        points = orthogonalWaypoints(sp, tp, m.sourceSide, m.targetSide);
+                    }
+
+                    routed.push({ conn: m.conn, points, isDirect: m.isDirect });
+                }
+
+                return routed;
+            }
+
+            /* ============================================================
+             * Diagram rendering
+             * ============================================================ */
+
             function renderDiagram(diagram) {
                 const container = document.getElementById('diagram-container');
 
@@ -46,67 +205,58 @@
                     return;
                 }
 
-                // Calculate SVG dimensions from elements and system limits
                 const dims = calculateDimensions(diagram.elements, diagram.systemLimits || []);
 
-                // Create SVG element
                 const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
                 svg.setAttribute('width', '100%');
                 svg.setAttribute('height', '100%');
-                svg.setAttribute('viewBox', `${dims.minX - 30} ${dims.minY - 30} ${dims.width + 60} ${dims.height + 60}`);
+                svg.setAttribute('viewBox', `${dims.minX - 30} ${dims.minY - 40} ${dims.width + 60} ${dims.height + 80}`);
                 svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
                 svg.classList.add('diagram-svg');
 
-                // Add defs for arrow markers
+                // White background rectangle
+                const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                bg.setAttribute('x', String(dims.minX - 30));
+                bg.setAttribute('y', String(dims.minY - 40));
+                bg.setAttribute('width', String(dims.width + 60));
+                bg.setAttribute('height', String(dims.height + 80));
+                bg.setAttribute('fill', '#ffffff');
+                svg.appendChild(bg);
+
                 const defs = createMarkerDefs();
                 svg.appendChild(defs);
 
-                // Render system limit boundaries first (behind everything)
+                // System limits
                 if (diagram.systemLimits) {
                     diagram.systemLimits.forEach(sl => {
-                        const slGroup = renderSystemLimit(sl);
-                        svg.appendChild(slGroup);
+                        svg.appendChild(renderSystemLimit(sl));
                     });
                 }
 
-                // Render connections (behind elements)
-                diagram.connections.forEach(conn => {
-                    const fromEl = diagram.elements.find(el => el.id === conn.sourceId);
-                    const toEl = diagram.elements.find(el => el.id === conn.targetId);
-
-                    if (fromEl && toEl) {
-                        const connGroup = renderConnection(conn, fromEl, toEl);
-                        svg.appendChild(connGroup);
-                    }
+                // Connections — use proper edge routing
+                const routed = computeRouting(diagram.elements, diagram.connections);
+                routed.forEach(r => {
+                    svg.appendChild(renderRoutedConnection(r));
                 });
 
-                // Render elements on top
+                // Elements on top
                 diagram.elements.forEach(element => {
-                    const elementGroup = renderElement(element);
-                    svg.appendChild(elementGroup);
+                    svg.appendChild(renderElement(element));
                 });
 
-                // Replace content
                 container.innerHTML = '';
                 container.appendChild(svg);
             }
 
-            /**
-             * Calculate SVG dimensions from all positioned objects
-             */
             function calculateDimensions(elements, systemLimits) {
                 let minX = Infinity, minY = Infinity;
                 let maxX = -Infinity, maxY = -Infinity;
 
                 elements.forEach(el => {
-                    const x = el.x || 0;
-                    const y = el.y || 0;
-                    const w = el.width || 120;
-                    const h = el.height || 60;
-                    minX = Math.min(minX, x);
-                    minY = Math.min(minY, y);
-                    maxX = Math.max(maxX, x + w);
-                    maxY = Math.max(maxY, y + h);
+                    minX = Math.min(minX, el.x || 0);
+                    minY = Math.min(minY, el.y || 0);
+                    maxX = Math.max(maxX, (el.x || 0) + (el.width || 120));
+                    maxY = Math.max(maxY, (el.y || 0) + (el.height || 60));
                 });
 
                 systemLimits.forEach(sl => {
@@ -120,27 +270,15 @@
                     return { width: 800, height: 600, minX: 0, minY: 0 };
                 }
 
-                return {
-                    width: maxX - minX,
-                    height: maxY - minY,
-                    minX,
-                    minY
-                };
+                return { width: maxX - minX, height: maxY - minY, minX, minY };
             }
 
-            /**
-             * Create SVG marker definitions for arrows
-             */
+            /* ---- Marker defs ---- */
+
             function createMarkerDefs() {
                 const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-
-                // Flow arrow (solid black)
-                const flowMarker = createArrowMarker('arrow-flow', '#000');
-                defs.appendChild(flowMarker);
-
-                // Usage marker (dotted, no arrow)
-                // Usages use dotted lines without arrowheads
-
+                defs.appendChild(createArrowMarker('arrow-flow', '#000'));
+                defs.appendChild(createArrowMarker('arrow-crossSystem', '#9b59b6'));
                 return defs;
             }
 
@@ -157,17 +295,14 @@
                 const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                 path.setAttribute('d', 'M0,0 L0,6 L9,3 z');
                 path.setAttribute('fill', color);
-
                 marker.appendChild(path);
                 return marker;
             }
 
-            /**
-             * Render a system limit boundary (dashed rectangle with label)
-             */
+            /* ---- System limit ---- */
+
             function renderSystemLimit(sl) {
                 const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-                g.classList.add('system-limit');
 
                 const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
                 rect.setAttribute('x', sl.x);
@@ -175,18 +310,20 @@
                 rect.setAttribute('width', sl.width);
                 rect.setAttribute('height', sl.height);
                 rect.setAttribute('fill', 'none');
-                rect.setAttribute('stroke', 'var(--vscode-foreground, #000)');
+                rect.setAttribute('stroke', '#000');
                 rect.setAttribute('stroke-width', '1.5');
                 rect.setAttribute('stroke-dasharray', '10,12');
                 g.appendChild(rect);
 
                 if (sl.label) {
                     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                    text.setAttribute('x', sl.x + 10);
-                    text.setAttribute('y', sl.y - 5);
-                    text.setAttribute('font-size', '13');
+                    text.setAttribute('x', String(sl.x + sl.width));
+                    text.setAttribute('y', String(sl.y - 5));
+                    text.setAttribute('text-anchor', 'start');
+                    text.setAttribute('font-size', '12');
                     text.setAttribute('font-weight', 'bold');
-                    text.setAttribute('fill', 'var(--vscode-foreground, #000)');
+                    text.setAttribute('font-family', 'Helvetica, Arial, sans-serif');
+                    text.setAttribute('fill', '#000');
                     text.textContent = sl.label;
                     g.appendChild(text);
                 }
@@ -194,12 +331,49 @@
                 return g;
             }
 
-            /**
-             * Render a diagram element based on its type
-             */
+            /* ---- Routed connection rendering ---- */
+
+            function renderRoutedConnection(routed) {
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                const conn = routed.conn;
+                const pts = routed.points;
+
+                if (pts.length < 2) return g;
+
+                // Build polyline points string
+                const pointsStr = pts.map(p => p.x + ',' + p.y).join(' ');
+                const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+                polyline.setAttribute('points', pointsStr);
+                polyline.setAttribute('fill', 'none');
+                polyline.setAttribute('stroke-width', '1.5');
+
+                if (conn.isUsage) {
+                    polyline.setAttribute('stroke', '#888889');
+                    polyline.setAttribute('stroke-dasharray', '3,5');
+                } else if (conn.isCrossSystem) {
+                    polyline.setAttribute('stroke', '#9b59b6');
+                    polyline.setAttribute('stroke-dasharray', '8,4');
+                    polyline.setAttribute('marker-end', 'url(#arrow-crossSystem)');
+                } else {
+                    polyline.setAttribute('stroke', '#000');
+                    polyline.setAttribute('marker-end', 'url(#arrow-flow)');
+
+                    const ft = conn.flowType || '';
+                    if (ft === 'alternativeFlow') {
+                        polyline.setAttribute('stroke-dasharray', '8,4');
+                    } else if (ft === 'parallelFlow') {
+                        polyline.setAttribute('stroke-width', '3');
+                    }
+                }
+
+                g.appendChild(polyline);
+                return g;
+            }
+
+            /* ---- Element rendering ---- */
+
             function renderElement(element) {
                 const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-                g.classList.add('element');
                 g.setAttribute('data-id', element.id);
 
                 const x = element.x || 0;
@@ -207,166 +381,186 @@
                 const w = element.width || 120;
                 const h = element.height || 60;
 
-                let shape;
                 switch (element.type) {
                     case 'state':
-                        shape = renderStateShape(x, y, w, h, element.stateType);
+                        renderState(g, x, y, w, h, element);
                         break;
                     case 'processOperator':
-                        shape = createCircle(x + w / 2, y + h / 2, Math.min(w, h) / 2, 'element-process');
+                        renderProcessOperator(g, x, y, w, h, element);
                         break;
                     case 'technicalResource':
-                        shape = createRectangle(x, y, w, h, 'element-technical');
+                        renderTechnicalResource(g, x, y, w, h, element);
                         break;
                     default:
-                        shape = createRectangle(x, y, w, h, 'element-default');
+                        renderDefaultShape(g, x, y, w, h, element);
                 }
-
-                g.appendChild(shape);
-
-                // Label text
-                const label = element.label || element.id;
-                const text = createText(x + w / 2, y + h / 2, label);
-                g.appendChild(text);
 
                 return g;
             }
 
-            /**
-             * Render a state shape based on VDI 3682 conventions
-             * Product = rectangle, Energy = trapezoid, Information = hexagon
-             */
-            function renderStateShape(x, y, w, h, stateType) {
+            /** State: Product (circle), Energy (diamond), Information (hexagon) */
+            function renderState(g, x, y, w, h, element) {
+                const stateType = element.stateType || 'product';
+                const hasName = element.label && element.label !== element.id;
+                const labelX = x + w / 2 - 6;
+
+                let shape;
                 switch (stateType) {
                     case 'energy': {
-                        // Trapezoid
-                        const inset = w * 0.15;
-                        const path = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-                        path.setAttribute('points',
-                            `${x + inset},${y} ${x + w - inset},${y} ${x + w},${y + h} ${x},${y + h}`
-                        );
-                        path.classList.add('element-shape', 'element-energy');
-                        return path;
+                        const hw = w / 2; const hh = h / 2;
+                        shape = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                        shape.setAttribute('points', `${x+hw},${y} ${x+w},${y+hh} ${x+hw},${y+h} ${x},${y+hh}`);
+                        shape.classList.add('element-shape', 'element-energy');
+                        break;
                     }
                     case 'information': {
-                        // Hexagon
-                        const inset = w * 0.15;
-                        const midY = y + h / 2;
-                        const path = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-                        path.setAttribute('points',
-                            `${x + inset},${y} ${x + w - inset},${y} ${x + w},${midY} ${x + w - inset},${y + h} ${x + inset},${y + h} ${x},${midY}`
-                        );
-                        path.classList.add('element-shape', 'element-information');
-                        return path;
+                        const qw = w * 0.25; const hh = h / 2;
+                        shape = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                        shape.setAttribute('points', `${x+qw},${y} ${x+w-qw},${y} ${x+w},${y+hh} ${x+w-qw},${y+h} ${x+qw},${y+h} ${x},${y+hh}`);
+                        shape.classList.add('element-shape', 'element-information');
+                        break;
                     }
                     default: {
-                        // Product = rectangle
-                        return createRectangle(x, y, w, h, 'element-product');
+                        const r = Math.min(w, h) / 2;
+                        shape = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                        shape.setAttribute('cx', String(x + w / 2));
+                        shape.setAttribute('cy', String(y + h / 2));
+                        shape.setAttribute('r', String(r));
+                        shape.classList.add('element-shape', 'element-product');
+                        break;
                     }
                 }
-            }
+                g.appendChild(shape);
 
-            /**
-             * Render a connection between two elements
-             */
-            function renderConnection(connection, fromEl, toEl) {
-                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-                g.classList.add('connection');
+                // Label above shape
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('text-anchor', 'end');
+                text.setAttribute('font-size', '11');
+                text.setAttribute('font-family', 'Helvetica, Arial, sans-serif');
+                text.setAttribute('fill', '#000');
 
-                const fromX = (fromEl.x || 0) + (fromEl.width || 120) / 2;
-                const fromY = (fromEl.y || 0) + (fromEl.height || 60) / 2;
-                const toX = (toEl.x || 0) + (toEl.width || 120) / 2;
-                const toY = (toEl.y || 0) + (toEl.height || 60) / 2;
+                const idSpan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                idSpan.setAttribute('x', String(labelX));
+                idSpan.setAttribute('y', hasName ? String(y - 22) : String(y - 8));
+                idSpan.textContent = element.id;
+                text.appendChild(idSpan);
 
-                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                line.setAttribute('x1', fromX);
-                line.setAttribute('y1', fromY);
-                line.setAttribute('x2', toX);
-                line.setAttribute('y2', toY);
-                line.setAttribute('stroke', 'var(--vscode-foreground, #000)');
-                line.setAttribute('stroke-width', '1.5');
-
-                if (connection.isUsage) {
-                    // Usage: dotted, no arrow
-                    line.setAttribute('stroke-dasharray', '3,5');
-                } else {
-                    // Flow: solid with arrow
-                    line.setAttribute('marker-end', 'url(#arrow-flow)');
-
-                    // Dashed for alternative/parallel flows
-                    const ft = connection.flowType || '';
-                    if (ft === 'alternativeFlow') {
-                        line.setAttribute('stroke-dasharray', '8,4');
-                    } else if (ft === 'parallelFlow') {
-                        line.setAttribute('stroke-width', '3');
-                    }
+                if (hasName) {
+                    const nameSpan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                    nameSpan.setAttribute('x', String(labelX));
+                    nameSpan.setAttribute('dy', '14');
+                    nameSpan.textContent = element.label;
+                    text.appendChild(nameSpan);
                 }
-
-                g.appendChild(line);
-                return g;
+                g.appendChild(text);
             }
 
-            /**
-             * Helper: Create SVG rectangle
-             */
-            function createRectangle(x, y, width, height, className) {
+            /** ProcessOperator: sharp-corner rectangle (green) */
+            function renderProcessOperator(g, x, y, w, h, element) {
                 const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
                 rect.setAttribute('x', x);
                 rect.setAttribute('y', y);
-                rect.setAttribute('width', width);
-                rect.setAttribute('height', height);
-                rect.classList.add('element-shape', className);
-                return rect;
-            }
+                rect.setAttribute('width', w);
+                rect.setAttribute('height', h);
+                rect.classList.add('element-shape', 'element-process');
+                g.appendChild(rect);
 
-            /**
-             * Helper: Create SVG circle
-             */
-            function createCircle(cx, cy, r, className) {
-                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                circle.setAttribute('cx', cx);
-                circle.setAttribute('cy', cy);
-                circle.setAttribute('r', r);
-                circle.classList.add('element-shape', className);
-                return circle;
-            }
-
-            /**
-             * Helper: Create SVG text
-             */
-            function createText(x, y, content, className) {
+                const hasName = element.label && element.label !== element.id;
+                const fs = 13;
                 const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                text.setAttribute('x', x);
-                text.setAttribute('y', y);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('font-size', String(fs));
+                text.setAttribute('font-family', 'Helvetica, Arial, sans-serif');
+                text.setAttribute('fill', '#000');
+
+                const idSpan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                idSpan.setAttribute('x', String(x + w / 2));
+                idSpan.setAttribute('y', hasName ? String(y + h / 2 - fs * 0.6) : String(y + h / 2));
+                idSpan.setAttribute('dominant-baseline', hasName ? 'auto' : 'middle');
+                idSpan.textContent = element.id;
+                text.appendChild(idSpan);
+
+                if (hasName) {
+                    const nameSpan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                    nameSpan.setAttribute('x', String(x + w / 2));
+                    nameSpan.setAttribute('dy', String(fs * 1.2));
+                    nameSpan.textContent = element.label;
+                    text.appendChild(nameSpan);
+                }
+                g.appendChild(text);
+            }
+
+            /** TechnicalResource: rounded rectangle (gray) */
+            function renderTechnicalResource(g, x, y, w, h, element) {
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', x);
+                rect.setAttribute('y', y);
+                rect.setAttribute('width', w);
+                rect.setAttribute('height', h);
+                rect.setAttribute('rx', '40');
+                rect.setAttribute('ry', '40');
+                rect.classList.add('element-shape', 'element-technical');
+                g.appendChild(rect);
+
+                const hasName = element.label && element.label !== element.id;
+                const fs = 13;
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('font-size', String(fs));
+                text.setAttribute('font-family', 'Helvetica, Arial, sans-serif');
+                text.setAttribute('fill', '#000');
+
+                const idSpan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                idSpan.setAttribute('x', String(x + w / 2));
+                idSpan.setAttribute('y', hasName ? String(y + h / 2 - fs * 0.6) : String(y + h / 2));
+                idSpan.setAttribute('dominant-baseline', hasName ? 'auto' : 'middle');
+                idSpan.textContent = element.id;
+                text.appendChild(idSpan);
+
+                if (hasName) {
+                    const nameSpan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                    nameSpan.setAttribute('x', String(x + w / 2));
+                    nameSpan.setAttribute('dy', String(fs * 1.2));
+                    nameSpan.textContent = element.label;
+                    text.appendChild(nameSpan);
+                }
+                g.appendChild(text);
+            }
+
+            /** Default fallback */
+            function renderDefaultShape(g, x, y, w, h, element) {
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', x);
+                rect.setAttribute('y', y);
+                rect.setAttribute('width', w);
+                rect.setAttribute('height', h);
+                rect.classList.add('element-shape', 'element-default');
+                g.appendChild(rect);
+
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', String(x + w / 2));
+                text.setAttribute('y', String(y + h / 2));
                 text.setAttribute('text-anchor', 'middle');
                 text.setAttribute('dominant-baseline', 'middle');
-                text.classList.add(className || 'element-label');
-                text.textContent = content;
-                return text;
+                text.setAttribute('fill', '#000');
+                text.setAttribute('font-size', '13');
+                text.setAttribute('font-family', 'Helvetica, Arial, sans-serif');
+                text.textContent = element.label || element.id;
+                g.appendChild(text);
             }
 
-            /**
-             * Show error message
-             */
+            /* ---- Error / Clear ---- */
+
             function showError(error) {
                 const container = document.getElementById('diagram-container');
-                container.innerHTML = `
-                    <div class="error">
-                        <h3>Error</h3>
-                        <p>${error}</p>
-                    </div>
-                `;
+                container.innerHTML = '<div class="error"><h3>Error</h3><p>' + error + '</p></div>';
             }
 
-            /**
-             * Clear diagram
-             */
             function clearDiagram() {
                 const container = document.getElementById('diagram-container');
                 container.innerHTML = '<div class="placeholder">No diagram to display</div>';
             }
 
-            // Request initial diagram update
             vscode.postMessage({ type: 'ready' });
         })();
     </script>

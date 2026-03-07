@@ -1,4 +1,4 @@
-@startfpb
+@startfpd
 title "Test SVG Rendering"
 
 product P1 "Raw Material"
@@ -13,4 +13,4 @@ OP1 --> P2
 E1 ==> OP1
 I1 -.-> OP1
 T1 <..> OP1
-@endfpb
+@endfpd

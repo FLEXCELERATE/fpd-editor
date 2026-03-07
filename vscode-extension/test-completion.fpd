@@ -1,4 +1,4 @@
-@startfpb
+@startfpd
 // Test file for completion provider
 title "Test Diagram"
 
@@ -8,4 +8,4 @@ product P1 "Raw Material"
 // Type 'P1 ' to test connection operator completion
 P1 -->
 
-@endfpb
+@endfpd

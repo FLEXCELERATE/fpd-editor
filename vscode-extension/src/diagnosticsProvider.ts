@@ -1,21 +1,21 @@
 import * as vscode from 'vscode';
 
 /**
- * Diagnostics provider for FPB language
+ * Diagnostics provider for FPD language
  * Provides real-time syntax and validation error detection
  */
-export class FpbDiagnosticsProvider {
+export class FpdDiagnosticsProvider {
     private diagnosticCollection: vscode.DiagnosticCollection;
 
     constructor() {
-        this.diagnosticCollection = vscode.languages.createDiagnosticCollection('fpb');
+        this.diagnosticCollection = vscode.languages.createDiagnosticCollection('fpd');
     }
 
     /**
      * Validate a document and update diagnostics
      */
     public validateDocument(document: vscode.TextDocument): void {
-        if (document.languageId !== 'fpb') {
+        if (document.languageId !== 'fpd') {
             return;
         }
 
@@ -24,8 +24,8 @@ export class FpbDiagnosticsProvider {
         const lines = text.split('\n');
         const declaredElements = new Map<string, { type: string; line: number }>();
 
-        let inFpbBlock = false;
-        let hasStartFpb = false;
+        let inFpdBlock = false;
+        let hasStartFpd = false;
         let systemDepth = 0;
 
         for (let i = 0; i < lines.length; i++) {
@@ -37,43 +37,43 @@ export class FpbDiagnosticsProvider {
                 continue;
             }
 
-            // Check for @startfpb and @endfpb
-            if (line === '@startfpb') {
-                if (inFpbBlock) {
+            // Check for @startfpd and @endfpd
+            if (line === '@startfpd') {
+                if (inFpdBlock) {
                     diagnostics.push(this.createDiagnostic(
                         lineNumber,
                         0,
                         line.length,
-                        'Nested @startfpb blocks are not allowed',
+                        'Nested @startfpd blocks are not allowed',
                         vscode.DiagnosticSeverity.Error
                     ));
                 }
-                inFpbBlock = true;
-                hasStartFpb = true;
+                inFpdBlock = true;
+                hasStartFpd = true;
                 continue;
             }
 
-            if (line === '@endfpb') {
-                if (!inFpbBlock) {
+            if (line === '@endfpd') {
+                if (!inFpdBlock) {
                     diagnostics.push(this.createDiagnostic(
                         lineNumber,
                         0,
                         line.length,
-                        '@endfpb without matching @startfpb',
+                        '@endfpd without matching @startfpd',
                         vscode.DiagnosticSeverity.Error
                     ));
                 }
-                inFpbBlock = false;
+                inFpdBlock = false;
                 continue;
             }
 
-            // Content outside FPB block
-            if (!inFpbBlock && hasStartFpb) {
+            // Content outside FPD block
+            if (!inFpdBlock && hasStartFpd) {
                 diagnostics.push(this.createDiagnostic(
                     lineNumber,
                     0,
                     line.length,
-                    'Content outside @startfpb...@endfpb block',
+                    'Content outside @startfpd...@endfpd block',
                     vscode.DiagnosticSeverity.Error
                 ));
                 continue;
@@ -252,7 +252,7 @@ export class FpbDiagnosticsProvider {
             }
 
             // Unknown syntax
-            if (inFpbBlock && line !== '@startfpb' && line !== '@endfpb') {
+            if (inFpdBlock && line !== '@startfpd' && line !== '@endfpd') {
                 diagnostics.push(this.createDiagnostic(
                     lineNumber,
                     0,
@@ -263,14 +263,14 @@ export class FpbDiagnosticsProvider {
             }
         }
 
-        // Check for missing @endfpb
-        if (inFpbBlock) {
+        // Check for missing @endfpd
+        if (inFpdBlock) {
             const lastLine = lines.length - 1;
             diagnostics.push(this.createDiagnostic(
                 lastLine,
                 0,
                 lines[lastLine].length,
-                'Missing @endfpb to close the FPB block',
+                'Missing @endfpd to close the FPD block',
                 vscode.DiagnosticSeverity.Error
             ));
         }
@@ -367,10 +367,10 @@ export class FpbDiagnosticsProvider {
 }
 
 /**
- * Register the FPB diagnostics provider
+ * Register the FPD diagnostics provider
  */
-export function registerDiagnosticsProvider(context: vscode.ExtensionContext): FpbDiagnosticsProvider {
-    const provider = new FpbDiagnosticsProvider();
+export function registerDiagnosticsProvider(context: vscode.ExtensionContext): FpdDiagnosticsProvider {
+    const provider = new FpdDiagnosticsProvider();
 
     // Validate active editor on activation
     if (vscode.window.activeTextEditor) {

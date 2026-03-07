@@ -1,4 +1,4 @@
-@startfpb
+@startfpd
 title "Diagnostics Test File"
 
 // Valid declarations
@@ -23,4 +23,4 @@ P3 --> O1
 // INVALID: Technical resource using flow operator (should show error)
 T1 --> O1
 
-@endfpb
+@endfpd

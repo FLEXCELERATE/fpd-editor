@@ -1,9 +1,9 @@
 {
-  "name": "fpb-vscode-extension",
-  "displayName": "FPB Language Support",
-  "description": "Syntax highlighting, IntelliSense, diagnostics, and live diagram preview for FPB (Flow-based Process Diagrams)",
+  "name": "fpd-vscode-extension",
+  "displayName": "FPD Language Support",
+  "description": "Syntax highlighting, IntelliSense, diagnostics, and live diagram preview for FPD (Formalized Process Description, VDI 3682)",
   "version": "0.1.0",
-  "publisher": "fpb-tools",
+  "publisher": "fpd-tools",
   "icon": "images/icon.png",
   "repository": {
     "type": "git",
@@ -18,104 +18,79 @@
     "Visualization"
   ],
   "keywords": [
-    "fpb",
-    "flow-based",
+    "fpd",
+    "vdi3682",
+    "formalized-process-description",
     "process",
-    "diagram",
-    "p&id",
-    "bpmn"
+    "diagram"
   ],
   "activationEvents": [
-    "onLanguage:fpb",
-    "onCommand:fpb.preview.show",
-    "onCommand:fpb.export.xml",
-    "onCommand:fpb.export.text",
-    "onCommand:fpb.import.file"
+    "onLanguage:fpd",
+    "onCommand:fpd.preview.show"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "languages": [
       {
-        "id": "fpb",
+        "id": "fpd",
         "aliases": [
-          "FPB",
-          "Flow-based Process Diagram"
+          "FPD",
+          "Formalized Process Description"
         ],
         "extensions": [
-          ".fpb"
+          ".fpd"
         ],
         "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
       {
-        "language": "fpb",
-        "scopeName": "source.fpb",
-        "path": "./syntaxes/fpb.tmLanguage.json"
+        "language": "fpd",
+        "scopeName": "source.fpd",
+        "path": "./syntaxes/fpd.tmLanguage.json"
       }
     ],
     "commands": [
       {
-        "command": "fpb.preview.show",
-        "title": "FPB: Show Preview",
+        "command": "fpd.preview.show",
+        "title": "FPD: Show Preview",
         "icon": "$(preview)"
-      },
-      {
-        "command": "fpb.export.xml",
-        "title": "FPB: Export as XML"
-      },
-      {
-        "command": "fpb.export.text",
-        "title": "FPB: Export as Text"
-      },
-      {
-        "command": "fpb.import.file",
-        "title": "FPB: Import File",
-        "icon": "$(folder-opened)"
       }
     ],
     "menus": {
       "editor/title": [
         {
-          "when": "resourceLangId == fpb",
-          "command": "fpb.preview.show",
+          "when": "resourceLangId == fpd",
+          "command": "fpd.preview.show",
           "group": "navigation"
         }
       ],
       "commandPalette": [
         {
-          "command": "fpb.preview.show",
-          "when": "resourceLangId == fpb"
-        },
-        {
-          "command": "fpb.export.xml",
-          "when": "resourceLangId == fpb"
-        },
-        {
-          "command": "fpb.export.text",
-          "when": "resourceLangId == fpb"
+          "command": "fpd.preview.show",
+          "when": "resourceLangId == fpd"
         }
       ]
     },
     "configuration": {
-      "title": "FPB",
+      "title": "FPD",
       "properties": {
-        "fpb.backend.url": {
+        "fpd.backend.url": {
           "type": "string",
           "default": "http://localhost:8000",
-          "description": "URL of the FPB backend API server"
+          "description": "URL of the FPD backend API server"
         },
-        "fpb.backend.autoStart": {
+        "fpd.backend.autoStart": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically start the FPB backend server if not running"
+          "description": "Automatically start the FPD backend server if not running"
         },
-        "fpb.preview.autoUpdate": {
+        "fpd.preview.autoUpdate": {
           "type": "boolean",
           "default": true,
           "description": "Automatically update the preview panel when editing"
         },
-        "fpb.preview.updateDelay": {
+        "fpd.preview.updateDelay": {
           "type": "number",
           "default": 500,
           "description": "Delay in milliseconds before updating the preview after typing (debounce)"

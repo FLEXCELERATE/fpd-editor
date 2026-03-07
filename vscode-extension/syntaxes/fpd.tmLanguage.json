@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-  "name": "FPB",
-  "scopeName": "source.fpb",
-  "fileTypes": [".fpb"],
+  "name": "FPD",
+  "scopeName": "source.fpd",
+  "fileTypes": [".fpd"],
   "patterns": [
     {
       "include": "#comments"
@@ -30,7 +30,7 @@
     "comments": {
       "patterns": [
         {
-          "name": "comment.line.double-slash.fpb",
+          "name": "comment.line.double-slash.fpd",
           "match": "//.*$",
           "comment": "Line comment starting with //"
         }
@@ -39,12 +39,12 @@
     "block-delimiters": {
       "patterns": [
         {
-          "name": "keyword.control.fpb",
-          "match": "@(startfpb|endfpb)\\b",
+          "name": "keyword.control.fpd",
+          "match": "@(startfpd|endfpd)\\b",
           "comment": "Block start and end delimiters"
         },
         {
-          "name": "keyword.annotation.fpb",
+          "name": "keyword.annotation.fpd",
           "match": "@(boundary|internal)\\b",
           "comment": "Placement annotations for states"
         }
@@ -53,7 +53,7 @@
     "braces": {
       "patterns": [
         {
-          "name": "punctuation.definition.block.fpb",
+          "name": "punctuation.definition.block.fpd",
           "match": "[{}]",
           "comment": "Braces for system blocks"
         }
@@ -62,12 +62,12 @@
     "strings": {
       "patterns": [
         {
-          "name": "string.quoted.double.fpb",
+          "name": "string.quoted.double.fpd",
           "begin": "\"",
           "end": "\"",
           "patterns": [
             {
-              "name": "constant.character.escape.fpb",
+              "name": "constant.character.escape.fpd",
               "match": "\\\\."
             }
           ],
@@ -78,22 +78,22 @@
     "connection-operators": {
       "patterns": [
         {
-          "name": "keyword.operator.connection.usage.fpb",
+          "name": "keyword.operator.connection.usage.fpd",
           "match": "<\\.\\.>",
           "comment": "Usage connection operator"
         },
         {
-          "name": "keyword.operator.connection.alternative.fpb",
+          "name": "keyword.operator.connection.alternative.fpd",
           "match": "-\\.->",
           "comment": "Alternative flow connection operator"
         },
         {
-          "name": "keyword.operator.connection.parallel.fpb",
+          "name": "keyword.operator.connection.parallel.fpd",
           "match": "==>",
           "comment": "Parallel flow connection operator"
         },
         {
-          "name": "keyword.operator.connection.flow.fpb",
+          "name": "keyword.operator.connection.flow.fpd",
           "match": "-->",
           "comment": "Flow connection operator"
         }
@@ -103,12 +103,12 @@
     "keywords": {
       "patterns": [
         {
-          "name": "keyword.element.fpb",
+          "name": "keyword.element.fpd",
           "match": "\\b(product|energy|information|process_operator|technical_resource)\\b",
           "comment": "Element type keywords"
         },
         {
-          "name": "keyword.other.fpb",
+          "name": "keyword.other.fpd",
           "match": "\\b(title|system)\\b",
           "comment": "Other keywords"
         }
@@ -117,7 +117,7 @@
     "identifiers": {
       "patterns": [
         {
-          "name": "variable.other.identifier.fpb",
+          "name": "variable.other.identifier.fpd",
           "match": "\\b[a-zA-Z_]\\w*\\b",
           "comment": "Identifiers (element IDs, etc.)"
         }

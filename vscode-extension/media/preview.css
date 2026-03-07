@@ -1,13 +1,17 @@
-/* FPB Diagram Preview Styles */
+/* FPD Diagram Preview Styles — matches frontend designTokens.ts */
 
 :root {
-    /* Color scheme for different element types */
-    --color-product: #4CAF50;
-    --color-energy: #FF9800;
-    --color-information: #2196F3;
-    --color-process: #9C27B0;
-    --color-technical: #607D8B;
-    --color-material: #4CAF50;
+    /* VDI 3682 element colors (from FPB.JS reference) */
+    --color-product: #E51400;
+    --color-energy: #6E9AD1;
+    --color-information: #2F4DA1;
+    --color-process: #11AE4B;
+    --color-technical: #888889;
+    --color-cross-system: #9b59b6;
+
+    /* Connection colors */
+    --color-flow: #000;
+    --color-usage: #888889;
 
     /* VS Code theme colors */
     --bg-color: var(--vscode-editor-background);
@@ -25,7 +29,7 @@
 body {
     font-family: var(--vscode-font-family);
     color: var(--fg-color);
-    background-color: var(--bg-color);
+    background-color: #ffffff;
     padding: 20px;
     overflow: auto;
 }
@@ -48,96 +52,89 @@ body {
 
 /* Element Shapes */
 .element-shape {
-    stroke: var(--fg-color);
-    stroke-width: 2;
-    fill: none;
+    stroke: #000;
+    stroke-width: 1.5;
     transition: all 0.3s ease;
 }
 
 .element-shape:hover {
-    stroke-width: 3;
-    filter: brightness(1.2);
+    stroke-width: 2.5;
+    filter: brightness(1.1);
 }
 
 .element-product {
     fill: var(--color-product);
-    fill-opacity: 0.2;
-    stroke: var(--color-product);
+    fill-opacity: 1.0;
+    stroke: #000;
 }
 
 .element-energy {
     fill: var(--color-energy);
-    fill-opacity: 0.2;
-    stroke: var(--color-energy);
+    fill-opacity: 1.0;
+    stroke: #000;
 }
 
 .element-information {
     fill: var(--color-information);
-    fill-opacity: 0.2;
-    stroke: var(--color-information);
+    fill-opacity: 1.0;
+    stroke: #000;
 }
 
 .element-process {
     fill: var(--color-process);
-    fill-opacity: 0.2;
-    stroke: var(--color-process);
+    fill-opacity: 1.0;
+    stroke: #000;
 }
 
 .element-technical {
     fill: var(--color-technical);
-    fill-opacity: 0.2;
-    stroke: var(--color-technical);
+    fill-opacity: 1.0;
+    stroke: #000;
 }
 
 .element-default {
     fill: var(--fg-color);
     fill-opacity: 0.1;
-    stroke: var(--fg-color);
+    stroke: #000;
 }
 
 /* Element Text Labels */
 .element-label {
-    fill: var(--fg-color);
-    font-size: 14px;
-    font-weight: 600;
+    fill: #000;
+    font-size: 11px;
+    font-family: Helvetica, Arial, sans-serif;
+    pointer-events: none;
+    user-select: none;
+}
+
+.element-label-process {
+    fill: #000;
+    font-size: 13px;
+    font-family: Helvetica, Arial, sans-serif;
     pointer-events: none;
     user-select: none;
 }
 
 .element-id {
-    fill: var(--fg-color);
-    opacity: 0.6;
+    fill: #000;
     font-size: 10px;
-    font-family: var(--vscode-editor-font-family);
+    font-family: Helvetica, Arial, sans-serif;
     pointer-events: none;
     user-select: none;
 }
 
+/* System limit label */
+.system-limit-label {
+    fill: #000;
+    font-size: 12px;
+    font-weight: bold;
+    font-family: Helvetica, Arial, sans-serif;
+}
+
 /* Connection Lines */
 .connection-line {
-    stroke-width: 2;
+    stroke-width: 1.5;
     fill: none;
-    transition: stroke-width 0.3s ease;
-}
-
-.connection-line:hover {
-    stroke-width: 3;
-}
-
-.connection-material {
-    stroke: var(--color-material);
-}
-
-.connection-energy {
-    stroke: var(--color-energy);
-}
-
-.connection-information {
-    stroke: var(--color-information);
-}
-
-.connection-technical {
-    stroke: var(--color-technical);
 }
 
 /* Placeholder and Error States */
@@ -169,19 +166,4 @@ body {
 .error p {
     font-size: 14px;
     line-height: 1.5;
-}
-
-/* Responsive adjustments */
-@media (max-width: 600px) {
-    body {
-        padding: 10px;
-    }
-
-    .element-label {
-        font-size: 12px;
-    }
-
-    .element-id {
-        font-size: 9px;
-    }
 }

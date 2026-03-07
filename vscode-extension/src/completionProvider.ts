@@ -1,18 +1,18 @@
 import * as vscode from 'vscode';
 
 /**
- * Completion provider for FPB language
+ * Completion provider for FPD language
  * Provides autocompletion for keywords, operators, and block delimiters
  */
-export class FpbCompletionProvider implements vscode.CompletionItemProvider {
+export class FpdCompletionProvider implements vscode.CompletionItemProvider {
     /**
      * Provide completion items for the current position
      */
     provideCompletionItems(
         document: vscode.TextDocument,
         position: vscode.Position,
-        token: vscode.CancellationToken,
-        context: vscode.CompletionContext
+        _token: vscode.CancellationToken,
+        _context: vscode.CompletionContext
     ): vscode.CompletionItem[] | vscode.CompletionList {
         const linePrefix = document.lineAt(position).text.substring(0, position.character);
         const completions: vscode.CompletionItem[] = [];
@@ -33,7 +33,7 @@ export class FpbCompletionProvider implements vscode.CompletionItemProvider {
     }
 
     /**
-     * Get completion items for FPB keywords (element types)
+     * Get completion items for FPD keywords (element types)
      */
     private getKeywordCompletions(): vscode.CompletionItem[] {
         const keywords = [
@@ -97,15 +97,15 @@ export class FpbCompletionProvider implements vscode.CompletionItemProvider {
     private getBlockDelimiterCompletions(): vscode.CompletionItem[] {
         const delimiters = [
             {
-                label: '@startfpb',
-                snippet: '@startfpb\n$0\n@endfpb',
-                description: 'Start FPB diagram block',
+                label: '@startfpd',
+                snippet: '@startfpd\n$0\n@endfpd',
+                description: 'Start FPD diagram block',
                 detail: 'Block delimiter'
             },
             {
-                label: '@endfpb',
-                snippet: '@endfpb',
-                description: 'End FPB diagram block',
+                label: '@endfpd',
+                snippet: '@endfpd',
+                description: 'End FPD diagram block',
                 detail: 'Block delimiter'
             },
             {
@@ -171,12 +171,12 @@ export class FpbCompletionProvider implements vscode.CompletionItemProvider {
 }
 
 /**
- * Register the FPB completion provider
+ * Register the FPD completion provider
  */
 export function registerCompletionProvider(context: vscode.ExtensionContext): void {
-    const provider = new FpbCompletionProvider();
+    const provider = new FpdCompletionProvider();
     const registration = vscode.languages.registerCompletionItemProvider(
-        { scheme: 'file', language: 'fpb' },
+        { scheme: 'file', language: 'fpd' },
         provider,
         ' ' // Trigger completion after space (for connection operators)
     );

@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import axios from 'axios';
 
 /**
- * Manages the FPB backend server lifecycle
+ * Manages the FPD backend server lifecycle
  * Handles auto-starting the backend if configured and monitoring its health
  */
 export class BackendManager {
@@ -15,7 +15,7 @@ export class BackendManager {
     private outputChannel: vscode.OutputChannel;
 
     constructor(private context: vscode.ExtensionContext) {
-        this.outputChannel = vscode.window.createOutputChannel('FPB Backend');
+        this.outputChannel = vscode.window.createOutputChannel('FPD Backend');
         context.subscriptions.push(this.outputChannel);
     }
 
@@ -24,7 +24,7 @@ export class BackendManager {
      * Checks if backend is running, and starts it if needed
      */
     async initialize(): Promise<void> {
-        const config = vscode.workspace.getConfiguration('fpb');
+        const config = vscode.workspace.getConfiguration('fpd');
         const backendUrl = config.get<string>('backend.url', 'http://localhost:8000');
         const autoStart = config.get<boolean>('backend.autoStart', true);
 
@@ -49,7 +49,7 @@ export class BackendManager {
         } else {
             this.outputChannel.appendLine('Backend not running and auto-start is disabled');
             vscode.window.showWarningMessage(
-                'FPB Backend is not running. Enable auto-start in settings or start the backend manually.'
+                'FPD Backend is not running. Enable auto-start in settings or start the backend manually.'
             );
         }
     }
@@ -83,7 +83,7 @@ export class BackendManager {
             const backendPath = await this.findBackendPath();
             if (!backendPath) {
                 vscode.window.showErrorMessage(
-                    'FPB Backend directory not found. Please check your installation.'
+                    'FPD Backend directory not found. Please check your installation.'
                 );
                 return;
             }
@@ -122,7 +122,7 @@ export class BackendManager {
 
             this.backendProcess.on('error', (error) => {
                 this.outputChannel.appendLine(`[Backend Error] ${error.message}`);
-                vscode.window.showErrorMessage(`Failed to start FPB backend: ${error.message}`);
+                vscode.window.showErrorMessage(`Failed to start FPD backend: ${error.message}`);
             });
 
             this.backendProcess.on('exit', (code, signal) => {
@@ -137,7 +137,7 @@ export class BackendManager {
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
             this.outputChannel.appendLine(`Failed to start backend: ${errorMsg}`);
-            vscode.window.showErrorMessage(`Failed to start FPB backend: ${errorMsg}`);
+            vscode.window.showErrorMessage(`Failed to start FPD backend: ${errorMsg}`);
         }
     }
 
@@ -184,7 +184,7 @@ export class BackendManager {
                 this.outputChannel.appendLine('Backend is ready!');
                 this.isBackendReady = true;
                 this.startHealthMonitoring(backendUrl);
-                vscode.window.showInformationMessage('FPB Backend started successfully');
+                vscode.window.showInformationMessage('FPD Backend started successfully');
                 return;
             }
 
@@ -208,7 +208,7 @@ export class BackendManager {
             if (!isHealthy && this.isBackendReady) {
                 this.outputChannel.appendLine('Backend health check failed');
                 this.isBackendReady = false;
-                vscode.window.showWarningMessage('FPB Backend connection lost');
+                vscode.window.showWarningMessage('FPD Backend connection lost');
             } else if (isHealthy && !this.isBackendReady) {
                 this.outputChannel.appendLine('Backend health check restored');
                 this.isBackendReady = true;
@@ -235,7 +235,7 @@ export class BackendManager {
      * Get the configured backend URL
      */
     getBackendUrl(): string {
-        const config = vscode.workspace.getConfiguration('fpb');
+        const config = vscode.workspace.getConfiguration('fpd');
         return config.get<string>('backend.url', 'http://localhost:8000');
     }
 

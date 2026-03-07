@@ -1,4 +1,4 @@
-@startfpb
+@startfpd
 title "Herstellung und Verpackung"
 
 system "Fertigung" {
@@ -29,4 +29,4 @@ system "Verpackung" {
   PO2 <..> TR2
 }
 
-@endfpb
+@endfpd
