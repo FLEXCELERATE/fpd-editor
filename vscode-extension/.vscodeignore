@@ -15,8 +15,13 @@ out/test/**
 .gitignore
 .gitattributes
 
-# Documentation (keep README.md, CHANGELOG.md, LICENSE)
+# Documentation (keep README.md, CHANGELOG.md, LICENSE, THIRD-PARTY-LICENSES)
 .github/**
+PACKAGING.md
+VERIFICATION.md
+
+# Test files
+*.fpd
 
 # Dependencies
 node_modules/**
