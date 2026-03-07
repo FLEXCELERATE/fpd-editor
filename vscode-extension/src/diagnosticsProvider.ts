@@ -22,11 +22,13 @@ export class FpdDiagnosticsProvider {
         const diagnostics: vscode.Diagnostic[] = [];
         const text = document.getText();
         const lines = text.split('\n');
-        const declaredElements = new Map<string, { type: string; line: number }>();
+        const declaredElements = new Map<string, { type: string; line: number; systemId: string | null }>();
 
         let inFpdBlock = false;
         let hasStartFpd = false;
         let systemDepth = 0;
+        let currentSystemId: string | null = null;
+        const systemStack: (string | null)[] = [];
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
@@ -82,6 +84,8 @@ export class FpdDiagnosticsProvider {
             // System block opening: system "Name" {
             const systemMatch = line.match(/^system\s+"([^"]*)"\s*\{$/);
             if (systemMatch) {
+                systemStack.push(currentSystemId);
+                currentSystemId = systemMatch[1] || `system_${systemDepth}`;
                 systemDepth++;
                 continue;
             }
@@ -90,6 +94,7 @@ export class FpdDiagnosticsProvider {
             if (line === '}') {
                 if (systemDepth > 0) {
                     systemDepth--;
+                    currentSystemId = systemStack.pop() ?? null;
                 } else {
                     diagnostics.push(this.createDiagnostic(
                         lineNumber,
@@ -120,7 +125,7 @@ export class FpdDiagnosticsProvider {
                         vscode.DiagnosticSeverity.Error
                     ));
                 } else {
-                    declaredElements.set(elementId, { type: elementType, line: lineNumber });
+                    declaredElements.set(elementId, { type: elementType, line: lineNumber, systemId: currentSystemId });
                 }
 
                 // Warn if annotation used on non-state elements
@@ -182,10 +187,15 @@ export class FpdDiagnosticsProvider {
 
                 // Validate connection rules
                 if (declaredElements.has(sourceId) && declaredElements.has(targetId)) {
-                    const sourceType = declaredElements.get(sourceId)!.type;
-                    const targetType = declaredElements.get(targetId)!.type;
+                    const sourceEl = declaredElements.get(sourceId)!;
+                    const targetEl = declaredElements.get(targetId)!;
 
-                    const validationError = this.validateConnection(sourceType, targetType, operator);
+                    const isCrossSystem = systemDepth === 0
+                        && sourceEl.systemId !== null
+                        && targetEl.systemId !== null
+                        && sourceEl.systemId !== targetEl.systemId;
+
+                    const validationError = this.validateConnection(sourceEl.type, targetEl.type, operator, isCrossSystem);
                     if (validationError) {
                         diagnostics.push(this.createDiagnostic(
                             lineNumber,
@@ -294,30 +304,22 @@ export class FpdDiagnosticsProvider {
      * Validate connection rules between element types
      * Returns error message if invalid, null if valid
      */
-    private validateConnection(sourceType: string, targetType: string, operator: string): string | null {
+    private validateConnection(sourceType: string, targetType: string, operator: string, isCrossSystem: boolean = false): string | null {
+        const flowTypes = new Set(['product', 'energy', 'information']);
+
         // Flow operators (-->, -.->, ==>) have specific rules
-        if (operator === '-->' || operator === '-.->') {
-            // Products, energy, and information cannot connect directly to each other
-            const flowTypes = new Set(['product', 'energy', 'information']);
+        if (operator === '-->' || operator === '-.->' || operator === '==>') {
+            // State -> State: allowed only as cross-system connection
             if (flowTypes.has(sourceType) && flowTypes.has(targetType)) {
-                return `Cannot connect ${sourceType} directly to ${targetType}. Flow connections require a process_operator.`;
+                if (isCrossSystem) {
+                    return null; // Valid cross-system connection
+                }
+                return `Cannot connect ${sourceType} directly to ${targetType}. Flow connections require a process_operator (or use outside system blocks for cross-system flows).`;
             }
 
             // Technical resources cannot use flow operators (should use <..>)
             if (sourceType === 'technical_resource' || targetType === 'technical_resource') {
                 return `Technical resources cannot use flow connections (${operator}). Use <..> instead.`;
-            }
-        }
-
-        // Parallel flow (==>) has same rules as regular flow
-        if (operator === '==>') {
-            const flowTypes = new Set(['product', 'energy', 'information']);
-            if (flowTypes.has(sourceType) && flowTypes.has(targetType)) {
-                return `Cannot connect ${sourceType} directly to ${targetType} using parallel flow.`;
-            }
-
-            if (sourceType === 'technical_resource' || targetType === 'technical_resource') {
-                return `Technical resources cannot use parallel flow connections (${operator}). Use <..> instead.`;
             }
         }
 

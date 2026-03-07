@@ -55,6 +55,26 @@
         "command": "fpd.preview.show",
         "title": "FPD: Show Preview",
         "icon": "$(preview)"
+      },
+      {
+        "command": "fpd.export.svg",
+        "title": "FPD: Export SVG"
+      },
+      {
+        "command": "fpd.export.png",
+        "title": "FPD: Export PNG"
+      },
+      {
+        "command": "fpd.export.pdf",
+        "title": "FPD: Export PDF"
+      },
+      {
+        "command": "fpd.export.xml",
+        "title": "FPD: Export VDI 3682 XML"
+      },
+      {
+        "command": "fpd.export.text",
+        "title": "FPD: Export FPD Text"
       }
     ],
     "menus": {
@@ -68,6 +88,26 @@
       "commandPalette": [
         {
           "command": "fpd.preview.show",
+          "when": "resourceLangId == fpd"
+        },
+        {
+          "command": "fpd.export.svg",
+          "when": "resourceLangId == fpd"
+        },
+        {
+          "command": "fpd.export.png",
+          "when": "resourceLangId == fpd"
+        },
+        {
+          "command": "fpd.export.pdf",
+          "when": "resourceLangId == fpd"
+        },
+        {
+          "command": "fpd.export.xml",
+          "when": "resourceLangId == fpd"
+        },
+        {
+          "command": "fpd.export.text",
           "when": "resourceLangId == fpd"
         }
       ]

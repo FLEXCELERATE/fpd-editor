@@ -36,6 +36,25 @@ attribution when redistributing.
 - **License:** MIT
 - **URL:** https://github.com/sissaschool/xmlschema
 
+### CairoSVG
+- **License:** LGPL-3.0-or-later
+- **URL:** https://courtbouillon.org/cairosvg
+- **Copyright:** Copyright (c) 2011-2024, CourtBouillon
+- **Note:** Used as a runtime dependency for SVG-to-PNG conversion. Not modified.
+  LGPL-3.0 permits use as an unmodified library in MIT-licensed projects.
+
+### cairocffi
+- **License:** BSD-3-Clause
+- **URL:** https://github.com/Kozea/cairocffi
+- **Copyright:** Copyright (c) 2013-2024, Simon Sapin and contributors
+- **Note:** Required by CairoSVG.
+
+### Pillow
+- **License:** HPND (Historical Permission Notice and Disclaimer)
+- **URL:** https://github.com/python-pillow/Pillow
+- **Copyright:** Copyright (c) 1995-2024, Fredrik Lundh, Jeffrey A. Clark, and contributors
+- **Note:** Required by CairoSVG for PNG output.
+
 ## JavaScript/TypeScript Dependencies
 
 ### React
