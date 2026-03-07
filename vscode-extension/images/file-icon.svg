@@ -1,32 +1,54 @@
-<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-  <!-- FPB file icon - represents flow-based process diagram -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
   <defs>
-    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#4A90E2;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#357ABD;stop-opacity:1" />
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#243E36"/>
+      <stop offset="100%" style="stop-color:#1a2e28"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#7CA982"/>
+      <stop offset="100%" style="stop-color:#5B8C5A"/>
+    </linearGradient>
+    <linearGradient id="state" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e0e8e0"/>
+      <stop offset="100%" style="stop-color:#b8c8b8"/>
     </linearGradient>
   </defs>
 
-  <!-- Document background -->
-  <rect x="2" y="1" width="12" height="14" rx="1" fill="url(#grad)" stroke="#2C5A8C" stroke-width="0.5"/>
+  <!-- Background -->
+  <rect x="2" y="2" width="124" height="124" rx="20" ry="20" fill="url(#bg)"/>
 
-  <!-- Flow diagram representation -->
-  <!-- Circle (process operator) -->
-  <circle cx="5" cy="5" r="1.2" fill="#FFFFFF" opacity="0.9"/>
+  <!-- Code hint top-left -->
+  <g transform="translate(14, 18)" opacity="0.65">
+    <text font-family="'Courier New', monospace" font-size="11" fill="#7CA982">{ }</text>
+  </g>
 
-  <!-- Rectangle (product/resource) -->
-  <rect x="8.5" y="4" width="2.5" height="2" fill="#FFFFFF" opacity="0.9"/>
+  <!-- FPD label top-right -->
+  <text x="114" y="26" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="bold" fill="#A3D9A5" text-anchor="end" letter-spacing="1">FPD</text>
 
-  <!-- Arrow/Connection -->
-  <line x1="6.2" y1="5" x2="8.5" y2="5" stroke="#FFFFFF" stroke-width="0.6" opacity="0.9"/>
-  <polygon points="8.5,5 7.8,4.6 7.8,5.4" fill="#FFFFFF" opacity="0.9"/>
+  <!-- Input state (top rectangle) -->
+  <rect x="48" y="18" width="32" height="18" rx="3" ry="3" fill="url(#state)" opacity="0.9"/>
 
-  <!-- Additional flow elements -->
-  <circle cx="5" cy="9.5" r="1.2" fill="#FFFFFF" opacity="0.9"/>
-  <rect x="8.5" y="8.5" width="2.5" height="2" fill="#FFFFFF" opacity="0.9"/>
-  <line x1="6.2" y1="9.5" x2="8.5" y2="9.5" stroke="#FFFFFF" stroke-width="0.6" opacity="0.9"/>
-  <polygon points="8.5,9.5 7.8,9.1 7.8,9.9" fill="#FFFFFF" opacity="0.9"/>
+  <!-- Arrow down from input to process operator -->
+  <line x1="64" y1="36" x2="64" y2="44" stroke="#7CA982" stroke-width="2.5" stroke-linecap="round"/>
+  <polygon points="60,44 64,50 68,44" fill="#7CA982"/>
 
-  <!-- Text indicator -->
-  <text x="3" y="14" font-family="Arial, sans-serif" font-size="3" fill="#FFFFFF" font-weight="bold">FPB</text>
+  <!-- Process Operator (central ellipse) -->
+  <ellipse cx="64" cy="66" rx="16" ry="16" fill="none" stroke="url(#accent)" stroke-width="3"/>
+  <ellipse cx="64" cy="66" rx="16" ry="16" fill="#5B8C5A" opacity="0.2"/>
+
+  <!-- "P" inside -->
+  <text x="64" y="72" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="bold" fill="#A3D9A5" text-anchor="middle">P</text>
+
+  <!-- Technical Resource (right, dashed connection) -->
+  <line x1="80" y1="66" x2="94" y2="66" stroke="#7CA982" stroke-width="1.5" stroke-dasharray="3,2"/>
+  <rect x="94" y="58" width="26" height="16" rx="2" ry="2" fill="none" stroke="#7CA982" stroke-width="1.5"/>
+  <text x="107" y="69" font-family="Arial, Helvetica, sans-serif" font-size="8" fill="#7CA982" text-anchor="middle">TR</text>
+
+  <!-- Arrow down from process operator to output -->
+  <line x1="64" y1="82" x2="64" y2="90" stroke="#7CA982" stroke-width="2.5" stroke-linecap="round"/>
+  <polygon points="60,90 64,96 68,90" fill="#7CA982"/>
+
+  <!-- Output state (bottom rectangle) -->
+  <rect x="48" y="96" width="32" height="18" rx="3" ry="3" fill="url(#state)" opacity="0.9"/>
+
 </svg>

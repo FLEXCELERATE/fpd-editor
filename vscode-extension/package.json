@@ -3,7 +3,7 @@
   "displayName": "FPD Language Support",
   "description": "Syntax highlighting, IntelliSense, diagnostics, and live diagram preview for FPD (Formalized Process Description, VDI 3682)",
   "version": "0.1.0",
-  "publisher": "fpd-tools",
+  "publisher": "FLEXCELERATE",
   "icon": "images/icon.png",
   "repository": {
     "type": "git",
@@ -17,6 +17,7 @@
     "Snippets",
     "Visualization"
   ],
+  "license": "MIT",
   "keywords": [
     "fpd",
     "vdi3682",

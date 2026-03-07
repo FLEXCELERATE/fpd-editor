@@ -1,64 +1,57 @@
-# FPB Language Support for VS Code
+# FPD Language Support for VS Code
 
-> Professional language support for FPB (Flow-based Process Diagrams) - a text-first approach to process engineering diagrams.
+> Language support for FPD (Formalized Process Description, VDI 3682) — a text-first approach to process engineering diagrams.
 
 [![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)]()
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.85.0+-green.svg)]()
+[![License](https://img.shields.io/badge/license-MIT-green.svg)]()
 
 ## Features
 
-### 🎨 Syntax Highlighting
-Rich syntax highlighting for FPB files with TextMate grammar support:
-- **Keywords**: `product`, `energy`, `information`, `process_operator`, `technical_resource`
-- **Operators**: `-->` (material), `-.->`  (energy), `==>` (information), `<..>` (technical)
-- **Block delimiters**: `@startfpb`, `@endfpb`
+### Syntax Highlighting
+Rich syntax highlighting for `.fpd` files with TextMate grammar support:
+- **Keywords**: `product`, `energy`, `information`, `process_operator`, `technical_resource`, `system`, `title`
+- **Operators**: `-->` (flow), `-.->` (alternative flow), `==>` (parallel flow), `<..>` (usage)
+- **Annotations**: `@boundary`, `@internal`
+- **Block delimiters**: `@startfpd`, `@endfpd`
 - **Comments**: `//` line comments
 - **Strings**: Double-quoted labels
 
-### 💡 IntelliSense & Autocompletion
+### IntelliSense & Autocompletion
 Smart autocompletion as you type:
 - Element type keywords with snippets
 - Connection operators after identifiers
 - Automatic snippet expansion with placeholders
 - Context-aware suggestions
 
-### 🔍 Real-time Diagnostics
+### Real-time Diagnostics
 Instant error detection with red squiggly underlines:
 - Syntax validation
 - Connection type rules (e.g., products cannot connect directly to products)
 - Missing or duplicate declarations
 - Invalid operator usage
 
-### 📊 Live Diagram Preview
+### Live Diagram Preview
 Side-by-side diagram preview that updates as you type:
 - Real-time SVG rendering
 - Auto-update on document changes (configurable debounce)
 - Visual representation of all element types
-- Support for material, energy, information, and technical connections
+- Support for flow, energy, information, and technical connections
 - Theme-aware styling
 
-### 📤 Export Commands
-Export your diagrams in multiple formats via Command Palette:
-- **Export as XML**: Structured data format
-- **Export as Text**: Plain text representation
-
-### 📥 Import Support
-Import existing files for editing:
-- Open `.fpb` files directly
-- Import `.xml` files and convert to FPB syntax
-
-### ⚙️ Automatic Backend Integration
-Seamless connection to the FPB backend:
-- Auto-start local backend server (Python FastAPI)
-- Connect to existing backend instances
-- Configurable backend URL
-- Health monitoring
+### Export Commands
+Export your diagrams in multiple formats via Command Palette (`Ctrl+Shift+P`):
+- **FPD: Export SVG** — Scalable vector graphics
+- **FPD: Export PNG** — Raster image (2x scale)
+- **FPD: Export PDF** — PDF document
+- **FPD: Export VDI 3682 XML** — Structured VDI 3682 XML format
+- **FPD: Export FPD Text** — Plain `.fpd` text file
 
 ## Installation
 
-### From VSIX File (Development/Manual Installation)
+### From VSIX File
 
-1. Download the latest `.vsix` file from the releases page
+1. Download the latest `.vsix` file from the [releases page](https://github.com/FLEXCELERATE/fpd-editor/releases)
 2. Open VS Code
 3. Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac)
 4. Type "Install from VSIX" and select the command
@@ -72,46 +65,48 @@ The extension requires a Python backend to provide parsing and rendering service
 - **Python 3.9+** (if using auto-start feature)
 - **FastAPI backend** (automatically started or manually configured)
 
-The backend is automatically started when you open a `.fpb` file if `fpb.backend.autoStart` is enabled (default).
+The backend is automatically started when you open an `.fpd` file if `fpd.backend.autoStart` is enabled (default).
 
 ## Getting Started
 
-### 1. Create Your First FPB File
+### 1. Create Your First FPD File
 
-Create a new file with `.fpb` extension:
+Create a new file with `.fpd` extension:
 
-```fpb
-@startfpb
-// Simple process flow example
+```fpd
+@startfpd
+title "My First Process"
 
 product P1 "Raw Material"
-process_operator PO1 "Chemical Reactor"
+process_operator OP1 "Processing"
 product P2 "Final Product"
 energy E1 "Heat"
+information I1 "Recipe"
+technical_resource T1 "Equipment"
 
-P1 --> PO1 "feed"
-E1 -.-> PO1 "heating"
-PO1 --> P2 "output"
+P1 --> OP1
+OP1 --> P2
+E1 ==> OP1
+I1 -.-> OP1
+T1 <..> OP1
 
-@endfpb
+@endfpd
 ```
 
 ### 2. View the Diagram
 
 Click the preview icon in the editor toolbar or press `Ctrl+Shift+P` and run:
 ```
-FPB: Show Preview
+FPD: Show Preview
 ```
 
 The diagram preview will open in a side panel and update automatically as you type.
 
 ### 3. Export Your Diagram
 
-Press `Ctrl+Shift+P` and run one of:
-- `FPB: Export as XML` - For data exchange
-- `FPB: Export as Text` - For plain text format
+Press `Ctrl+Shift+P` and run one of the export commands (SVG, PNG, PDF, XML, or Text).
 
-## FPB Language Syntax
+## FPD Language Syntax
 
 ### Element Types
 
@@ -127,53 +122,57 @@ Press `Ctrl+Shift+P` and run one of:
 
 | Operator | Type | Description | Example |
 |----------|------|-------------|---------|
-| `-->` | Material | Product/material flow | `P1 --> PO1 "input"` |
-| `-.->` | Energy | Energy flow | `E1 -.-> PO1 "power"` |
-| `==>` | Information | Information flow | `I1 ==> PO1 "setpoint"` |
-| `<..>` | Technical | Equipment connection | `TR1 <..> PO1 "uses"` |
+| `-->` | Flow | Product/material flow | `P1 --> PO1` |
+| `-.->` | Alternative flow | Alternative connection | `P9 -.-> O2` |
+| `==>` | Parallel flow | Parallel connection | `E1 ==> PO1` |
+| `<..>` | Usage | Equipment connection | `TR1 <..> PO1` |
 
-### Block Structure
+### System Blocks
 
-Every FPB file must be wrapped in block delimiters:
+Group related elements into named systems:
 
-```fpb
-@startfpb
-// Your process definition here
-@endfpb
+```fpd
+@startfpd
+title "My System"
+
+system "SystemName" {
+  product P1 "Input"
+  process_operator O1 "Processing"
+  product P2 "Output"
+
+  P1 --> O1
+  O1 --> P2
+}
+
+@endfpd
 ```
+
+### Annotations
+
+| Annotation | Description |
+|------------|-------------|
+| `@boundary` | Marks system boundary elements |
+| `@internal` | Marks internal elements |
 
 ### Comments
 
 Use `//` for single-line comments:
 
-```fpb
+```fpd
 // This is a comment
 product P1 "Water"  // Inline comment
 ```
 
 ## Extension Settings
 
-Configure the extension in VS Code settings (`Ctrl+,` or `Cmd+,`):
+Configure the extension in VS Code settings (`Ctrl+,`):
 
-### `fpb.backend.url`
-- **Type**: `string`
-- **Default**: `"http://localhost:8082"`
-- **Description**: URL of the FPB backend API server
-
-### `fpb.backend.autoStart`
-- **Type**: `boolean`
-- **Default**: `true`
-- **Description**: Automatically start the FPB backend server if not running
-
-### `fpb.preview.autoUpdate`
-- **Type**: `boolean`
-- **Default**: `true`
-- **Description**: Automatically update the preview panel when editing
-
-### `fpb.preview.updateDelay`
-- **Type**: `number`
-- **Default**: `500`
-- **Description**: Delay in milliseconds before updating the preview after typing (debounce)
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `fpd.backend.url` | `string` | `http://localhost:8000` | URL of the FPD backend API server |
+| `fpd.backend.autoStart` | `boolean` | `true` | Automatically start the backend server if not running |
+| `fpd.preview.autoUpdate` | `boolean` | `true` | Automatically update the preview panel when editing |
+| `fpd.preview.updateDelay` | `number` | `500` | Debounce delay in ms before updating the preview |
 
 ## Commands
 
@@ -181,10 +180,12 @@ Access these commands via Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`):
 
 | Command | Description |
 |---------|-------------|
-| `FPB: Show Preview` | Open live diagram preview panel |
-| `FPB: Export as XML` | Export current diagram as XML file |
-| `FPB: Export as Text` | Export current diagram as text file |
-| `FPB: Import File` | Import .fpb or .xml file for editing |
+| `FPD: Show Preview` | Open live diagram preview panel |
+| `FPD: Export SVG` | Export diagram as SVG image |
+| `FPD: Export PNG` | Export diagram as PNG image |
+| `FPD: Export PDF` | Export diagram as PDF document |
+| `FPD: Export VDI 3682 XML` | Export diagram as VDI 3682 XML |
+| `FPD: Export FPD Text` | Export diagram as FPD text file |
 
 ## Troubleshooting
 
@@ -195,66 +196,24 @@ If you see "Backend not connected" errors:
 1. **Check backend status**: The backend should auto-start by default
 2. **Manual start**: Navigate to the backend directory and run:
    ```bash
-   python -m uvicorn main:app --port 8082
+   cd backend
+   pip install -r requirements.txt
+   uvicorn main:app --host 0.0.0.0 --port 8000 --reload
    ```
-3. **Configure URL**: Update `fpb.backend.url` in settings if using a different port/host
-4. **Disable auto-start**: Set `fpb.backend.autoStart` to `false` if managing the backend manually
+3. **Configure URL**: Update `fpd.backend.url` in settings if using a different port/host
+4. **Disable auto-start**: Set `fpd.backend.autoStart` to `false` if managing the backend manually
 
 ### Preview Not Updating
 
-If the preview panel doesn't update:
-
-1. **Check auto-update**: Ensure `fpb.preview.autoUpdate` is enabled
-2. **Adjust delay**: Increase `fpb.preview.updateDelay` if updates are too frequent
+1. **Check auto-update**: Ensure `fpd.preview.autoUpdate` is enabled
+2. **Adjust delay**: Increase `fpd.preview.updateDelay` if updates are too frequent
 3. **Reload window**: Press `Ctrl+Shift+P` > "Developer: Reload Window"
 
 ### Syntax Highlighting Not Working
 
-If syntax highlighting doesn't appear:
-
-1. **Check file extension**: Ensure file has `.fpb` extension
-2. **Verify language mode**: Check the language indicator in the bottom-right corner shows "FPB"
-3. **Change language**: Click the language indicator and select "FPB" from the list
-
-## Examples
-
-### Simple Process Flow
-
-```fpb
-@startfpb
-product RawMaterial "Raw Material Input"
-process_operator Reactor "Chemical Reactor"
-product FinalProduct "Final Product"
-
-RawMaterial --> Reactor "feed"
-Reactor --> FinalProduct "output"
-@endfpb
-```
-
-### Complex Process with Energy and Information
-
-```fpb
-@startfpb
-// Multi-stage process with energy and information flows
-
-product P1 "Feedstock"
-energy E1 "Steam"
-information I1 "Process Control"
-process_operator PO1 "Heater"
-process_operator PO2 "Separator"
-product P2 "Product A"
-product P3 "Product B"
-technical_resource TR1 "Storage Tank"
-
-P1 --> PO1 "input"
-E1 -.-> PO1 "heating"
-I1 ==> PO1 "setpoint"
-PO1 --> PO2 "heated stream"
-PO2 --> P2 "top product"
-PO2 --> P3 "bottom product"
-TR1 <..> P2 "stores"
-@endfpb
-```
+1. **Check file extension**: Ensure file has `.fpd` extension
+2. **Verify language mode**: Check the language indicator in the bottom-right corner shows "FPD"
+3. **Change language**: Click the language indicator and select "FPD" from the list
 
 ## Contributing
 
@@ -262,14 +221,6 @@ Found a bug or have a feature request? Please open an issue on our [GitHub repos
 
 ## License
 
-See the main project repository for license information.
+MIT License - see [LICENSE](LICENSE) for details.
 
-## Release Notes
-
-See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
-
----
-
-**Enjoy using FPB Language Support!** 🎉
-
-For more information about the FPB language and the broader text-based process diagram ecosystem, visit the project documentation.
+Copyright (c) 2026 FLEXCELERATE Solutions GmbH
