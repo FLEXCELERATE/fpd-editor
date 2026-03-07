@@ -1,6 +1,6 @@
 {
   "name": "fpd-vscode-extension",
-  "displayName": "FPD Language Support",
+  "displayName": "FPD - Formalized Process Description (VDI 3682)",
   "description": "Syntax highlighting, IntelliSense, diagnostics, and live diagram preview for FPD (Formalized Process Description, VDI 3682)",
   "version": "0.1.0",
   "publisher": "FLEXCELERATE",
