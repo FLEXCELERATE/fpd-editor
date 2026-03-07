@@ -8,14 +8,16 @@ import {
   importFile,
   downloadBlob,
 } from "../services/api";
-import { exportSvgToPdf } from "../services/pdfExport";
+import { exportSvgToPdf, exportSvgToSvg, exportSvgToPng } from "../services/pdfExport";
 
-export type ExportFormat = "xml" | "text" | "pdf";
+export type ExportFormat = "xml" | "text" | "pdf" | "svg" | "png";
 
 const FORMAT_EXTENSIONS: Record<ExportFormat, string> = {
   xml: ".xml",
   text: ".fpd",
   pdf: ".pdf",
+  svg: ".svg",
+  png: ".png",
 };
 
 function sanitizeFilename(title: string): string {
@@ -43,14 +45,21 @@ export function useExport(options?: UseExportOptions): UseExportResult {
       setExporting(true);
       try {
         const baseFilename = sanitizeFilename(options?.processTitle || "diagram");
-        if (format === "pdf") {
+        if (format === "pdf" || format === "svg" || format === "png") {
           const svgEl = options?.getSvgElement?.();
           if (!svgEl) throw new Error("No diagram to export");
-          await exportSvgToPdf({
-            svgElement: svgEl,
-            title: options?.processTitle || "Untitled Process",
-            filename: baseFilename + FORMAT_EXTENSIONS.pdf,
-          });
+          const fname = baseFilename + FORMAT_EXTENSIONS[format];
+          if (format === "pdf") {
+            await exportSvgToPdf({
+              svgElement: svgEl,
+              title: options?.processTitle || "Untitled Process",
+              filename: fname,
+            });
+          } else if (format === "svg") {
+            exportSvgToSvg({ svgElement: svgEl, filename: fname });
+          } else {
+            await exportSvgToPng({ svgElement: svgEl, filename: fname });
+          }
         } else {
           const exportFn = format === "xml" ? exportXml : exportText;
           const blob = await exportFn({ session_id: sessionId });

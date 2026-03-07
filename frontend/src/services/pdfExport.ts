@@ -1,8 +1,11 @@
-/** Browser-based PDF export using jsPDF + svg2pdf.js.
+/** Browser-based diagram export (PDF, SVG, PNG).
  *
- * Converts the rendered SVG diagram to a vector PDF document
- * with a VDI 3682 title block. Libraries are loaded dynamically
- * to keep the initial bundle small.
+ * PDF: Converts the rendered SVG to a vector PDF with a VDI 3682 title block
+ *      using jsPDF + svg2pdf.js (loaded dynamically).
+ * SVG: Serializes the rendered SVG as a standalone .svg file.
+ * PNG: Rasterizes the SVG to a canvas and exports as .png.
+ *
+ * All exports use the full diagram content (ignoring pan/zoom state).
  */
 
 export interface PdfExportOptions {
@@ -11,6 +14,13 @@ export interface PdfExportOptions {
   /** Process title for the title block. */
   title: string;
   /** Filename for download (default: "diagram.pdf"). */
+  filename?: string;
+}
+
+export interface ImageExportOptions {
+  /** The live SVG DOM element to export. */
+  svgElement: SVGSVGElement;
+  /** Filename for download. */
   filename?: string;
 }
 
@@ -163,4 +173,97 @@ export async function exportSvgToPdf({
 
   // Trigger download
   pdf.save(filename);
+}
+
+/** Trigger a browser download for the given data URL or blob. */
+function downloadDataUrl(dataUrl: string, filename: string): void {
+  const a = document.createElement("a");
+  a.href = dataUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+/**
+ * Export the rendered SVG diagram as a standalone .svg file.
+ *
+ * The exported SVG contains the full diagram content at 1:1 scale,
+ * independent of the current pan/zoom state.
+ */
+export function exportSvgToSvg({
+  svgElement,
+  filename = "diagram.svg",
+}: ImageExportOptions): void {
+  const svgClone = prepareSvgForExport(svgElement);
+
+  // Ensure the clone has the XML namespace for standalone SVG
+  svgClone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  svgClone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+
+  const serializer = new XMLSerializer();
+  const svgString = serializer.serializeToString(svgClone);
+  const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  downloadDataUrl(url, filename);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Export the rendered SVG diagram as a PNG image.
+ *
+ * Rasterizes the SVG at 2x resolution for crisp output,
+ * independent of the current pan/zoom state.
+ */
+export async function exportSvgToPng({
+  svgElement,
+  filename = "diagram.png",
+}: ImageExportOptions): Promise<void> {
+  const svgClone = prepareSvgForExport(svgElement);
+
+  // Ensure namespaces for standalone rendering
+  svgClone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  svgClone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+
+  const serializer = new XMLSerializer();
+  const svgString = serializer.serializeToString(svgClone);
+
+  const viewBox = svgClone.getAttribute("viewBox");
+  if (!viewBox) throw new Error("SVG element has no viewBox attribute");
+  const [, , svgW, svgH] = viewBox.split(/[\s,]+/).map(Number);
+  if (!svgW || !svgH) throw new Error("Invalid SVG viewBox dimensions");
+
+  // Render at 2x for high-DPI output
+  const scale = 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = svgW * scale;
+  canvas.height = svgH * scale;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not get canvas 2d context");
+
+  // White background
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Load SVG as an image
+  const img = new Image();
+  const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(svgBlob);
+
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve();
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Failed to render SVG to canvas"));
+    };
+    img.src = url;
+  });
+
+  // Convert canvas to PNG and download
+  const pngDataUrl = canvas.toDataURL("image/png");
+  downloadDataUrl(pngDataUrl, filename);
 }
