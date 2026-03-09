@@ -90,6 +90,19 @@ export async function importFile(file: File): Promise<ImportResponse> {
   return handleResponse<ImportResponse>(response);
 }
 
+export async function renderSvg(source: string): Promise<string> {
+  const response = await fetch(`${API_BASE}/render/svg`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source }),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error((body as ApiError).detail || `Request failed: ${response.status}`);
+  }
+  return response.text();
+}
+
 /** Trigger a file download from a Blob. */
 export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);

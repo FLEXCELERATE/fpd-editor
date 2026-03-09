@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProcessModel } from "../types/fpd";
-import { parseSource } from "../services/api";
+import { parseSource, renderSvg } from "../services/api";
 
 interface UseFpdParserOptions {
   /** Debounce delay in milliseconds. Defaults to 500. */
@@ -11,6 +11,7 @@ interface UseFpdParserOptions {
 
 interface UseFpdParserResult {
   model: ProcessModel | null;
+  svgContent: string | null;
   error: string | null;
   loading: boolean;
   sessionId: string | undefined;
@@ -22,6 +23,7 @@ export function useFpdParser(
 ): UseFpdParserResult {
   const debounceMs = options?.debounceMs ?? 500;
   const [model, setModel] = useState<ProcessModel | null>(null);
+  const [svgContent, setSvgContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const sessionIdRef = useRef<string | undefined>(undefined);
@@ -38,16 +40,20 @@ export function useFpdParser(
       setError(null);
 
       try {
-        const response = await parseSource({
-          source: text,
-          session_id: sessionIdRef.current,
-        });
+        const [response, svg] = await Promise.all([
+          parseSource({
+            source: text,
+            session_id: sessionIdRef.current,
+          }),
+          renderSvg(text),
+        ]);
 
         // Ignore if this request was aborted
         if (controller.signal.aborted) return;
 
         sessionIdRef.current = response.session_id;
         setModel(response.model);
+        setSvgContent(svg);
         setError(
           response.model.errors.length > 0
             ? response.model.errors.join("\n")
@@ -68,6 +74,7 @@ export function useFpdParser(
   useEffect(() => {
     if (!source.trim()) {
       setModel(null);
+      setSvgContent(null);
       setError(null);
       return;
     }
@@ -86,5 +93,5 @@ export function useFpdParser(
     };
   }, []);
 
-  return { model, error, loading, sessionId: sessionIdRef.current };
+  return { model, svgContent, error, loading, sessionId: sessionIdRef.current };
 }

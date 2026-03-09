@@ -116,7 +116,7 @@ export default function App() {
   const historyManager = useHistoryManager(DEFAULT_SOURCE);
   const source = historyManager.currentState;
 
-  const { model, error, loading, sessionId } = useFpdParser(source);
+  const { model, svgContent, error, loading, sessionId } = useFpdParser(source);
   const { lineToElement, selectedElementId, setSelectedElementId } = useDiagramSync(model);
   const {
     viewport,
@@ -269,10 +269,8 @@ export default function App() {
             <ErrorBoundary componentName="Diagram">
               <DiagramRenderer
                 ref={diagramRef}
-                model={model}
+                svgContent={svgContent}
                 viewport={viewport}
-                selectedElementId={selectedElementId}
-                onElementClick={handleElementClick}
                 onContentBounds={handleContentBounds}
                 onWheel={handleWheel}
                 onMouseDown={handleDiagramMouseDown}

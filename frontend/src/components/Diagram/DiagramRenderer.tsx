@@ -1,34 +1,16 @@
-/** DiagramRenderer — Composes all SVG elements into a VDI 3682 diagram.
+/** DiagramRenderer — Displays backend-rendered SVG with pan/zoom.
  *
- * Receives a ProcessModel, runs auto-layout, and renders:
- * - System limit boundary
- * - All element shapes (states, process operators, technical resources)
- * - All connections (flows, usages)
- * - SVG marker definitions
- * - Tooltip for element info on hover
- *
- * Uses viewBox manipulation for pan/zoom instead of inner <g> transform.
+ * Receives raw SVG markup from the backend, injects it into the DOM
+ * using DOMParser (to preserve SVG namespace), and applies viewBox
+ * manipulation for pan/zoom interaction.
  */
 
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import type { ProcessModel } from "../../types/fpd";
-import type {
-  DiagramData,
-  DiagramElement,
-  DiagramConnection,
-  DiagramBounds,
-  RoutedConnection,
-  Viewport,
-} from "../../types/diagram";
-import { layoutProcessModel } from "./layout";
-import { ElementShape, SystemLimitShape } from "./elements";
-import { ConnectionDefs, RoutedConnectionLine } from "./connections";
-import { computeRouting } from "./routing";
-import { Tooltip } from "./Tooltip";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import type { DiagramBounds, Viewport } from "../../types/diagram";
 import { colors, typography } from "../../theme/designTokens";
 
 interface DiagramRendererProps {
-  model: ProcessModel | null;
+  svgContent: string | null;
   viewport?: Viewport;
   selectedElementId?: string | null;
   onElementClick?: (lineNumber: number) => void;
@@ -49,235 +31,151 @@ export interface DiagramRendererRef {
   getSvgElement(): SVGSVGElement | null;
 }
 
-/** Compute a lightweight fingerprint from model element IDs to detect structural changes. */
-function modelFingerprint(model: ProcessModel | null): string {
-  if (!model) return "";
-  const ids = [
-    ...model.states.map((s) => s.id),
-    ...model.process_operators.map((p) => p.id),
-    ...model.technical_resources.map((t) => t.id),
-    ...model.flows.map((f) => f.id),
-  ];
-  return ids.join(",");
-}
+/** Parse the backend SVG string and extract the viewBox and inner content nodes. */
+function parseSvgContent(svgString: string): {
+  viewBox: DiagramBounds | null;
+  svgDoc: Document;
+  rootSvg: SVGSVGElement | null;
+} {
+  const parser = new DOMParser();
+  const svgDoc = parser.parseFromString(svgString, "image/svg+xml");
+  const rootSvg = svgDoc.querySelector("svg");
 
-/** SVG-based VDI 3682 diagram renderer. */
-export const DiagramRenderer = forwardRef<DiagramRendererRef, DiagramRendererProps>(
-  function DiagramRenderer({
-    model,
-    viewport,
-    selectedElementId,
-    onElementClick,
-    onContentBounds,
-    onWheel,
-    onMouseDown,
-    onTouchStart,
-    onTouchMove,
-    onTouchEnd,
-  }, ref) {
-  const vp = viewport ?? DEFAULT_VIEWPORT;
-  const svgRef = useRef<SVGSVGElement>(null);
-
-  useImperativeHandle(ref, () => ({
-    getSvgElement: () => svgRef.current,
-  }));
-
-  const [hoveredElement, setHoveredElement] = useState<DiagramElement | null>(null);
-  const prevBoundsRef = useRef<DiagramBounds | null>(null);
-
-  // Fingerprint forces React to unmount/remount SVG when model structure changes,
-  // preventing stale DOM elements from persisting across edits.
-  const fingerprint = useMemo(() => modelFingerprint(model), [model]);
-
-  const diagramData: DiagramData | null = useMemo(() => {
-    if (!model) return null;
-    return layoutProcessModel(model);
-  }, [model]);
-
-  const routedConnections: RoutedConnection[] = useMemo(() => {
-    if (!diagramData) return [];
-    return computeRouting(diagramData.elements, diagramData.connections);
-  }, [diagramData]);
-
-  /** Compute the natural content bounding box including label extents. */
-  const contentBounds: DiagramBounds | null = useMemo(() => {
-    if (!diagramData || diagramData.elements.length === 0) return null;
-
-    const { elements, systemLimits } = diagramData;
-    const charW = typography.fontSize.stateLabel * 0.6;
-
-    const allX: number[] = [];
-    const allY: number[] = [];
-    const allRight: number[] = [];
-    const allBottom: number[] = [];
-
-    for (const e of elements) {
-      allRight.push(e.x + e.width);
-      allBottom.push(e.y + e.height);
-      if (e.type === "state") {
-        const longestLine = Math.max(e.id.length, e.label.length);
-        const labelWidth = longestLine * charW;
-        const labelAnchorX = e.x + e.width / 2 - 6;
-        allX.push(labelAnchorX - labelWidth);
-        allY.push(e.y - 35);
-      } else {
-        allX.push(e.x);
-        allY.push(e.y);
+  let viewBox: DiagramBounds | null = null;
+  if (rootSvg) {
+    const vb = rootSvg.getAttribute("viewBox");
+    if (vb) {
+      const parts = vb.split(/[\s,]+/).map(Number);
+      if (parts.length === 4 && parts.every((n) => !isNaN(n))) {
+        viewBox = { x: parts[0], y: parts[1], width: parts[2], height: parts[3] };
       }
     }
-
-    const slCharW = typography.fontSize.systemLimitLabel * 0.6;
-    for (const sl of systemLimits) {
-      allX.push(sl.x);
-      allBottom.push(sl.y + sl.height);
-      const slLabelWidth = sl.label.length * slCharW;
-      allRight.push(sl.x + sl.width + slLabelWidth);
-      allY.push(sl.y - typography.fontSize.systemLimitLabel - 5);
-    }
-
-    const margin = 50;
-    const minX = Math.min(...allX) - margin;
-    const minY = Math.min(...allY) - margin;
-    const maxX = Math.max(...allRight) + margin;
-    const maxY = Math.max(...allBottom) + margin;
-
-    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-  }, [diagramData]);
-
-  // Store onWheel in a ref so native listener always calls the latest handler.
-  const onWheelRef = useRef(onWheel);
-  onWheelRef.current = onWheel;
-
-  // Attach native wheel listener with { passive: false } so preventDefault() works.
-  // React's onWheel is passive by default and cannot prevent page scroll.
-  useEffect(() => {
-    const svg = svgRef.current;
-    if (!svg || !onWheelRef.current) return;
-
-    const handler = (e: WheelEvent) => {
-      // Create a synthetic-like event object React's handler expects
-      onWheelRef.current?.(e as unknown as React.WheelEvent<SVGSVGElement>);
-    };
-
-    svg.addEventListener("wheel", handler, { passive: false });
-    return () => svg.removeEventListener("wheel", handler);
-  }, []);
-
-  // Notify parent when content bounds change.
-  useEffect(() => {
-    if (!contentBounds || !onContentBounds) return;
-    const prev = prevBoundsRef.current;
-    if (
-      !prev ||
-      prev.x !== contentBounds.x ||
-      prev.y !== contentBounds.y ||
-      prev.width !== contentBounds.width ||
-      prev.height !== contentBounds.height
-    ) {
-      prevBoundsRef.current = contentBounds;
-      onContentBounds(contentBounds);
-    }
-  }, [contentBounds, onContentBounds]);
-
-  const handleElementClick = (element: DiagramElement) => {
-    if (element.line_number != null && onElementClick) {
-      onElementClick(element.line_number);
-    }
-  };
-
-  const handleConnectionClick = (connection: DiagramConnection) => {
-    if (connection.line_number != null && onElementClick) {
-      onElementClick(connection.line_number);
-    }
-  };
-
-  const handleElementMouseEnter = (element: DiagramElement) => {
-    setHoveredElement(element);
-  };
-
-  const handleElementMouseLeave = () => {
-    setHoveredElement(null);
-  };
-
-  if (!diagramData || !contentBounds) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100%",
-          color: colors.ui.placeholderText,
-          fontFamily: "sans-serif",
-          fontSize: typography.fontSize.editor,
-        }}
-      >
-        No diagram to display. Write FPD text on the left to get started.
-      </div>
-    );
   }
 
-  const { elements, systemLimits } = diagramData;
+  return { viewBox, svgDoc, rootSvg };
+}
 
-  // Compute viewBox from viewport state + content bounds.
-  // At default viewport (x=0, y=0, zoom=1): viewBox = content bounds.
-  // Pan shifts the origin; zoom scales the visible area.
-  const viewBoxX = contentBounds.x + vp.x;
-  const viewBoxY = contentBounds.y + vp.y;
-  const viewBoxW = contentBounds.width / vp.zoom;
-  const viewBoxH = contentBounds.height / vp.zoom;
-  const viewBox = `${viewBoxX} ${viewBoxY} ${viewBoxW} ${viewBoxH}`;
+/** SVG-based VDI 3682 diagram renderer using backend SVG. */
+export const DiagramRenderer = forwardRef<DiagramRendererRef, DiagramRendererProps>(
+  function DiagramRenderer(
+    {
+      svgContent,
+      viewport,
+      onContentBounds,
+      onWheel,
+      onMouseDown,
+      onTouchStart,
+      onTouchMove,
+      onTouchEnd,
+    },
+    ref,
+  ) {
+    const vp = viewport ?? DEFAULT_VIEWPORT;
+    const svgRef = useRef<SVGSVGElement>(null);
+    const contentGroupRef = useRef<SVGGElement>(null);
+    const contentBoundsRef = useRef<DiagramBounds | null>(null);
 
-  return (
-    <svg
-      key={fingerprint}
-      ref={svgRef}
-      width="100%"
-      height="100%"
-      viewBox={viewBox}
-      preserveAspectRatio="xMidYMid meet"
-      style={{ background: colors.ui.background, cursor: "grab" }}
-      onMouseDown={onMouseDown}
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
-    >
-      <ConnectionDefs />
+    useImperativeHandle(ref, () => ({
+      getSvgElement: () => svgRef.current,
+    }));
 
-      {/* System limit boundaries */}
-      {systemLimits.map(({ id, x, y, width, height, label }) => (
-        <SystemLimitShape key={id} x={x} y={y} width={width} height={height} label={label} />
-      ))}
+    // Store onWheel in a ref so native listener always calls the latest handler.
+    const onWheelRef = useRef(onWheel);
+    onWheelRef.current = onWheel;
 
-      {/* Connections (rendered below elements) */}
-      {routedConnections.map((rc) => (
-        <RoutedConnectionLine
-          key={rc.connection.id}
-          routed={rc}
-          onClick={() => handleConnectionClick(rc.connection)}
-        />
-      ))}
+    // Attach native wheel listener with { passive: false } so preventDefault() works.
+    useEffect(() => {
+      const svg = svgRef.current;
+      if (!svg) return;
 
-      {/* Element shapes */}
-      {elements.map((el) => (
-        <ElementShape
-          key={el.id}
-          element={el}
-          isSelected={el.id === selectedElementId}
-          onClick={() => handleElementClick(el)}
-          onMouseEnter={() => handleElementMouseEnter(el)}
-          onMouseLeave={handleElementMouseLeave}
-        />
-      ))}
+      const handler = (e: WheelEvent) => {
+        onWheelRef.current?.(e as unknown as React.WheelEvent<SVGSVGElement>);
+      };
 
-      {/* Tooltip */}
-      {hoveredElement && (
-        <Tooltip
-          element={hoveredElement}
-          x={hoveredElement.x + hoveredElement.width}
-          y={hoveredElement.y}
-        />
-      )}
-    </svg>
-  );
-});
+      svg.addEventListener("wheel", handler, { passive: false });
+      return () => svg.removeEventListener("wheel", handler);
+    }, []);
+
+    // Inject backend SVG content into the <g> element via DOMParser.
+    useEffect(() => {
+      const g = contentGroupRef.current;
+      if (!g || !svgContent) {
+        if (g) g.innerHTML = "";
+        return;
+      }
+
+      const { viewBox, svgDoc, rootSvg } = parseSvgContent(svgContent);
+      if (!rootSvg) return;
+
+      // Clear previous content
+      while (g.firstChild) g.removeChild(g.firstChild);
+
+      // Import and append all children from the parsed SVG
+      const ownerDoc = g.ownerDocument;
+      for (const child of Array.from(rootSvg.childNodes)) {
+        const imported = ownerDoc.importNode(child, true);
+        g.appendChild(imported);
+      }
+
+      // Notify parent of content bounds
+      if (viewBox && onContentBounds) {
+        const prev = contentBoundsRef.current;
+        if (
+          !prev ||
+          prev.x !== viewBox.x ||
+          prev.y !== viewBox.y ||
+          prev.width !== viewBox.width ||
+          prev.height !== viewBox.height
+        ) {
+          contentBoundsRef.current = viewBox;
+          onContentBounds(viewBox);
+        }
+      }
+    }, [svgContent, onContentBounds]);
+
+    if (!svgContent) {
+      return (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+            color: colors.ui.placeholderText,
+            fontFamily: "sans-serif",
+            fontSize: typography.fontSize.editor,
+          }}
+        >
+          No diagram to display. Write FPD text on the left to get started.
+        </div>
+      );
+    }
+
+    // Extract viewBox from backend SVG for pan/zoom calculation.
+    const { viewBox: backendBounds } = parseSvgContent(svgContent);
+    const bounds = backendBounds ?? { x: 0, y: 0, width: 800, height: 600 };
+
+    const viewBoxX = bounds.x + vp.x;
+    const viewBoxY = bounds.y + vp.y;
+    const viewBoxW = bounds.width / vp.zoom;
+    const viewBoxH = bounds.height / vp.zoom;
+    const viewBox = `${viewBoxX} ${viewBoxY} ${viewBoxW} ${viewBoxH}`;
+
+    return (
+      <svg
+        ref={svgRef}
+        width="100%"
+        height="100%"
+        viewBox={viewBox}
+        preserveAspectRatio="xMidYMid meet"
+        style={{ background: colors.ui.background, cursor: "grab" }}
+        onMouseDown={onMouseDown}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        <g ref={contentGroupRef} />
+      </svg>
+    );
+  },
+);

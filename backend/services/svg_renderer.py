@@ -248,7 +248,15 @@ def _render_marker_defs() -> str:
             f'<path d="M 0 0 L 10 5 L 0 10 Z" fill="{color}"/>'
             f"</marker>\n"
         )
-    return f"<defs>\n{markers}</defs>\n"
+    highlight = (
+        '<filter id="highlight-glow" x="-50%" y="-50%" width="200%" height="200%">'
+        '<feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>'
+        '<feColorMatrix in="blur" type="matrix" '
+        'values="0 0 0 0 0.2  0 0 0 0 0.5  0 0 0 0 1  0 0 0 0.6 0" result="glow"/>'
+        '<feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>'
+        "</filter>\n"
+    )
+    return f"<defs>\n{markers}{highlight}</defs>\n"
 
 
 def _render_system_limit(sl: dict) -> str:
@@ -314,7 +322,12 @@ def _render_state(el: dict) -> str:
         text += f'<tspan x="{label_x}" dy="14">{label}</tspan>'
     text += "</text>\n"
 
-    return f"<g>{shape}{text}</g>\n"
+    line_num = el.get("line_number", "")
+    attrs = (
+        f'data-element-id="{eid}" data-element-type="state" '
+        f'data-state-type="{state_type}" data-line-number="{line_num}"'
+    )
+    return f"<g {attrs}>{shape}{text}</g>\n"
 
 
 def _auto_font_size(
@@ -360,7 +373,12 @@ def _render_process_operator(el: dict) -> str:
             f'font-family="{FONT_FAMILY}" fill="{COLORS["black"]}">{eid}</text>\n'
         )
 
-    return f"<g>{shape}{text}</g>\n"
+    line_num = el.get("line_number", "")
+    attrs = (
+        f'data-element-id="{eid}" data-element-type="processOperator" '
+        f'data-line-number="{line_num}"'
+    )
+    return f"<g {attrs}>{shape}{text}</g>\n"
 
 
 def _render_technical_resource(el: dict) -> str:
@@ -395,7 +413,12 @@ def _render_technical_resource(el: dict) -> str:
             f'font-family="{FONT_FAMILY}" fill="{COLORS["black"]}">{eid}</text>\n'
         )
 
-    return f"<g>{shape}{text}</g>\n"
+    line_num = el.get("line_number", "")
+    attrs = (
+        f'data-element-id="{eid}" data-element-type="technicalResource" '
+        f'data-line-number="{line_num}"'
+    )
+    return f"<g {attrs}>{shape}{text}</g>\n"
 
 
 def _render_element(el: dict) -> str:
@@ -427,17 +450,20 @@ def _render_routed_connection(routed: dict) -> str:
         return ""
 
     d = _points_to_path_d(points)
+    conn_id = escape(conn.get("id", ""))
+    line_num = conn.get("line_number", "")
+    data_attrs = f'data-connection-id="{conn_id}" data-line-number="{line_num}"'
 
     if conn.get("isCrossSystem"):
         return (
-            f'<path d="{d}" fill="none" stroke="{COLORS["crossSystem"]}" '
+            f'<path {data_attrs} d="{d}" fill="none" stroke="{COLORS["crossSystem"]}" '
             f'stroke-width="{STROKE_WIDTH}" stroke-dasharray="8,4" '
             f'marker-end="url(#arrow-crossSystem)"/>\n'
         )
 
     if conn.get("isUsage"):
         return (
-            f'<path d="{d}" fill="none" stroke="{COLORS["usage"]}" '
+            f'<path {data_attrs} d="{d}" fill="none" stroke="{COLORS["usage"]}" '
             f'stroke-width="{STROKE_WIDTH}" stroke-dasharray="6,4" '
             f'marker-start="url(#arrow-usage)" marker-end="url(#arrow-usage)"/>\n'
         )
@@ -445,20 +471,20 @@ def _render_routed_connection(routed: dict) -> str:
     flow_type = conn.get("flowType", "flow")
     if flow_type == "alternativeFlow":
         return (
-            f'<path d="{d}" fill="none" stroke="{COLORS["flow"]}" '
+            f'<path {data_attrs} d="{d}" fill="none" stroke="{COLORS["flow"]}" '
             f'stroke-width="{STROKE_WIDTH}" '
             f'marker-end="url(#arrow-flow)"/>\n'
         )
     if flow_type == "parallelFlow":
         return (
-            f'<path d="{d}" fill="none" stroke="{COLORS["flow"]}" '
+            f'<path {data_attrs} d="{d}" fill="none" stroke="{COLORS["flow"]}" '
             f'stroke-width="{STROKE_WIDTH}" '
             f'marker-end="url(#arrow-flow)"/>\n'
         )
 
     # Regular flow
     return (
-        f'<path d="{d}" fill="none" stroke="{COLORS["flow"]}" '
+        f'<path {data_attrs} d="{d}" fill="none" stroke="{COLORS["flow"]}" '
         f'stroke-width="{STROKE_WIDTH}" '
         f'marker-end="url(#arrow-flow)"/>\n'
     )
