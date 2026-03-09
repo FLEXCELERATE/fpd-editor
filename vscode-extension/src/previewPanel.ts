@@ -71,11 +71,13 @@ export class PreviewPanel {
 
         this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
 
-        // Handle ready message from webview
+        // Handle messages from webview
         this.panel.webview.onDidReceiveMessage(
             message => {
                 if (message.type === 'ready') {
                     this.update();
+                } else if (message.type === 'goToLine') {
+                    this.goToLine(message.line);
                 }
             },
             null,
@@ -141,9 +143,11 @@ export class PreviewPanel {
     <div id="preview">
         <div class="placeholder">Loading diagram...</div>
     </div>
+    <div id="tooltip" style="display:none; position:fixed; pointer-events:none; background:#333; color:#fff; padding:6px 10px; border-radius:4px; font-size:12px; font-family:sans-serif; border:1px solid #666; z-index:1000; white-space:nowrap;"></div>
     <script>
         const vscode = acquireVsCodeApi();
         const preview = document.getElementById('preview');
+        const tooltip = document.getElementById('tooltip');
 
         window.addEventListener('message', (event) => {
             const msg = event.data;
@@ -160,10 +164,77 @@ export class PreviewPanel {
             }
         });
 
+        function getTypeLabel(elementType, stateType) {
+            if (elementType === 'state' && stateType) {
+                return stateType.charAt(0).toUpperCase() + stateType.slice(1);
+            }
+            switch (elementType) {
+                case 'processOperator': return 'Process Operator';
+                case 'technicalResource': return 'Technical Resource';
+                case 'state': return 'State';
+                default: return elementType;
+            }
+        }
+
+        // Hover tooltip via event delegation
+        preview.addEventListener('mousemove', (e) => {
+            const el = e.target.closest('[data-element-id]');
+            const conn = e.target.closest('[data-connection-id]');
+            if (el) {
+                const id = el.getAttribute('data-element-id');
+                const type = el.getAttribute('data-element-type') || '';
+                const stateType = el.getAttribute('data-state-type');
+                tooltip.innerHTML = '<strong>' + getTypeLabel(type, stateType) + '</strong><br>ID: ' + id;
+                tooltip.style.display = 'block';
+                tooltip.style.left = (e.clientX + 12) + 'px';
+                tooltip.style.top = (e.clientY + 12) + 'px';
+                document.body.style.cursor = 'pointer';
+            } else if (conn) {
+                const id = conn.getAttribute('data-connection-id');
+                tooltip.innerHTML = 'Connection: ' + id;
+                tooltip.style.display = 'block';
+                tooltip.style.left = (e.clientX + 12) + 'px';
+                tooltip.style.top = (e.clientY + 12) + 'px';
+                document.body.style.cursor = 'pointer';
+            } else {
+                tooltip.style.display = 'none';
+                document.body.style.cursor = 'default';
+            }
+        });
+
+        preview.addEventListener('mouseleave', () => {
+            tooltip.style.display = 'none';
+            document.body.style.cursor = 'default';
+        });
+
+        // Double-click to jump to source line
+        preview.addEventListener('dblclick', (e) => {
+            const el = e.target.closest('[data-element-id]');
+            const conn = e.target.closest('[data-connection-id]');
+            const match = el || conn;
+            if (match) {
+                const lineNum = match.getAttribute('data-line-number');
+                if (lineNum) {
+                    vscode.postMessage({ type: 'goToLine', line: parseInt(lineNum, 10) });
+                }
+            }
+        });
+
         vscode.postMessage({ type: 'ready' });
     </script>
 </body>
 </html>`;
+    }
+
+    /** Navigate source editor to a specific line. */
+    private goToLine(line: number): void {
+        const editor = this.sourceEditor ?? vscode.window.activeTextEditor;
+        if (!editor) { return; }
+        const lineIndex = Math.max(0, line - 1);
+        const range = editor.document.lineAt(lineIndex).range;
+        editor.selection = new vscode.Selection(range.start, range.start);
+        editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
+        vscode.window.showTextDocument(editor.document, editor.viewColumn);
     }
 
     public dispose(): void {

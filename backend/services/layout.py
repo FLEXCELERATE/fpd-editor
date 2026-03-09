@@ -420,6 +420,7 @@ def _compute_single_system_layout(
             "id": po.id, "type": "processOperator", "label": po.label,
             "x": core_left_x, "y": y,
             "width": PROCESS_W, "height": PROCESS_H,
+            "line_number": po.line_number,
         }
         elements.append(el)
         po_elements[po.id] = el
@@ -444,6 +445,7 @@ def _compute_single_system_layout(
                 "x": xs[i], "y": mid_y,
                 "width": STATE_MAX_W, "height": STATE_H,
                 "stateType": s.state_type.value,
+                "line_number": s.line_number,
             })
 
     # 4d) Position backward-edge (feedback) internal states LEFT of POs, inside the SL
@@ -465,6 +467,7 @@ def _compute_single_system_layout(
                 "x": feedback_x, "y": mid_y,
                 "width": STATE_MAX_W, "height": STATE_H,
                 "stateType": state.state_type.value,
+                "line_number": state.line_number,
             })
 
     # --- Phase 5: Compute system limit ---
@@ -537,6 +540,7 @@ def _compute_single_system_layout(
                     "x": b_top_xs[i], "y": b_top_y,
                     "width": STATE_MAX_W, "height": STATE_H,
                     "stateType": s.state_type.value,
+                    "line_number": s.line_number,
                 })
 
         if boundary_bottom:
@@ -548,6 +552,7 @@ def _compute_single_system_layout(
                     "x": b_bot_xs[i], "y": b_bot_y,
                     "width": STATE_MAX_W, "height": STATE_H,
                     "stateType": s.state_type.value,
+                    "line_number": s.line_number,
                 })
 
         for rank, left_states in boundary_left.items():
@@ -562,6 +567,7 @@ def _compute_single_system_layout(
                     "x": b_left_x, "y": ys[i],
                     "width": STATE_MAX_W, "height": STATE_H,
                     "stateType": s.state_type.value,
+                    "line_number": s.line_number,
                 })
 
         for rank, right_states in boundary_right.items():
@@ -576,6 +582,7 @@ def _compute_single_system_layout(
                     "x": b_right_x, "y": ys[i],
                     "width": STATE_MAX_W, "height": STATE_H,
                     "stateType": s.state_type.value,
+                    "line_number": s.line_number,
                 })
 
     # Technical resources
@@ -599,6 +606,7 @@ def _compute_single_system_layout(
             "id": tr.id, "type": "technicalResource", "label": tr.label,
             "x": tr_start_x, "y": tr_y,
             "width": RESOURCE_W, "height": RESOURCE_H,
+            "line_number": tr.line_number,
         })
 
     # Disconnected elements
@@ -613,6 +621,7 @@ def _compute_single_system_layout(
                 "x": cx, "y": d_start_y,
                 "width": STATE_MAX_W, "height": STATE_H,
                 "stateType": s.state_type.value,
+                "line_number": s.line_number,
             })
             cx += STATE_MAX_W + config.h_gap
 
@@ -621,6 +630,7 @@ def _compute_single_system_layout(
                 "id": p.id, "type": "processOperator", "label": p.label,
                 "x": cx, "y": d_start_y,
                 "width": PROCESS_W, "height": PROCESS_H,
+                "line_number": p.line_number,
             })
             cx += PROCESS_W + config.h_gap
 
@@ -635,6 +645,7 @@ def _compute_single_system_layout(
             "targetId": flow.target_ref,
             "flowType": flow.flow_type.value,
             "isUsage": False,
+            "line_number": flow.line_number,
         }
 
         # Routing hints for boundary-top states: outgoing arrows always from bottom
@@ -662,6 +673,7 @@ def _compute_single_system_layout(
             "sourceId": usage.process_operator_ref,
             "targetId": usage.technical_resource_ref,
             "isUsage": True,
+            "line_number": usage.line_number,
         })
 
     return elements, connections, system_limit

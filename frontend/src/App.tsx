@@ -271,6 +271,7 @@ export default function App() {
                 ref={diagramRef}
                 svgContent={svgContent}
                 viewport={viewport}
+                onElementClick={handleElementClick}
                 onContentBounds={handleContentBounds}
                 onWheel={handleWheel}
                 onMouseDown={handleDiagramMouseDown}
