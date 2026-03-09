@@ -2,7 +2,7 @@
   "name": "fpd-vscode-extension",
   "displayName": "FPD - Formalized Process Description (VDI 3682)",
   "description": "Syntax highlighting, IntelliSense, diagnostics, and live diagram preview for FPD (Formalized Process Description, VDI 3682)",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "FLEXCELERATE",
   "icon": "images/icon.png",
   "repository": {
@@ -118,7 +118,7 @@
       "properties": {
         "fpd.backend.url": {
           "type": "string",
-          "default": "http://localhost:8000",
+          "default": "http://localhost:8741",
           "description": "URL of the FPD backend API server"
         },
         "fpd.backend.autoStart": {

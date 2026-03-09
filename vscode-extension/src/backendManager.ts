@@ -25,7 +25,7 @@ export class BackendManager {
      */
     async initialize(): Promise<void> {
         const config = vscode.workspace.getConfiguration('fpd');
-        const backendUrl = config.get<string>('backend.url', 'http://localhost:8000');
+        const backendUrl = config.get<string>('backend.url', 'http://localhost:8741');
         const autoStart = config.get<boolean>('backend.autoStart', true);
 
         this.outputChannel.appendLine(`Initializing backend manager...`);
@@ -77,7 +77,7 @@ export class BackendManager {
             // Parse the URL to get host and port
             const url = new URL(backendUrl);
             const host = url.hostname;
-            const port = parseInt(url.port || '8000', 10);
+            const port = parseInt(url.port || '8741', 10);
 
             // Find the backend directory
             const backendPath = await this.findBackendPath();
@@ -236,7 +236,7 @@ export class BackendManager {
      */
     getBackendUrl(): string {
         const config = vscode.workspace.getConfiguration('fpd');
-        return config.get<string>('backend.url', 'http://localhost:8000');
+        return config.get<string>('backend.url', 'http://localhost:8741');
     }
 
     /**

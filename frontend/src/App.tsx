@@ -117,7 +117,7 @@ export default function App() {
   const source = historyManager.currentState;
 
   const { model, svgContent, error, loading, sessionId } = useFpdParser(source);
-  const { lineToElement, selectedElementId, setSelectedElementId } = useDiagramSync(model);
+  const { lineToElement, setSelectedElementId } = useDiagramSync(model);
   const {
     viewport,
     zoomIn,

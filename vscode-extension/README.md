@@ -2,7 +2,7 @@
 
 > Language support for FPD (Formalized Process Description, VDI 3682) — a text-first approach to process engineering diagrams.
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.1.1-blue.svg)]()
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.85.0+-green.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)]()
 
@@ -37,6 +37,8 @@ Side-by-side diagram preview that updates as you type:
 - Auto-update on document changes (configurable debounce)
 - Visual representation of all element types
 - Support for flow, energy, information, and technical connections
+- **Hover tooltips** showing element type and ID
+- **Double-click to navigate** to the corresponding source line
 - Theme-aware styling
 
 ### Export Commands
@@ -169,7 +171,7 @@ Configure the extension in VS Code settings (`Ctrl+,`):
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `fpd.backend.url` | `string` | `http://localhost:8000` | URL of the FPD backend API server |
+| `fpd.backend.url` | `string` | `http://localhost:8741` | URL of the FPD backend API server |
 | `fpd.backend.autoStart` | `boolean` | `true` | Automatically start the backend server if not running |
 | `fpd.preview.autoUpdate` | `boolean` | `true` | Automatically update the preview panel when editing |
 | `fpd.preview.updateDelay` | `number` | `500` | Debounce delay in ms before updating the preview |
@@ -198,7 +200,7 @@ If you see "Backend not connected" errors:
    ```bash
    cd backend
    pip install -r requirements.txt
-   uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+   uvicorn main:app --host 0.0.0.0 --port 8741 --reload
    ```
 3. **Configure URL**: Update `fpd.backend.url` in settings if using a different port/host
 4. **Disable auto-start**: Set `fpd.backend.autoStart` to `false` if managing the backend manually
