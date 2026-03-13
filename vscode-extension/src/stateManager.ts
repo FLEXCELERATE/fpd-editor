@@ -79,7 +79,8 @@ export class StateManager {
             this.notify();
         } catch (error) {
             if (axios.isAxiosError(error) && error.response) {
-                const detail = (error.response.data as any)?.detail;
+                const data = error.response.data as Record<string, unknown>;
+                const detail = data?.detail;
                 this.errors = [detail || 'Render failed'];
             } else {
                 const msg = error instanceof Error ? error.message : String(error);
@@ -95,10 +96,10 @@ export class StateManager {
      * Parse FPD text via the /api/parse endpoint (for diagnostics and export).
      * Returns the full parse response with model and diagram data.
      */
-    async parse(text: string): Promise<any> {
+    async parse(text: string): Promise<Record<string, unknown>> {
         const response = await axios.post(
             `${this.backendUrl}/api/parse`,
-            { source: text, session_id: null },
+            { source: text, "session_id": null }, // eslint-disable-line @typescript-eslint/naming-convention
             { timeout: 10000 }
         );
         return response.data;

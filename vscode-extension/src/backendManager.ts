@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import * as child_process from 'child_process';
+import * as child_process from 'child_process'; // eslint-disable-line @typescript-eslint/naming-convention
 import * as path from 'path';
 import * as fs from 'fs';
 import axios from 'axios';
@@ -64,7 +64,7 @@ export class BackendManager {
                 validateStatus: (status) => status === 200,
             });
             return response.data?.status === 'ok';
-        } catch (error) {
+        } catch {
             return false;
         }
     }
