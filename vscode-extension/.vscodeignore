@@ -6,7 +6,7 @@ tsconfig.json
 .eslintrc.json
 
 # Build and test
-out/test/**
+out/**
 .vscode-test/**
 *.vsix
 
