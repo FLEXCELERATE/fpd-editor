@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import axios from 'axios';
+import { FpdService, ParseResult } from './core/fpdService';
 
 /**
  * Snapshot of the current diagram state.
@@ -14,7 +14,7 @@ export interface StateSnapshot {
 /**
  * StateManager — Single Source of Truth for diagram state.
  *
- * Parses FPD text via the backend /api/render/svg endpoint
+ * Parses FPD text via the TypeScript core engine (no backend server needed)
  * and notifies all listeners (webview, diagnostics) on change.
  */
 export class StateManager {
@@ -23,11 +23,11 @@ export class StateManager {
     private version = 0;
     private listeners = new Set<(snapshot: StateSnapshot) => void>();
     private outputChannel: vscode.OutputChannel;
-    private backendUrl: string;
+    private fpdService: FpdService;
 
-    constructor(backendUrl: string, outputChannel: vscode.OutputChannel) {
-        this.backendUrl = backendUrl;
+    constructor(outputChannel: vscode.OutputChannel) {
         this.outputChannel = outputChannel;
+        this.fpdService = new FpdService();
     }
 
     /** Subscribe to state changes. Returns unsubscribe function. */
@@ -48,14 +48,14 @@ export class StateManager {
         return { svg: this.svg, errors: [...this.errors], version: this.version };
     }
 
-    /** Update the backend URL (e.g. after settings change). */
-    setBackendUrl(url: string): void {
-        this.backendUrl = url;
+    /** Get the FpdService instance for direct access (e.g. exports). */
+    getService(): FpdService {
+        return this.fpdService;
     }
 
     /**
      * Parse FPD text and update state.
-     * Calls the backend /api/render/svg endpoint to get a complete SVG.
+     * Uses the TypeScript core engine directly — no HTTP needed.
      */
     async loadFromText(text: string): Promise<void> {
         if (!text.trim()) {
@@ -67,41 +67,24 @@ export class StateManager {
         }
 
         try {
-            const response = await axios.post(
-                `${this.backendUrl}/api/render/svg`,
-                { source: text },
-                { timeout: 10000, responseType: 'text' }
-            );
-
-            this.svg = response.data;
+            const svg = this.fpdService.renderSvg(text);
+            this.svg = svg;
             this.errors = [];
             this.version++;
             this.notify();
         } catch (error) {
-            if (axios.isAxiosError(error) && error.response) {
-                const data = error.response.data as Record<string, unknown>;
-                const detail = data?.detail;
-                this.errors = [detail || 'Render failed'];
-            } else {
-                const msg = error instanceof Error ? error.message : String(error);
-                this.errors = [msg];
-            }
+            const msg = error instanceof Error ? error.message : String(error);
+            this.errors = [msg];
             this.version++;
             this.notify();
-            this.outputChannel.appendLine(`Render error: ${this.errors.join(', ')}`);
+            this.outputChannel.appendLine(`Render error: ${msg}`);
         }
     }
 
     /**
-     * Parse FPD text via the /api/parse endpoint (for diagnostics and export).
-     * Returns the full parse response with model and diagram data.
+     * Parse FPD text and return the full parse result with model and diagram data.
      */
-    async parse(text: string): Promise<Record<string, unknown>> {
-        const response = await axios.post(
-            `${this.backendUrl}/api/parse`,
-            { source: text, "session_id": null }, // eslint-disable-line @typescript-eslint/naming-convention
-            { timeout: 10000 }
-        );
-        return response.data;
+    async parse(text: string): Promise<ParseResult> {
+        return this.fpdService.parse(text);
     }
 }

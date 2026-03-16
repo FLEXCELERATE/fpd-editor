@@ -27,6 +27,9 @@ VERIFICATION.md
 node_modules/**
 **/node_modules/**
 
+# Build and packaging scripts
+package.sh
+
 # Misc
 .DS_Store
 *.log

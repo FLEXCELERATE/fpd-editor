@@ -2,7 +2,7 @@
   "name": "fpd-vscode-extension",
   "displayName": "FPD - Formalized Process Description (VDI 3682)",
   "description": "Syntax highlighting, IntelliSense, diagnostics, and live diagram preview for FPD (Formalized Process Description, VDI 3682)",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "publisher": "FLEXCELERATE",
   "icon": "images/icon.png",
   "repository": {
@@ -25,6 +25,7 @@
     "process",
     "diagram"
   ],
+  "extensionDependencies": [],
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
@@ -59,14 +60,6 @@
         "title": "FPD: Export SVG"
       },
       {
-        "command": "fpd.export.png",
-        "title": "FPD: Export PNG"
-      },
-      {
-        "command": "fpd.export.pdf",
-        "title": "FPD: Export PDF"
-      },
-      {
         "command": "fpd.export.xml",
         "title": "FPD: Export VDI 3682 XML"
       },
@@ -93,14 +86,6 @@
           "when": "resourceLangId == fpd"
         },
         {
-          "command": "fpd.export.png",
-          "when": "resourceLangId == fpd"
-        },
-        {
-          "command": "fpd.export.pdf",
-          "when": "resourceLangId == fpd"
-        },
-        {
           "command": "fpd.export.xml",
           "when": "resourceLangId == fpd"
         },
@@ -113,16 +98,6 @@
     "configuration": {
       "title": "FPD",
       "properties": {
-        "fpd.backend.url": {
-          "type": "string",
-          "default": "http://localhost:8741",
-          "description": "URL of the FPD backend API server"
-        },
-        "fpd.backend.autoStart": {
-          "type": "boolean",
-          "default": true,
-          "description": "Automatically start the FPD backend server if not running"
-        },
         "fpd.preview.autoUpdate": {
           "type": "boolean",
           "default": true,
@@ -159,6 +134,6 @@
     "typescript": "^5.3.x"
   },
   "dependencies": {
-    "axios": "^1.6.0"
+    "pdf-lib": "^1.17.1"
   }
 }

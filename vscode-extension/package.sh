@@ -1,12 +1,13 @@
 #!/bin/bash
 
-# FPB VS Code Extension Packaging Script
-# This script automates the process of compiling and packaging the extension
+# FPD VS Code Extension Packaging Script
+# This script automates the process of bundling the backend,
+# compiling TypeScript, and packaging the extension as a VSIX.
 
 set -e  # Exit on error
 
 echo "==================================="
-echo "FPB VS Code Extension Packager"
+echo "FPD VS Code Extension Packager"
 echo "==================================="
 echo ""
 
@@ -26,49 +27,64 @@ echo "Node.js version: $(node --version)"
 echo ""
 
 # Step 1: Install dependencies
-echo "[1/5] Installing dependencies..."
+echo "[1/7] Installing npm dependencies..."
 if [ ! -d "node_modules" ]; then
     npm install
-    echo "✓ Dependencies installed"
+    echo "  Done"
 else
-    echo "✓ Dependencies already installed (use 'npm install' to update)"
+    echo "  Dependencies already installed (use 'npm install' to update)"
 fi
 echo ""
 
-# Step 2: Clean previous build
-echo "[2/5] Cleaning previous build..."
+# Step 2: Bundle the Python backend and dependencies
+echo "[2/7] Bundling Python backend..."
+if [ -f "bundle-backend.sh" ]; then
+    bash bundle-backend.sh
+    echo "  Done"
+else
+    echo "  Warning: bundle-backend.sh not found, skipping backend bundling"
+    echo "  The VSIX will not include the backend (development mode only)"
+fi
+echo ""
+
+# Step 3: Clean previous build
+echo "[3/7] Cleaning previous build..."
 if [ -d "out" ]; then
     rm -rf out
-    echo "✓ Removed old build artifacts"
+    echo "  Removed old build artifacts"
 else
-    echo "✓ No previous build to clean"
+    echo "  No previous build to clean"
 fi
 echo ""
 
-# Step 3: Compile TypeScript
-echo "[3/5] Compiling TypeScript..."
+# Step 4: Compile TypeScript
+echo "[4/7] Compiling TypeScript..."
 npm run compile
 if [ $? -eq 0 ]; then
-    echo "✓ TypeScript compilation successful"
+    echo "  TypeScript compilation successful"
 else
-    echo "✗ TypeScript compilation failed"
+    echo "  TypeScript compilation failed"
     exit 1
 fi
 echo ""
 
-# Step 4: Run linting (optional, don't fail on warnings)
-echo "[4/5] Running ESLint..."
-npm run lint || echo "⚠ Linting warnings found (non-blocking)"
+# Step 5: Run linting (optional, don't fail on warnings)
+echo "[5/7] Running ESLint..."
+npm run lint || echo "  Linting warnings found (non-blocking)"
 echo ""
 
-# Step 5: Package as VSIX
-echo "[5/5] Creating VSIX package..."
+# Step 6: Bundle with esbuild
+echo "[6/7] Creating production bundle..."
 npm run package
+echo ""
 
+# Step 7: Package as VSIX
+echo "[7/7] Creating VSIX package..."
+npx vsce package --no-dependencies
 if [ $? -eq 0 ]; then
     echo ""
     echo "==================================="
-    echo "✓ Packaging complete!"
+    echo "Packaging complete!"
     echo "==================================="
     echo ""
 
@@ -91,6 +107,6 @@ if [ $? -eq 0 ]; then
     fi
 else
     echo ""
-    echo "✗ Packaging failed"
+    echo "Packaging failed"
     exit 1
 fi

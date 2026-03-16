@@ -1,29 +1,24 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import axios from 'axios';
 import { registerCompletionProvider } from './completionProvider';
 import { registerDiagnosticsProvider } from './diagnosticsProvider';
-import { BackendManager } from './backendManager';
 import { PreviewPanel } from './previewPanel';
 import { StateManager } from './stateManager';
 
-let backendManager: BackendManager | null = null;
 let stateManager: StateManager | null = null;
 
-type ExportFormat = 'svg' | 'png' | 'pdf' | 'xml' | 'text';
+type ExportFormat = 'svg' | 'xml' | 'text';
 
-const FORMAT_INFO: Record<ExportFormat, { extension: string; label: string; mediaType: string }> = {
-    svg: { extension: '.svg', label: 'SVG Image', mediaType: 'image/svg+xml' },
-    png: { extension: '.png', label: 'PNG Image', mediaType: 'image/png' },
-    pdf: { extension: '.pdf', label: 'PDF Document', mediaType: 'application/pdf' },
-    xml: { extension: '.xml', label: 'VDI 3682 XML', mediaType: 'application/xml' },
-    text: { extension: '.fpd', label: 'FPD Text', mediaType: 'text/plain' },
+const FORMAT_INFO: Record<ExportFormat, { extension: string; label: string }> = {
+    svg: { extension: '.svg', label: 'SVG Image' },
+    xml: { extension: '.xml', label: 'VDI 3682 XML' },
+    text: { extension: '.fpd', label: 'FPD Text' },
 };
 
 async function exportDiagram(format: ExportFormat): Promise<void> {
-    if (!backendManager) {
-        vscode.window.showErrorMessage('FPD Backend is not initialized.');
+    if (!stateManager) {
+        vscode.window.showErrorMessage('FPD is not initialized.');
         return;
     }
 
@@ -54,22 +49,32 @@ async function exportDiagram(format: ExportFormat): Promise<void> {
         return;
     }
 
-    const backendUrl = backendManager.getBackendUrl();
-
     try {
-        const response = await axios.post(
-            `${backendUrl}/api/export/source/${format}`,
-            { source },
-            { timeout: 30000, responseType: 'arraybuffer' }
-        );
+        const service = stateManager.getService();
+        let data: Uint8Array | string;
 
-        fs.writeFileSync(saveUri.fsPath, Buffer.from(response.data));
+        switch (format) {
+            case 'svg':
+                data = service.exportSvg(source);
+                break;
+            case 'xml':
+                data = service.exportXml(source);
+                break;
+            case 'text':
+                data = service.exportText(source);
+                break;
+        }
+
+        if (typeof data === 'string') {
+            fs.writeFileSync(saveUri.fsPath, data, 'utf-8');
+        } else {
+            fs.writeFileSync(saveUri.fsPath, Buffer.from(data));
+        }
+
         vscode.window.showInformationMessage(`Exported ${info.label}: ${path.basename(saveUri.fsPath)}`);
     } catch (error) {
-        const msg = axios.isAxiosError(error) && error.response
-            ? `Export failed: ${Buffer.from(error.response.data).toString()}`
-            : `Export failed: ${error instanceof Error ? error.message : String(error)}`;
-        vscode.window.showErrorMessage(msg);
+        const msg = error instanceof Error ? error.message : String(error);
+        vscode.window.showErrorMessage(`Export failed: ${msg}`);
     }
 }
 
@@ -79,15 +84,8 @@ export function activate(context: vscode.ExtensionContext) {
     const outputChannel = vscode.window.createOutputChannel('FPD');
     context.subscriptions.push(outputChannel);
 
-    // Initialize backend manager
-    backendManager = new BackendManager(context);
-    backendManager.initialize().catch((error) => {
-        console.error('Failed to initialize backend manager:', error);
-        vscode.window.showErrorMessage(`FPD Backend initialization failed: ${error.message}`);
-    });
-
-    // Initialize state manager
-    stateManager = new StateManager(backendManager.getBackendUrl(), outputChannel);
+    // Initialize state manager (no backend server needed)
+    stateManager = new StateManager(outputChannel);
 
     // Register language features
     registerCompletionProvider(context);
@@ -96,13 +94,6 @@ export function activate(context: vscode.ExtensionContext) {
     // Command: Show Preview
     context.subscriptions.push(
         vscode.commands.registerCommand('fpd.preview.show', async () => {
-            if (!backendManager || !backendManager.isReady()) {
-                vscode.window.showWarningMessage(
-                    'FPD Backend is not ready yet. Please wait for the backend to start.'
-                );
-                return;
-            }
-
             const activeEditor = vscode.window.activeTextEditor;
             if (!activeEditor || activeEditor.document.languageId !== 'fpd') {
                 vscode.window.showWarningMessage('Please open an FPD file to show the preview.');
@@ -153,10 +144,5 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {
     console.log('FPD extension is now deactivated');
-
-    if (backendManager) {
-        backendManager.dispose();
-        backendManager = null;
-    }
     stateManager = null;
 }

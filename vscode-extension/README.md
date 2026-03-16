@@ -2,7 +2,7 @@
 
 > Language support for FPD (Formalized Process Description, VDI 3682) — a text-first approach to process engineering diagrams.
 
-[![Version](https://img.shields.io/badge/version-0.1.1-blue.svg)]()
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)]()
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.85.0+-green.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)]()
 
@@ -44,8 +44,6 @@ Side-by-side diagram preview that updates as you type:
 ### Export Commands
 Export your diagrams in multiple formats via Command Palette (`Ctrl+Shift+P`):
 - **FPD: Export SVG** — Scalable vector graphics
-- **FPD: Export PNG** — Raster image (2x scale)
-- **FPD: Export PDF** — PDF document
 - **FPD: Export VDI 3682 XML** — Structured VDI 3682 XML format
 - **FPD: Export FPD Text** — Plain `.fpd` text file
 
@@ -62,12 +60,7 @@ Export your diagrams in multiple formats via Command Palette (`Ctrl+Shift+P`):
 
 ### Prerequisites
 
-The extension requires a Python backend to provide parsing and rendering services:
-
-- **Python 3.9+** (if using auto-start feature)
-- **FastAPI backend** (automatically started or manually configured)
-
-The backend is automatically started when you open an `.fpd` file if `fpd.backend.autoStart` is enabled (default).
+No external dependencies required. The extension runs entirely in TypeScript within VS Code.
 
 ## Getting Started
 
@@ -106,7 +99,7 @@ The diagram preview will open in a side panel and update automatically as you ty
 
 ### 3. Export Your Diagram
 
-Press `Ctrl+Shift+P` and run one of the export commands (SVG, PNG, PDF, XML, or Text).
+Press `Ctrl+Shift+P` and run one of the export commands (SVG, XML, or Text).
 
 ## FPD Language Syntax
 
@@ -171,8 +164,6 @@ Configure the extension in VS Code settings (`Ctrl+,`):
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `fpd.backend.url` | `string` | `http://localhost:8741` | URL of the FPD backend API server |
-| `fpd.backend.autoStart` | `boolean` | `true` | Automatically start the backend server if not running |
 | `fpd.preview.autoUpdate` | `boolean` | `true` | Automatically update the preview panel when editing |
 | `fpd.preview.updateDelay` | `number` | `500` | Debounce delay in ms before updating the preview |
 
@@ -184,26 +175,10 @@ Access these commands via Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`):
 |---------|-------------|
 | `FPD: Show Preview` | Open live diagram preview panel |
 | `FPD: Export SVG` | Export diagram as SVG image |
-| `FPD: Export PNG` | Export diagram as PNG image |
-| `FPD: Export PDF` | Export diagram as PDF document |
 | `FPD: Export VDI 3682 XML` | Export diagram as VDI 3682 XML |
 | `FPD: Export FPD Text` | Export diagram as FPD text file |
 
 ## Troubleshooting
-
-### Backend Connection Issues
-
-If you see "Backend not connected" errors:
-
-1. **Check backend status**: The backend should auto-start by default
-2. **Manual start**: Navigate to the backend directory and run:
-   ```bash
-   cd backend
-   pip install -r requirements.txt
-   uvicorn main:app --host 0.0.0.0 --port 8741 --reload
-   ```
-3. **Configure URL**: Update `fpd.backend.url` in settings if using a different port/host
-4. **Disable auto-start**: Set `fpd.backend.autoStart` to `false` if managing the backend manually
 
 ### Preview Not Updating
 
