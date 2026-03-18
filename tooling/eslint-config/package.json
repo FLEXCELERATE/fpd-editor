@@ -1,0 +1,12 @@
+{
+  "name": "@fpd-editor/eslint-config",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "index.js",
+  "dependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.x",
+    "@typescript-eslint/parser": "^8.x",
+    "eslint": "^8.x"
+  }
+}

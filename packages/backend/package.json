@@ -1,0 +1,25 @@
+{
+  "name": "@fpd-editor/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/server.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "clean": "rm -rf dist",
+    "lint": "eslint src --ext ts"
+  },
+  "dependencies": {
+    "@fpd-editor/core": "workspace:*",
+    "fastify": "^5.3.0",
+    "@fastify/cors": "^11.0.0"
+  },
+  "devDependencies": {
+    "@fpd-editor/tsconfig": "workspace:*",
+    "@types/node": "^20.x",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

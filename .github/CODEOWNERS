@@ -1,0 +1,14 @@
+# Default — require review from a maintainer for all changes
+* @FLEXCELERATE/maintainers
+
+# Package-specific ownership
+packages/core/                @FLEXCELERATE/maintainers
+packages/backend/             @FLEXCELERATE/maintainers
+packages/frontend/            @FLEXCELERATE/maintainers
+packages/vscode-extension/    @FLEXCELERATE/maintainers
+
+# Tooling and CI — infrastructure changes need review
+tooling/                      @FLEXCELERATE/maintainers
+.github/                      @FLEXCELERATE/maintainers
+turbo.json                    @FLEXCELERATE/maintainers
+pnpm-workspace.yaml           @FLEXCELERATE/maintainers

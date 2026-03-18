@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { FpdService, ParseResult } from './core/fpdService';
+import { FpdService, ParseResult } from '@fpd-editor/core';
 
 /**
  * Snapshot of the current diagram state.

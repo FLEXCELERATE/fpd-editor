@@ -134,6 +134,6 @@
     "typescript": "^5.3.x"
   },
   "dependencies": {
-    "pdf-lib": "^1.17.1"
+    "@fpd-editor/core": "workspace:*"
   }
 }
