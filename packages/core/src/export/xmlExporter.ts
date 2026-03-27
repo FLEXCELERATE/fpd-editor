@@ -11,34 +11,14 @@
  * - identification always includes a <references/> child
  */
 
-import { Flow, FlowType, StateType, Usage } from '../models/fpdModel';
+import { Flow, Usage } from '../models/fpdModel';
+import { STATE_TYPE_MAP, FLOW_TYPE_MAP } from '../models/constants';
 import { ProcessModel } from '../models/processModel';
+import { escapeXml } from '../utils';
 
 const VDI3682_NAMESPACE = 'http://www.vdivde.de/3682';
 const XSI_NAMESPACE = 'http://www.w3.org/2001/XMLSchema-instance';
 const FPB_PREFIX = 'fpb';
-
-const STATE_TYPE_MAP: Record<StateType, string> = {
-    'product': 'product',
-    'energy': 'energy',
-    'information': 'information',
-};
-
-const FLOW_TYPE_MAP: Record<FlowType, string> = {
-    'flow': 'flow',
-    'alternativeFlow': 'alternativeFlow',
-    'parallelFlow': 'parallelFlow',
-};
-
-/** Escape XML special characters in attribute values and text content. */
-function escapeXml(value: string): string {
-    return value
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;');
-}
 
 function fpbTag(localName: string): string {
     return `${FPB_PREFIX}:${localName}`;

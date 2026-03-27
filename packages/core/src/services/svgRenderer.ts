@@ -14,17 +14,7 @@ import {
   SystemLimitRect,
   DiagramLayout,
 } from './layout';
-
-// ---------- XML escaping ----------
-
-function escapeXml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
+import { escapeXml } from '../utils';
 
 // ---------- Design tokens (match frontend/src/theme/designTokens.ts) ----------
 

@@ -9,6 +9,7 @@ import type {
     FlowType,
     StateType,
 } from '../models/fpdModel';
+import { STATE_TYPE_MAP, FLOW_TYPE_MAP } from '../models/constants';
 import { ProcessModel, createProcessModel } from '../models/processModel';
 import { exportText } from '../export/textExporter';
 
@@ -228,20 +229,8 @@ function findFirst(elem: XmlElement, localTag: string): XmlElement | undefined {
 }
 
 // ---------------------------------------------------------------------------
-// Type maps
+// Type maps (imported from shared constants)
 // ---------------------------------------------------------------------------
-
-const STATE_TYPE_MAP: Record<string, StateType> = {
-    product: 'product',
-    energy: 'energy',
-    information: 'information',
-};
-
-const FLOW_TYPE_MAP: Record<string, FlowType> = {
-    flow: 'flow',
-    alternativeFlow: 'alternativeFlow',
-    parallelFlow: 'parallelFlow',
-};
 
 // ---------------------------------------------------------------------------
 // Parsing helpers

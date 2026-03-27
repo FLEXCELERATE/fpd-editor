@@ -7,11 +7,11 @@ import {
     ProcessOperator,
     State,
     StatePlacement,
-    StateType,
     SystemLimit,
     TechnicalResource,
     Usage,
 } from '../models/fpdModel';
+import { STATE_TYPE_MAP as STATE_KEYWORD_MAP } from '../models/constants';
 import { ProcessModel, createProcessModel } from '../models/processModel';
 import { Lexer, Token } from './lexer';
 import { ELEMENT_KEYWORDS, TokenType } from './syntax';
@@ -26,13 +26,6 @@ export class ParseError extends Error {
         this.column = column;
     }
 }
-
-/** Maps element keywords to StateType values */
-const STATE_KEYWORD_MAP: Record<string, StateType> = {
-    'product': 'product',
-    'energy': 'energy',
-    'information': 'information',
-};
 
 /** Maps connection token types to FlowType values */
 const FLOW_TOKEN_MAP: ReadonlyMap<TokenType, FlowType> = new Map([

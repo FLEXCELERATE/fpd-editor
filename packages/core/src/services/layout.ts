@@ -31,8 +31,20 @@ export interface LayoutConfig {
     resourceOffsetX: number;
 }
 
+const DEFAULT_PADDING = 40;
+const DEFAULT_H_GAP = 40;
+const DEFAULT_V_GAP = 80;
+const DEFAULT_SYSTEM_LIMIT_PADDING = 50;
+const DEFAULT_RESOURCE_OFFSET_X = 40;
+
 export function createLayoutConfig(): LayoutConfig {
-    return { padding: 40, hGap: 40, vGap: 80, systemLimitPadding: 50, resourceOffsetX: 40 };
+    return {
+        padding: DEFAULT_PADDING,
+        hGap: DEFAULT_H_GAP,
+        vGap: DEFAULT_V_GAP,
+        systemLimitPadding: DEFAULT_SYSTEM_LIMIT_PADDING,
+        resourceOffsetX: DEFAULT_RESOURCE_OFFSET_X,
+    };
 }
 
 export interface LayoutElement {
