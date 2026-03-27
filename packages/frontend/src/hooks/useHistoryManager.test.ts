@@ -26,7 +26,7 @@ describe('useHistoryManager', () => {
     it('should use default maxHistory of 50', () => {
       const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
 
-      // Push 51 states
+      // Push 51 states — past array capped at 50, so initial gets dropped
       act(() => {
         for (let i = 1; i <= 51; i++) {
           result.current.pushState(`state-${i}`);
@@ -37,20 +37,20 @@ describe('useHistoryManager', () => {
       expect(result.current.currentState).toBe('state-51');
 
       // Should be able to undo 50 times (states 50, 49, ..., 1)
-      for (let i = 50; i >= 1; i--) {
+      // Note: initial state was evicted since past.length is capped at 50
+      for (let i = 50; i >= 2; i--) {
         act(() => {
           result.current.undo();
         });
         expect(result.current.currentState).toBe(`state-${i}`);
       }
 
-      // One more undo should bring us to initial state
       act(() => {
         result.current.undo();
       });
-      expect(result.current.currentState).toBe(INITIAL_STATE);
+      expect(result.current.currentState).toBe('state-1');
 
-      // Should not be able to undo further
+      // Should not be able to undo further (initial was evicted)
       expect(result.current.canUndo).toBe(false);
     });
 
