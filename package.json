@@ -10,10 +10,15 @@
     "dev": "turbo run dev",
     "clean": "turbo run clean",
     "format": "prettier --write . --ignore-path .gitignore",
-    "format:check": "prettier --check . --ignore-path .gitignore"
+    "format:check": "prettier --check . --ignore-path .gitignore",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "turbo run build && changeset publish"
   },
   "devDependencies": {
-    "turbo": "^2.5.0",
-    "prettier": "^3.5.0"
+    "@changesets/changelog-github": "^0.6.0",
+    "@changesets/cli": "^2.30.0",
+    "prettier": "^3.5.0",
+    "turbo": "^2.5.0"
   }
 }
