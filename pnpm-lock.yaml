@@ -26,6 +26,9 @@ importers:
       fastify:
         specifier: ^5.3.0
         version: 5.8.2
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       '@fpd-editor/tsconfig':
         specifier: workspace:*
@@ -52,15 +55,15 @@ importers:
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
+      vitest:
+        specifier: ^3.1.1
+        version: 3.2.4(@types/node@20.19.37)(jsdom@25.0.1)(tsx@4.21.0)
 
   packages/frontend:
     dependencies:
       '@monaco-editor/react':
         specifier: ^4.6.0
         version: 4.7.0(monaco-editor@0.45.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@rollup/rollup-win32-x64-msvc':
-        specifier: ^4.59.0
-        version: 4.59.0
       jspdf:
         specifier: ^4.2.0
         version: 4.2.1
@@ -2820,6 +2823,9 @@ packages:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
 
+  zod@4.3.6:
+    resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
+
 snapshots:
 
   '@adobe/css-tools@4.4.4': {}
@@ -3394,7 +3400,8 @@ snapshots:
   '@rollup/rollup-win32-x64-gnu@4.59.0':
     optional: true
 
-  '@rollup/rollup-win32-x64-msvc@4.59.0': {}
+  '@rollup/rollup-win32-x64-msvc@4.59.0':
+    optional: true
 
   '@testing-library/dom@10.4.1':
     dependencies:
@@ -5509,3 +5516,5 @@ snapshots:
       buffer-crc32: 0.2.13
 
   yocto-queue@0.1.0: {}
+
+  zod@4.3.6: {}
