@@ -168,10 +168,17 @@ export class PreviewPanel {
         window.addEventListener('message', (event) => {
             const msg = event.data;
             switch (msg.type) {
-                case 'svgUpdate':
-                    // SVG comes from our own FpdService — trusted source
-                    preview.innerHTML = msg.svg;
+                case 'svgUpdate': {
+                    // Parse SVG safely via DOMParser to avoid innerHTML XSS
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(msg.svg, 'image/svg+xml');
+                    const svgEl = doc.documentElement;
+                    if (svgEl && svgEl.nodeName === 'svg') {
+                        preview.textContent = '';
+                        preview.appendChild(document.importNode(svgEl, true));
+                    }
                     break;
+                }
                 case 'error': {
                     preview.textContent = '';
                     const div = document.createElement('div');
