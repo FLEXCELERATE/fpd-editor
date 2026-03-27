@@ -399,6 +399,13 @@ export function registerDiagnosticsProvider(context: vscode.ExtensionContext): F
         })
     );
 
+    // Clean up debounce timeout on disposal
+    context.subscriptions.push(new vscode.Disposable(() => {
+        if (validationTimeout) {
+            clearTimeout(validationTimeout);
+        }
+    }));
+
     // Clear diagnostics when document is closed
     context.subscriptions.push(
         vscode.workspace.onDidCloseTextDocument(document => {
