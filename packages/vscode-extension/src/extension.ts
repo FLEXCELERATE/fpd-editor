@@ -7,6 +7,7 @@ import { PreviewPanel } from './previewPanel';
 import { StateManager } from './stateManager';
 
 let stateManager: StateManager | null = null;
+let outputChannel: vscode.OutputChannel | null = null;
 
 type ExportFormat = 'svg' | 'xml' | 'text';
 
@@ -73,15 +74,16 @@ async function exportDiagram(format: ExportFormat): Promise<void> {
 
         vscode.window.showInformationMessage(`Exported ${info.label}: ${path.basename(saveUri.fsPath)}`);
     } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
+        const raw = error instanceof Error ? error.message : String(error);
+        // Sanitize: strip file paths and internal details
+        const msg = raw.replace(/[A-Z]:\\[^\s:]+/gi, '<path>').replace(/\/[^\s:]+/g, '<path>');
         vscode.window.showErrorMessage(`Export failed: ${msg}`);
     }
 }
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('FPD extension is now active');
-
-    const outputChannel = vscode.window.createOutputChannel('FPD');
+    outputChannel = vscode.window.createOutputChannel('FPD');
+    outputChannel.appendLine('FPD extension is now active');
     context.subscriptions.push(outputChannel);
 
     // Initialize state manager (no backend server needed)
@@ -143,6 +145,7 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-    console.log('FPD extension is now deactivated');
+    outputChannel?.appendLine('FPD extension is now deactivated');
     stateManager = null;
+    outputChannel = null;
 }

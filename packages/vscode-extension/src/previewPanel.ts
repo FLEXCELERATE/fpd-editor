@@ -125,17 +125,27 @@ export class PreviewPanel {
     /**
      * Minimal webview HTML — just receives SVG via postMessage and displays it.
      */
+    private getNonce(): string {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let nonce = '';
+        for (let i = 0; i < 32; i++) {
+            nonce += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return nonce;
+    }
+
     private getWebviewContent(): string {
         const cssPath = vscode.Uri.joinPath(this.extensionUri, 'media', 'preview.css');
         const cssUri = this.panel.webview.asWebviewUri(cssPath);
         const cspSource = this.panel.webview.cspSource;
+        const nonce = this.getNonce();
 
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'unsafe-inline'; img-src ${cspSource} data:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${cspSource} data:; object-src 'none'; base-uri 'none'; form-action 'none';">
     <link rel="stylesheet" href="${cssUri}">
     <title>FPD Diagram Preview</title>
 </head>
@@ -144,22 +154,43 @@ export class PreviewPanel {
         <div class="placeholder">Loading diagram...</div>
     </div>
     <div id="tooltip" style="display:none; position:fixed; pointer-events:none; background:#333; color:#fff; padding:6px 10px; border-radius:4px; font-size:12px; font-family:sans-serif; border:1px solid #666; z-index:1000; white-space:nowrap;"></div>
-    <script>
+    <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
         const preview = document.getElementById('preview');
         const tooltip = document.getElementById('tooltip');
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
 
         window.addEventListener('message', (event) => {
             const msg = event.data;
             switch (msg.type) {
                 case 'svgUpdate':
+                    // SVG comes from our own FpdService — trusted source
                     preview.innerHTML = msg.svg;
                     break;
-                case 'error':
-                    preview.innerHTML = '<div class="error"><h3>Error</h3><p>' + msg.text + '</p></div>';
+                case 'error': {
+                    preview.textContent = '';
+                    const div = document.createElement('div');
+                    div.className = 'error';
+                    const h3 = document.createElement('h3');
+                    h3.textContent = 'Error';
+                    const p = document.createElement('p');
+                    p.textContent = msg.text;
+                    div.appendChild(h3);
+                    div.appendChild(p);
+                    preview.appendChild(div);
                     break;
+                }
                 case 'clear':
-                    preview.innerHTML = '<div class="placeholder">No diagram to display</div>';
+                    preview.textContent = '';
+                    const placeholder = document.createElement('div');
+                    placeholder.className = 'placeholder';
+                    placeholder.textContent = 'No diagram to display';
+                    preview.appendChild(placeholder);
                     break;
             }
         });
@@ -181,17 +212,22 @@ export class PreviewPanel {
             const el = e.target.closest('[data-element-id]');
             const conn = e.target.closest('[data-connection-id]');
             if (el) {
-                const id = el.getAttribute('data-element-id');
+                const id = el.getAttribute('data-element-id') || '';
                 const type = el.getAttribute('data-element-type') || '';
                 const stateType = el.getAttribute('data-state-type');
-                tooltip.innerHTML = '<strong>' + getTypeLabel(type, stateType) + '</strong><br>ID: ' + id;
+                tooltip.textContent = '';
+                const strong = document.createElement('strong');
+                strong.textContent = getTypeLabel(type, stateType);
+                tooltip.appendChild(strong);
+                tooltip.appendChild(document.createElement('br'));
+                tooltip.appendChild(document.createTextNode('ID: ' + id));
                 tooltip.style.display = 'block';
                 tooltip.style.left = (e.clientX + 12) + 'px';
                 tooltip.style.top = (e.clientY + 12) + 'px';
                 document.body.style.cursor = 'pointer';
             } else if (conn) {
-                const id = conn.getAttribute('data-connection-id');
-                tooltip.innerHTML = 'Connection: ' + id;
+                const id = conn.getAttribute('data-connection-id') || '';
+                tooltip.textContent = 'Connection: ' + id;
                 tooltip.style.display = 'block';
                 tooltip.style.left = (e.clientX + 12) + 'px';
                 tooltip.style.top = (e.clientY + 12) + 'px';
