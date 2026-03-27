@@ -230,7 +230,10 @@ export class Lexer {
     }
 
     private isAlpha(ch: string): boolean {
-        return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z');
+        if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')) return true;
+        // Support Unicode letters (accented chars, CJK, etc.)
+        const code = ch.charCodeAt(0);
+        return code > 127 && /\p{L}/u.test(ch);
     }
 
     private isAlphaNumeric(ch: string): boolean {

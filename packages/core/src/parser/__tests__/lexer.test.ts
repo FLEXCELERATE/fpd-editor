@@ -121,6 +121,12 @@ describe('Lexer', () => {
         expect(abc!.line).toBe(3);
     });
 
+    it('should tokenize Unicode identifiers', () => {
+        const tokens = new Lexer('@startfpd\nproduct café "Café"\n@endfpd').tokenize();
+        const idToken = tokens.find(t => t.type === TokenType.IDENTIFIER && t.value === 'café');
+        expect(idToken).toBeDefined();
+    });
+
     it('handles unterminated strings (no closing quote before newline)', () => {
         const tokens = new Lexer('"unterminated\nabc').tokenize();
         const str = tokens.find(t => t.type === TokenType.STRING);

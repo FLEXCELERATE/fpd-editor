@@ -4,41 +4,32 @@ import { ProcessModel } from '../models/processModel';
 
 type ElementCategory = 'state' | 'process_operator' | 'technical_resource';
 
-function classifyElement(elementId: string, model: ProcessModel): ElementCategory | null {
-    for (const s of model.states) {
-        if (s.id === elementId) { return 'state'; }
-    }
-    for (const po of model.processOperators) {
-        if (po.id === elementId) { return 'process_operator'; }
-    }
-    for (const tr of model.technicalResources) {
-        if (tr.id === elementId) { return 'technical_resource'; }
-    }
-    return null;
-}
-
-function getSystemId(elementId: string, model: ProcessModel): string | undefined {
-    for (const s of model.states) {
-        if (s.id === elementId) { return s.systemId; }
-    }
-    for (const po of model.processOperators) {
-        if (po.id === elementId) { return po.systemId; }
-    }
-    for (const tr of model.technicalResources) {
-        if (tr.id === elementId) { return tr.systemId; }
-    }
-    return undefined;
-}
-
 export function validateConnections(model: ProcessModel): string[] {
     const errors: string[] = [];
+
+    // Build lookup maps for O(1) access
+    const elementCategory = new Map<string, ElementCategory>();
+    const elementSystemId = new Map<string, string | undefined>();
+
+    for (const s of model.states) {
+        elementCategory.set(s.id, 'state');
+        elementSystemId.set(s.id, s.systemId);
+    }
+    for (const po of model.processOperators) {
+        elementCategory.set(po.id, 'process_operator');
+        elementSystemId.set(po.id, po.systemId);
+    }
+    for (const tr of model.technicalResources) {
+        elementCategory.set(tr.id, 'technical_resource');
+        elementSystemId.set(tr.id, tr.systemId);
+    }
 
     // Track seen flow connections for duplicate detection
     const seenFlows = new Set<string>();
 
     for (const flow of model.flows) {
-        const sourceType = classifyElement(flow.sourceRef, model);
-        const targetType = classifyElement(flow.targetRef, model);
+        const sourceType = elementCategory.get(flow.sourceRef) ?? null;
+        const targetType = elementCategory.get(flow.targetRef) ?? null;
 
         // Check references exist
         if (sourceType === null) {
@@ -65,8 +56,8 @@ export function validateConnections(model: ProcessModel): string[] {
         let valid = false;
         if (sourceType === 'state' && targetType === 'state') {
             // State -> State: only allowed as cross-system connection
-            const sourceSys = getSystemId(flow.sourceRef, model);
-            const targetSys = getSystemId(flow.targetRef, model);
+            const sourceSys = elementSystemId.get(flow.sourceRef);
+            const targetSys = elementSystemId.get(flow.targetRef);
             if (flow.systemId === undefined && sourceSys !== targetSys && sourceSys !== undefined && targetSys !== undefined) {
                 valid = true;
             } else {
@@ -99,8 +90,8 @@ export function validateConnections(model: ProcessModel): string[] {
             (sourceType === 'state' && targetType === 'process_operator') ||
             (sourceType === 'process_operator' && targetType === 'state')
         )) {
-            const sourceSys = getSystemId(flow.sourceRef, model);
-            const targetSys = getSystemId(flow.targetRef, model);
+            const sourceSys = elementSystemId.get(flow.sourceRef);
+            const targetSys = elementSystemId.get(flow.targetRef);
             if (sourceSys !== undefined && targetSys !== undefined && sourceSys !== targetSys) {
                 errors.push(
                     `Flow '${flow.id}': cross-system reference from ` +
@@ -116,8 +107,8 @@ export function validateConnections(model: ProcessModel): string[] {
     const seenUsages = new Set<string>();
 
     for (const usage of model.usages) {
-        const poType = classifyElement(usage.processOperatorRef, model);
-        const trType = classifyElement(usage.technicalResourceRef, model);
+        const poType = elementCategory.get(usage.processOperatorRef) ?? null;
+        const trType = elementCategory.get(usage.technicalResourceRef) ?? null;
 
         if (poType === null) {
             errors.push(
@@ -149,8 +140,8 @@ export function validateConnections(model: ProcessModel): string[] {
 
         // Check for cross-system usages
         if (model.systemLimits.length > 0) {
-            const poSys = getSystemId(usage.processOperatorRef, model);
-            const trSys = getSystemId(usage.technicalResourceRef, model);
+            const poSys = elementSystemId.get(usage.processOperatorRef);
+            const trSys = elementSystemId.get(usage.technicalResourceRef);
             if (poSys !== undefined && trSys !== undefined && poSys !== trSys) {
                 errors.push(
                     `Usage '${usage.id}': cross-system reference between ` +
