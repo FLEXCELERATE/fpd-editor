@@ -5,7 +5,7 @@ import { exportXml, exportText, downloadBlob } from "../../services/api";
 import { exportSvgToPdf, exportSvgToSvg, exportSvgToPng } from "../../services/pdfExport";
 
 interface ExportMenuProps {
-  sessionId: string | undefined;
+  source: string;
   disabled?: boolean;
   getSvgElement?: () => SVGSVGElement | null;
   processTitle?: string;
@@ -33,7 +33,7 @@ function sanitizeFilename(title: string): string {
   return title.replace(/["/\\]/g, "_").trim() || "diagram";
 }
 
-export function ExportMenu({ sessionId, disabled, getSvgElement, processTitle }: ExportMenuProps) {
+export function ExportMenu({ source, disabled, getSvgElement, processTitle }: ExportMenuProps) {
   const [open, setOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -64,9 +64,9 @@ export function ExportMenu({ sessionId, disabled, getSvgElement, processTitle }:
           }
         } else {
           // XML and text export through backend API
-          if (!sessionId) return;
+          if (!source.trim()) return;
           const exportFn = format === "xml" ? exportXml : exportText;
-          const blob = await exportFn({ session_id: sessionId });
+          const blob = await exportFn(source);
           downloadBlob(blob, baseFilename + FORMAT_EXTENSIONS[format]);
         }
       } catch (err) {
@@ -76,10 +76,10 @@ export function ExportMenu({ sessionId, disabled, getSvgElement, processTitle }:
         setExporting(false);
       }
     },
-    [sessionId, getSvgElement, processTitle],
+    [source, getSvgElement, processTitle],
   );
 
-  const isDisabled = disabled || !sessionId || exporting;
+  const isDisabled = disabled || !source.trim() || exporting;
 
   return (
     <div className="export-menu">

@@ -7,7 +7,7 @@ import type { ProcessModel } from "../../types/fpd";
 interface ToolbarProps {
   loading: boolean;
   error: string | null;
-  sessionId: string | undefined;
+  source: string;
   onImport: (source: string, model: ProcessModel) => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -20,7 +20,7 @@ interface ToolbarProps {
 export function Toolbar({
   loading,
   error,
-  sessionId,
+  source,
   onImport,
   onUndo,
   onRedo,
@@ -50,7 +50,7 @@ export function Toolbar({
           ↷ Redo
         </button>
         <ImportButton onImport={onImport} />
-        <ExportMenu sessionId={sessionId} disabled={loading} getSvgElement={getSvgElement} processTitle={processTitle} />
+        <ExportMenu source={source} disabled={loading} getSvgElement={getSvgElement} processTitle={processTitle} />
       </div>
       <div className="toolbar__spacer" />
       {loading && (

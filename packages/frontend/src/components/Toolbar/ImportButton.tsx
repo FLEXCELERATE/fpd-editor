@@ -26,7 +26,8 @@ export function ImportButton({ onImport, disabled }: ImportButtonProps) {
 
       setImporting(true);
       try {
-        const response = await importFile(file);
+        const content = await file.text();
+        const response = await importFile(content, file.name);
         onImport(response.source, response.model);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Import failed";

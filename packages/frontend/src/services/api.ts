@@ -4,90 +4,49 @@ import type { ProcessModel } from "../types/fpd";
 
 const API_BASE = "/api";
 
-interface ParseRequest {
-  source: string;
-  session_id?: string;
-}
-
 interface ParseResponse {
-  session_id: string;
   model: ProcessModel;
-}
-
-interface ExportRequest {
-  session_id: string;
+  diagram: unknown;
 }
 
 interface ImportResponse {
-  session_id: string;
   source: string;
   model: ProcessModel;
-}
-
-interface HealthResponse {
-  status: string;
+  diagram: unknown;
 }
 
 interface ApiError {
-  detail: string;
+  error: string;
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const body = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error((body as ApiError).detail || `Request failed: ${response.status}`);
+    const body = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error((body as ApiError).error || `Request failed: ${response.status}`);
   }
   return response.json() as Promise<T>;
 }
 
 async function handleBlobResponse(response: Response): Promise<Blob> {
   if (!response.ok) {
-    const body = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error((body as ApiError).detail || `Request failed: ${response.status}`);
+    const body = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error((body as ApiError).error || `Request failed: ${response.status}`);
   }
   return response.blob();
 }
 
-export async function healthCheck(): Promise<HealthResponse> {
+export async function healthCheck(): Promise<{ status: string }> {
   const response = await fetch(`${API_BASE}/health`);
-  return handleResponse<HealthResponse>(response);
+  return handleResponse<{ status: string }>(response);
 }
 
-export async function parseSource(request: ParseRequest): Promise<ParseResponse> {
+export async function parseSource(source: string): Promise<ParseResponse> {
   const response = await fetch(`${API_BASE}/parse`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
+    body: JSON.stringify({ source }),
   });
   return handleResponse<ParseResponse>(response);
-}
-
-export async function exportXml(request: ExportRequest): Promise<Blob> {
-  const response = await fetch(`${API_BASE}/export/xml`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-  });
-  return handleBlobResponse(response);
-}
-
-export async function exportText(request: ExportRequest): Promise<Blob> {
-  const response = await fetch(`${API_BASE}/export/text`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-  });
-  return handleBlobResponse(response);
-}
-
-export async function importFile(file: File): Promise<ImportResponse> {
-  const formData = new FormData();
-  formData.append("file", file);
-  const response = await fetch(`${API_BASE}/import`, {
-    method: "POST",
-    body: formData,
-  });
-  return handleResponse<ImportResponse>(response);
 }
 
 export async function renderSvg(source: string): Promise<string> {
@@ -97,10 +56,55 @@ export async function renderSvg(source: string): Promise<string> {
     body: JSON.stringify({ source }),
   });
   if (!response.ok) {
-    const body = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error((body as ApiError).detail || `Request failed: ${response.status}`);
+    const body = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error((body as ApiError).error || `Request failed: ${response.status}`);
   }
   return response.text();
+}
+
+export async function exportSvg(source: string): Promise<Blob> {
+  const response = await fetch(`${API_BASE}/export/source/svg`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source }),
+  });
+  return handleBlobResponse(response);
+}
+
+export async function exportXml(source: string): Promise<Blob> {
+  const response = await fetch(`${API_BASE}/export/source/xml`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source }),
+  });
+  return handleBlobResponse(response);
+}
+
+export async function exportText(source: string): Promise<Blob> {
+  const response = await fetch(`${API_BASE}/export/source/text`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source }),
+  });
+  return handleBlobResponse(response);
+}
+
+export async function exportPdf(source: string): Promise<Blob> {
+  const response = await fetch(`${API_BASE}/export/source/pdf`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source }),
+  });
+  return handleBlobResponse(response);
+}
+
+export async function importFile(content: string, filename: string): Promise<ImportResponse> {
+  const response = await fetch(`${API_BASE}/import`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content, filename }),
+  });
+  return handleResponse<ImportResponse>(response);
 }
 
 /** Trigger a file download from a Blob. */

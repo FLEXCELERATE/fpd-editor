@@ -116,7 +116,7 @@ export default function App() {
   const historyManager = useHistoryManager(DEFAULT_SOURCE);
   const source = historyManager.currentState;
 
-  const { model, svgContent, error, loading, sessionId } = useFpdParser(source);
+  const { model, svgContent, error, loading } = useFpdParser(source);
   const { lineToElement, setSelectedElementId } = useDiagramSync(model);
   const {
     viewport,
@@ -236,7 +236,7 @@ export default function App() {
         <Toolbar
             loading={loading}
             error={error}
-            sessionId={sessionId}
+            source={source}
             onImport={handleImport}
             onUndo={handleUndo}
             onRedo={handleRedo}

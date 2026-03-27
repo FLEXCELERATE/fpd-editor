@@ -14,7 +14,6 @@ interface UseFpdParserResult {
   svgContent: string | null;
   error: string | null;
   loading: boolean;
-  sessionId: string | undefined;
 }
 
 export function useFpdParser(
@@ -26,7 +25,6 @@ export function useFpdParser(
   const [svgContent, setSvgContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const sessionIdRef = useRef<string | undefined>(undefined);
   const abortRef = useRef<AbortController | null>(null);
 
   const parse = useCallback(
@@ -41,17 +39,13 @@ export function useFpdParser(
 
       try {
         const [response, svg] = await Promise.all([
-          parseSource({
-            source: text,
-            session_id: sessionIdRef.current,
-          }),
+          parseSource(text),
           renderSvg(text),
         ]);
 
         // Ignore if this request was aborted
         if (controller.signal.aborted) return;
 
-        sessionIdRef.current = response.session_id;
         setModel(response.model);
         setSvgContent(svg);
         setError(
@@ -93,5 +87,5 @@ export function useFpdParser(
     };
   }, []);
 
-  return { model, svgContent, error, loading, sessionId: sessionIdRef.current };
+  return { model, svgContent, error, loading };
 }
