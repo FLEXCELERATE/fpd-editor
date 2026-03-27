@@ -19,7 +19,7 @@ fpd-editor/
 │   ├── tsconfig/           Shared TypeScript configs
 │   ├── eslint-config/      Shared ESLint config
 │   └── prettier-config/    Shared Prettier config
-├── backend/                Python FastAPI backend (legacy, being replaced)
+├── schemas/                VDI 3682 XSD schema (git submodule)
 ├── docs/
 │   ├── architecture/       Architecture Decision Records (ADRs)
 │   └── examples/           Example .fpd files
