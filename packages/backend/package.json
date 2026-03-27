@@ -9,12 +9,13 @@
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "clean": "rm -rf dist",
-    "lint": "eslint src --ext ts"
+    "lint": "eslint src"
   },
   "dependencies": {
+    "@fastify/cors": "^11.0.0",
     "@fpd-editor/core": "workspace:*",
     "fastify": "^5.3.0",
-    "@fastify/cors": "^11.0.0"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@fpd-editor/tsconfig": "workspace:*",

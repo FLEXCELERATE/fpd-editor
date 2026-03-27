@@ -2,19 +2,22 @@
 
 import { FastifyInstance } from 'fastify';
 import { FpdService } from '@fpd-editor/core';
-
-const service = new FpdService();
+import { sourceSchema } from '../schemas.js';
 
 export async function renderRouter(app: FastifyInstance) {
-    app.post<{ Body: { source: string } }>('/render/svg', async (request, reply) => {
-        const { source } = request.body;
-        if (!source) return reply.status(400).send({ error: 'Missing "source" field' });
+    const service: FpdService = (app as unknown as { fpdService: FpdService }).fpdService;
+
+    app.post('/render/svg', async (request, reply) => {
+        const parsed = sourceSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.status(400).send({ error: parsed.error.issues[0].message });
+        }
 
         try {
-            const svg = service.renderSvg(source);
+            const svg = service.renderSvg(parsed.data.source);
             return reply.type('image/svg+xml').send(svg);
         } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
+            const msg = err instanceof Error ? err.message : 'Processing error';
             return reply.status(422).send({ error: msg });
         }
     });

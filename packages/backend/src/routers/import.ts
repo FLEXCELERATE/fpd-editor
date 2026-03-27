@@ -2,25 +2,26 @@
 
 import { FastifyInstance } from 'fastify';
 import { FpdService } from '@fpd-editor/core';
-
-const service = new FpdService();
+import { importSchema } from '../schemas.js';
 
 export async function importRouter(app: FastifyInstance) {
-    app.post<{ Body: { content: string; filename: string } }>('/import', async (request, reply) => {
-        const { content, filename } = request.body;
-        if (!content || !filename) {
-            return reply.status(400).send({ error: 'Missing "content" or "filename" field' });
+    const service: FpdService = (app as unknown as { fpdService: FpdService }).fpdService;
+
+    app.post('/import', async (request, reply) => {
+        const parsed = importSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.status(400).send({ error: parsed.error.issues[0].message });
         }
 
         try {
-            const result = service.importFile(content, filename);
+            const result = service.importFile(parsed.data.content, parsed.data.filename);
             return {
                 model: result.model,
                 diagram: result.diagram,
                 source: result.source,
             };
         } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
+            const msg = err instanceof Error ? err.message : 'Processing error';
             return reply.status(422).send({ error: msg });
         }
     });
