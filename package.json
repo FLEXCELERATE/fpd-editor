@@ -1,6 +1,7 @@
 {
   "name": "fpd-editor",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@10.32.1",
   "scripts": {
     "build": "turbo run build",
@@ -8,8 +9,8 @@
     "lint": "turbo run lint",
     "dev": "turbo run dev",
     "clean": "turbo run clean",
-    "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format": "prettier --write . --ignore-path .gitignore",
+    "format:check": "prettier --check . --ignore-path .gitignore"
   },
   "devDependencies": {
     "turbo": "^2.5.0",

@@ -26,7 +26,7 @@
     "diagram"
   ],
   "extensionDependencies": [],
-  "activationEvents": [],
+  "activationEvents": ["onLanguage:fpd"],
   "main": "./dist/extension.js",
   "contributes": {
     "languages": [
@@ -116,7 +116,7 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
-    "lint": "eslint src --ext ts",
+    "lint": "eslint src",
     "test": "node ./out/test/runTest.js",
     "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
     "package": "npm run esbuild-base -- --minify",
