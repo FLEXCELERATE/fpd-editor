@@ -39,3 +39,16 @@ htmlcov/
 
 # Turbo
 .turbo/
+
+# Environment
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo

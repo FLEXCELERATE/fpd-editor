@@ -6,38 +6,66 @@ A text-based editor for creating **VDI 3682 Formalized Process Descriptions** (F
 
 ![FPD Editor](media/editor-Screenshot.png)
 
+## Project Structure
+
+```
+fpd-editor/
+├── packages/
+│   ├── core/               @fpd-editor/core — shared parser, layout, renderer, exporters
+│   ├── backend/            @fpd-editor/backend — Fastify REST API
+│   ├── frontend/           React + Vite web UI (Monaco editor, SVG diagram)
+│   └── vscode-extension/   VS Code extension with language support + preview
+├── tooling/
+│   ├── tsconfig/           Shared TypeScript configs
+│   ├── eslint-config/      Shared ESLint config
+│   └── prettier-config/    Shared Prettier config
+├── backend/                Python FastAPI backend (legacy, being replaced)
+├── docs/
+│   ├── architecture/       Architecture Decision Records (ADRs)
+│   └── examples/           Example .fpd files
+└── media/                  Screenshots and icons
+```
+
 ## Getting Started
 
 ### Prerequisites
 
-- Python 3.10+ with pip
-- Node.js 18+ with npm
+- Node.js 20+
+- [pnpm](https://pnpm.io/) 10+
 
-### Clone (with submodules)
-
-```bash
-git clone --recurse-submodules https://github.com/FLEXCELERATE/fpd-editor.git
-# or, if already cloned:
-git submodule update --init
-```
-
-### Backend
+### Install & Build
 
 ```bash
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port 8741 --reload
+pnpm install
+pnpm turbo build
 ```
 
-### Frontend
+### Development
 
 ```bash
-cd frontend
-npm install
-npm run dev
+# Start backend + frontend in parallel
+pnpm turbo dev
+
+# Or individually:
+cd packages/backend && pnpm dev     # Fastify API on http://localhost:8741
+cd packages/frontend && pnpm dev    # Vite dev server on http://localhost:5173
 ```
 
-Open http://localhost:5173 in your browser. The frontend proxies API requests to the backend at port 8741.
+The frontend proxies API requests to the backend at port 8741.
+
+### Testing & Linting
+
+```bash
+pnpm turbo test       # Run all tests
+pnpm turbo lint       # Lint all packages
+pnpm format:check     # Check formatting
+```
+
+## VS Code Extension
+
+The FPD VS Code extension provides syntax highlighting, IntelliSense, diagnostics, and a live diagram preview — all without requiring the backend server.
+
+See [packages/vscode-extension/README.md](packages/vscode-extension/README.md) for details.
 
 ## Usage
 
@@ -82,10 +110,10 @@ Syntax: `keyword <id> "optional label"`
 
 | Operator | Type | Valid Between |
 |----------|------|---------------|
-| `-->` | Flow | State ↔ ProcessOperator |
-| `-.->` | Alternative Flow | State ↔ ProcessOperator |
-| `==>` | Parallel Flow | State ↔ ProcessOperator |
-| `<..>` | Usage | ProcessOperator ↔ TechnicalResource |
+| `-->` | Flow | State <-> ProcessOperator |
+| `-.->` | Alternative Flow | State <-> ProcessOperator |
+| `==>` | Parallel Flow | State <-> ProcessOperator |
+| `<..>` | Usage | ProcessOperator <-> TechnicalResource |
 
 ## Example
 
@@ -109,47 +137,17 @@ PO1 <..> TR1
 @endfpd
 ```
 
-**Rendered output:** The diagram shows a VDI 3682 process view with **P1** (Input Material) and **E1** (Electrical Power) flowing into process operator **PO1** (Processing), which outputs **P2** (Output Product). **TR1** (Machine) is linked to PO1 via a usage connection. States appear as rounded shapes, the process operator as a rectangle, and the technical resource below the process connected by a dotted line.
-
 ## VDI 3682 Connection Rules
 
 1. **Flow / Alternative Flow / Parallel Flow** (`-->`, `-.->`, `==>`) — only between **States** (product, energy, information) and **Process Operators**
 2. **Usage** (`<..>`) — only between **Process Operators** and **Technical Resources**
-3. Direct connections between elements of the same category are **not allowed** (e.g., product → product or process → process)
-
-## Project Structure
-
-```
-├── backend/          Python FastAPI backend (parser, layout, export)
-├── frontend/         React + TypeScript web UI (Monaco editor, SVG diagram)
-├── examples/         Example .fpd files
-└── docs/             Documentation and diagrams
-```
+3. Direct connections between elements of the same category are **not allowed** (e.g., product -> product or process -> process)
 
 ## Export Formats
 
-- **VDI 3682 XML** — Compatible with [HSU Hamburg FPD_Schema.xsd](https://github.com/hsu-aut/IndustrialStandard-XSD-VDI3682), validated against the XSD schema on export and import
+- **VDI 3682 XML** — Compatible with [HSU Hamburg FPD_Schema.xsd](https://github.com/hsu-aut/IndustrialStandard-XSD-VDI3682)
 - **PDF** — Document export with diagram rendering
 - **FPD Text** — Re-export the text representation
-
-## Running Tests
-
-```bash
-# Backend tests
-cd backend
-pip install -r requirements-dev.txt
-pytest tests/ -v
-
-# Frontend build check
-cd frontend
-npm run build
-```
-
-## Roadmap
-
-- **Shared TypeScript Layout Package** — Extract the layout algorithm into a reusable npm package for use by both the web frontend and future VS Code extension
-- **Browser-based SVG/PNG Export** — Export diagrams directly from the rendered frontend SVG
-- **TypeScript Parser** — Port the Python parser to TypeScript to enable fully client-side operation
 
 ## Contributing
 
