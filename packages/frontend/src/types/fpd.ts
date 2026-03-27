@@ -1,4 +1,4 @@
-/** TypeScript type definitions matching backend VDI 3682 Pydantic models. */
+/** TypeScript type definitions matching backend VDI 3682 models. */
 
 export enum StateType {
   PRODUCT = "product",
@@ -13,9 +13,8 @@ export enum FlowType {
 }
 
 export interface Identification {
-  unique_ident: string;
-  long_name: string | null;
-  short_name: string | null;
+  uniqueIdent: string;
+  longName: string | null;
 }
 
 export type StatePlacement =
@@ -28,60 +27,60 @@ export type StatePlacement =
 
 export interface State {
   id: string;
-  state_type: StateType;
+  stateType: StateType;
   identification: Identification;
   label: string;
   placement?: StatePlacement | null;
-  line_number?: number;
-  system_id?: string;
+  lineNumber?: number;
+  systemId?: string;
 }
 
 export interface ProcessOperator {
   id: string;
   identification: Identification;
   label: string;
-  line_number?: number;
-  system_id?: string;
+  lineNumber?: number;
+  systemId?: string;
 }
 
 export interface TechnicalResource {
   id: string;
   identification: Identification;
   label: string;
-  line_number?: number;
-  system_id?: string;
+  lineNumber?: number;
+  systemId?: string;
 }
 
 export interface Flow {
   id: string;
-  source_ref: string;
-  target_ref: string;
-  flow_type: FlowType;
-  line_number?: number;
-  system_id?: string;
+  sourceRef: string;
+  targetRef: string;
+  flowType: FlowType;
+  lineNumber?: number;
+  systemId?: string;
 }
 
 export interface Usage {
   id: string;
-  process_operator_ref: string;
-  technical_resource_ref: string;
-  line_number?: number;
-  system_id?: string;
+  processOperatorRef: string;
+  technicalResourceRef: string;
+  lineNumber?: number;
+  systemId?: string;
 }
 
 export interface SystemLimit {
   id: string;
   identification: Identification;
   label: string;
-  line_number?: number;
+  lineNumber?: number;
 }
 
 export interface ProcessModel {
   title: string;
-  system_limits: SystemLimit[];
+  systemLimits: SystemLimit[];
   states: State[];
-  process_operators: ProcessOperator[];
-  technical_resources: TechnicalResource[];
+  processOperators: ProcessOperator[];
+  technicalResources: TechnicalResource[];
   flows: Flow[];
   usages: Usage[];
   errors: string[];

@@ -54,8 +54,8 @@ export function useDiagramSync(
 
     // Map states
     for (const state of model.states) {
-      if (state.line_number !== undefined) {
-        mapping.set(state.line_number, {
+      if (state.lineNumber !== undefined) {
+        mapping.set(state.lineNumber, {
           elementId: state.id,
           elementType: "state",
         });
@@ -63,9 +63,9 @@ export function useDiagramSync(
     }
 
     // Map process operators
-    for (const processOperator of model.process_operators) {
-      if (processOperator.line_number !== undefined) {
-        mapping.set(processOperator.line_number, {
+    for (const processOperator of model.processOperators) {
+      if (processOperator.lineNumber !== undefined) {
+        mapping.set(processOperator.lineNumber, {
           elementId: processOperator.id,
           elementType: "processOperator",
         });
@@ -73,9 +73,9 @@ export function useDiagramSync(
     }
 
     // Map technical resources
-    for (const technicalResource of model.technical_resources) {
-      if (technicalResource.line_number !== undefined) {
-        mapping.set(technicalResource.line_number, {
+    for (const technicalResource of model.technicalResources) {
+      if (technicalResource.lineNumber !== undefined) {
+        mapping.set(technicalResource.lineNumber, {
           elementId: technicalResource.id,
           elementType: "technicalResource",
         });
@@ -84,8 +84,8 @@ export function useDiagramSync(
 
     // Map flows
     for (const flow of model.flows) {
-      if (flow.line_number !== undefined) {
-        mapping.set(flow.line_number, {
+      if (flow.lineNumber !== undefined) {
+        mapping.set(flow.lineNumber, {
           elementId: flow.id,
           elementType: "flow",
         });
@@ -94,8 +94,8 @@ export function useDiagramSync(
 
     // Map usages
     for (const usage of model.usages) {
-      if (usage.line_number !== undefined) {
-        mapping.set(usage.line_number, {
+      if (usage.lineNumber !== undefined) {
+        mapping.set(usage.lineNumber, {
           elementId: usage.id,
           elementType: "usage",
         });
