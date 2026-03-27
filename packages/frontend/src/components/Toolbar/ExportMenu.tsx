@@ -87,6 +87,7 @@ export function ExportMenu({ source, disabled, getSvgElement, processTitle }: Ex
         className="toolbar__button"
         onClick={() => setOpen((prev) => !prev)}
         disabled={isDisabled}
+        aria-label="Export diagram"
         aria-haspopup="true"
         aria-expanded={open}
       >

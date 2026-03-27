@@ -49,6 +49,7 @@ export function ImportButton({ onImport, disabled }: ImportButtonProps) {
         className="toolbar__button"
         onClick={handleClick}
         disabled={disabled || importing}
+        aria-label="Import FPD or XML file"
       >
         {importing ? "Importing…" : "Import"}
       </button>

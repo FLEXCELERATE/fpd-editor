@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef } from 'react';
 import './App.css';
 import FpdEditor, { FpdEditorRef } from './components/Editor/FpdEditor';
 import { DiagramRenderer, DiagramRendererRef } from './components/Diagram/DiagramRenderer';
@@ -9,6 +9,8 @@ import { useFpdParser } from './hooks/useFpdParser';
 import { useDiagramSync } from './hooks/useDiagramSync';
 import { useHistoryManager } from './hooks/useHistoryManager';
 import { useViewport } from './hooks/useViewport';
+import { useSplitPane } from './hooks/useSplitPane';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import type { ProcessModel } from './types/fpd';
 import type { DiagramBounds } from './types/diagram';
 
@@ -105,12 +107,11 @@ system "DosingModule_v01" {
 `;
 
 export default function App() {
-  const splitPaneRef = useRef<HTMLDivElement>(null);
+  const splitPaneRef = useRef<HTMLElement>(null);
   const editorRef = useRef<FpdEditorRef>(null);
   const diagramRef = useRef<DiagramRendererRef>(null);
   const diagramContainerRef = useRef<HTMLDivElement>(null);
   const contentBoundsRef = useRef<DiagramBounds | null>(null);
-  const [editorWidth, setEditorWidth] = useState<number | null>(null);
 
   // Use history manager for application-level undo/redo
   const historyManager = useHistoryManager(DEFAULT_SOURCE);
@@ -120,6 +121,7 @@ export default function App() {
   const { lineToElement, setSelectedElementId } = useDiagramSync(model);
   const {
     viewport,
+    setViewport,
     zoomIn,
     zoomOut,
     zoomToFit,
@@ -157,37 +159,13 @@ export default function App() {
     historyManager.redo();
   }, [historyManager]);
 
-  // Keyboard shortcuts for undo/redo and zoom
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
-      const modifierKey = e.ctrlKey || e.metaKey; // Support both Ctrl (Windows/Linux) and Cmd (Mac)
-
-      // Skip zoom shortcuts when Monaco editor has focus
-      const activeEl = document.activeElement;
-      const isEditorFocused = activeEl?.closest('.monaco-editor') != null;
-
-      if (modifierKey && key === 'z' && !e.shiftKey) {
-        e.preventDefault();
-        handleUndo();
-      } else if (modifierKey && e.shiftKey && key === 'z') {
-        e.preventDefault();
-        handleRedo();
-      } else if (modifierKey && !isEditorFocused && (key === '=' || key === '+')) {
-        e.preventDefault();
-        zoomIn();
-      } else if (modifierKey && !isEditorFocused && key === '-') {
-        e.preventDefault();
-        zoomOut();
-      } else if (modifierKey && !isEditorFocused && key === '0') {
-        e.preventDefault();
-        resetViewport();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo, handleRedo, zoomIn, zoomOut, resetViewport]);
+  useKeyboardShortcuts({
+    onUndo: handleUndo,
+    onRedo: handleRedo,
+    onZoomIn: zoomIn,
+    onZoomOut: zoomOut,
+    onResetViewport: resetViewport,
+  });
 
   const handleImport = useCallback((_source: string, _model: ProcessModel) => {
     historyManager.pushState(_source);
@@ -201,52 +179,27 @@ export default function App() {
     [lineToElement, setSelectedElementId],
   );
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      const startX = e.clientX;
-      const pane = splitPaneRef.current;
-      if (!pane) return;
-
-      const startWidth = editorWidth ?? pane.getBoundingClientRect().width / 2;
-
-      const onMouseMove = (moveEvent: MouseEvent) => {
-        const delta = moveEvent.clientX - startX;
-        const newWidth = Math.max(200, startWidth + delta);
-        const maxWidth = pane.getBoundingClientRect().width - 200;
-        setEditorWidth(Math.min(newWidth, maxWidth));
-      };
-
-      const onMouseUp = () => {
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-      };
-
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
-    },
-    [editorWidth],
-  );
-
-  const editorStyle = editorWidth != null ? { flex: 'none', width: editorWidth } : undefined;
+  const { editorStyle, handleMouseDown, handleKeyDown: handleDividerKeyDown } = useSplitPane(splitPaneRef);
 
   return (
     <div className="app">
-      <ErrorBoundary componentName="Toolbar">
-        <Toolbar
-            loading={loading}
-            error={error}
-            source={source}
-            onImport={handleImport}
-            onUndo={handleUndo}
-            onRedo={handleRedo}
-            canUndo={historyManager.canUndo}
-            canRedo={historyManager.canRedo}
-            getSvgElement={getSvgElement}
-            processTitle={model?.title}
-          />
-      </ErrorBoundary>
-      <div className="split-pane" ref={splitPaneRef}>
+      <header>
+        <ErrorBoundary componentName="Toolbar">
+          <Toolbar
+              loading={loading}
+              error={error}
+              source={source}
+              onImport={handleImport}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
+              canUndo={historyManager.canUndo}
+              canRedo={historyManager.canRedo}
+              getSvgElement={getSvgElement}
+              processTitle={model?.title}
+            />
+        </ErrorBoundary>
+      </header>
+      <main className="split-pane" ref={splitPaneRef}>
         <div className="split-pane__editor" style={editorStyle}>
           <ErrorBoundary componentName="Editor">
             <FpdEditor
@@ -261,8 +214,11 @@ export default function App() {
         <div
           className="split-pane__divider"
           onMouseDown={handleMouseDown}
+          onKeyDown={handleDividerKeyDown}
           role="separator"
           aria-orientation="vertical"
+          aria-label="Resize editor and preview panels"
+          tabIndex={0}
         />
         <div className="split-pane__preview">
           <div className="split-pane__diagram" ref={diagramContainerRef}>
@@ -276,6 +232,9 @@ export default function App() {
                 onWheel={handleWheel}
                 onMouseDown={handleDiagramMouseDown}
                 onTouchStart={handleTouchStart}
+                onZoomIn={zoomIn}
+                onZoomOut={zoomOut}
+                onSetViewport={setViewport}
               />
             </ErrorBoundary>
             <ViewportControls
@@ -295,7 +254,7 @@ export default function App() {
             </div>
           )}
         </div>
-      </div>
+      </main>
     </div>
   );
 }

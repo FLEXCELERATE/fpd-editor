@@ -30,7 +30,7 @@ export function Toolbar({
   processTitle,
 }: ToolbarProps) {
   return (
-    <div className="toolbar">
+    <nav className="toolbar" aria-label="FPD Editor toolbar">
       <span className="toolbar__title">FPD Editor</span>
       <div className="toolbar__actions">
         <button
@@ -38,6 +38,7 @@ export function Toolbar({
           onClick={onUndo}
           disabled={!canUndo}
           title="Undo (Ctrl+Z / Cmd+Z)"
+          aria-label="Undo"
         >
           ↶ Undo
         </button>
@@ -46,6 +47,7 @@ export function Toolbar({
           onClick={onRedo}
           disabled={!canRedo}
           title="Redo (Ctrl+Shift+Z / Cmd+Shift+Z)"
+          aria-label="Redo"
         >
           ↷ Redo
         </button>
@@ -62,6 +64,6 @@ export function Toolbar({
       {error && !loading && (
         <span className="toolbar__status toolbar__status--error">⚠ Parse error</span>
       )}
-    </div>
+    </nav>
   );
 }

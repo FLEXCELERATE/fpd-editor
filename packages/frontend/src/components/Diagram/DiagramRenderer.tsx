@@ -11,6 +11,9 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import type { DiagramBounds, Viewport } from "../../types/diagram";
 import { colors, typography } from "../../theme/designTokens";
 
+/** Pan step in SVG units when using arrow keys. */
+const KEYBOARD_PAN_STEP = 30;
+
 interface DiagramRendererProps {
   svgContent: string | null;
   viewport?: Viewport;
@@ -24,6 +27,10 @@ interface DiagramRendererProps {
   onTouchStart?: React.TouchEventHandler<SVGSVGElement>;
   onTouchMove?: React.TouchEventHandler<SVGSVGElement>;
   onTouchEnd?: React.TouchEventHandler<SVGSVGElement>;
+  /** Viewport manipulation callbacks for keyboard support. */
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
+  onSetViewport?: (viewport: Viewport) => void;
 }
 
 const DEFAULT_VIEWPORT: Viewport = { x: 0, y: 0, zoom: 1 };
@@ -97,6 +104,9 @@ export const DiagramRenderer = forwardRef<DiagramRendererRef, DiagramRendererPro
       onTouchStart,
       onTouchMove,
       onTouchEnd,
+      onZoomIn,
+      onZoomOut,
+      onSetViewport,
     },
     ref,
   ) {
@@ -232,9 +242,47 @@ export const DiagramRenderer = forwardRef<DiagramRendererRef, DiagramRendererPro
       [onElementClick],
     );
 
+    /** Handle keyboard events for pan (arrow keys) and zoom (+/-). */
+    const handleKeyDown = useCallback(
+      (e: React.KeyboardEvent<HTMLDivElement>) => {
+        const key = e.key;
+        switch (key) {
+          case "ArrowLeft":
+            e.preventDefault();
+            onSetViewport?.({ ...vp, x: vp.x - KEYBOARD_PAN_STEP / vp.zoom });
+            break;
+          case "ArrowRight":
+            e.preventDefault();
+            onSetViewport?.({ ...vp, x: vp.x + KEYBOARD_PAN_STEP / vp.zoom });
+            break;
+          case "ArrowUp":
+            e.preventDefault();
+            onSetViewport?.({ ...vp, y: vp.y - KEYBOARD_PAN_STEP / vp.zoom });
+            break;
+          case "ArrowDown":
+            e.preventDefault();
+            onSetViewport?.({ ...vp, y: vp.y + KEYBOARD_PAN_STEP / vp.zoom });
+            break;
+          case "+":
+          case "=":
+            e.preventDefault();
+            onZoomIn?.();
+            break;
+          case "-":
+            e.preventDefault();
+            onZoomOut?.();
+            break;
+          default:
+            break;
+        }
+      },
+      [vp, onSetViewport, onZoomIn, onZoomOut],
+    );
+
     if (!svgContent) {
       return (
         <div
+          aria-label="FPD diagram preview"
           style={{
             display: "flex",
             alignItems: "center",
@@ -269,12 +317,20 @@ export const DiagramRenderer = forwardRef<DiagramRendererRef, DiagramRendererPro
     const ttOffset = 10;
 
     return (
+      <div
+        aria-label="FPD diagram preview"
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        style={{ width: "100%", height: "100%", outline: "none" }}
+      >
       <svg
         ref={svgRef}
         width="100%"
         height="100%"
         viewBox={viewBox}
         preserveAspectRatio="xMidYMid meet"
+        role="img"
+        aria-label="FPD process diagram"
         style={{ background: colors.ui.background, cursor: "grab" }}
         onMouseDown={onMouseDown}
         onMouseMove={handleMouseMove}
@@ -326,6 +382,7 @@ export const DiagramRenderer = forwardRef<DiagramRendererRef, DiagramRendererPro
           </g>
         )}
       </svg>
+      </div>
     );
   },
 );
