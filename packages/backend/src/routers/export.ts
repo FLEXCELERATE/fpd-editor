@@ -1,69 +1,47 @@
 /** Export endpoints: SVG, XML, PDF, text. */
 
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { FpdService } from '@fpd-editor/core';
 import { sourceSchema } from '../schemas.js';
+
+/** Helper that validates the source field and delegates to a handler. */
+function withSourceValidation(
+    handler: (source: string, reply: FastifyReply) => unknown | Promise<unknown>
+) {
+    return async (request: FastifyRequest, reply: FastifyReply) => {
+        const parsed = sourceSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.status(400).send({ error: parsed.error.issues[0].message });
+        }
+        try {
+            return await handler(parsed.data.source, reply);
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Processing error';
+            return reply.status(422).send({ error: msg });
+        }
+    };
+}
 
 export async function exportRouter(app: FastifyInstance) {
     const service: FpdService = (app as unknown as { fpdService: FpdService }).fpdService;
 
-    app.post('/export/source/svg', async (request, reply) => {
-        const parsed = sourceSchema.safeParse(request.body);
-        if (!parsed.success) {
-            return reply.status(400).send({ error: parsed.error.issues[0].message });
-        }
+    app.post('/export/source/svg', withSourceValidation((source, reply) => {
+        const svg = service.exportSvg(source);
+        return reply.type('image/svg+xml').send(svg);
+    }));
 
-        try {
-            const svg = service.exportSvg(parsed.data.source);
-            return reply.type('image/svg+xml').send(svg);
-        } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Processing error';
-            return reply.status(422).send({ error: msg });
-        }
-    });
+    app.post('/export/source/xml', withSourceValidation((source, reply) => {
+        const xml = service.exportXml(source);
+        return reply.type('application/xml').send(xml);
+    }));
 
-    app.post('/export/source/xml', async (request, reply) => {
-        const parsed = sourceSchema.safeParse(request.body);
-        if (!parsed.success) {
-            return reply.status(400).send({ error: parsed.error.issues[0].message });
-        }
+    app.post('/export/source/text', withSourceValidation((source, reply) => {
+        const text = service.exportText(source);
+        return reply.type('text/plain').send(text);
+    }));
 
-        try {
-            const xml = service.exportXml(parsed.data.source);
-            return reply.type('application/xml').send(xml);
-        } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Processing error';
-            return reply.status(422).send({ error: msg });
-        }
-    });
-
-    app.post('/export/source/text', async (request, reply) => {
-        const parsed = sourceSchema.safeParse(request.body);
-        if (!parsed.success) {
-            return reply.status(400).send({ error: parsed.error.issues[0].message });
-        }
-
-        try {
-            const text = service.exportText(parsed.data.source);
-            return reply.type('text/plain').send(text);
-        } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Processing error';
-            return reply.status(422).send({ error: msg });
-        }
-    });
-
-    app.post('/export/source/pdf', async (request, reply) => {
-        const parsed = sourceSchema.safeParse(request.body);
-        if (!parsed.success) {
-            return reply.status(400).send({ error: parsed.error.issues[0].message });
-        }
-
-        try {
-            const pdfBytes = await service.exportPdf(parsed.data.source);
-            return reply.type('application/pdf').send(Buffer.from(pdfBytes));
-        } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Processing error';
-            return reply.status(422).send({ error: msg });
-        }
-    });
+    app.post('/export/source/pdf', withSourceValidation(async (source, reply) => {
+        const pdfBytes = await service.exportPdf(source);
+        return reply.type('application/pdf').send(Buffer.from(pdfBytes));
+    }));
 }

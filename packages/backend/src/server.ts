@@ -1,7 +1,8 @@
 /** TypeScript backend server — replaces the Python FastAPI backend. */
 
-import Fastify from 'fastify';
+import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
+import rateLimit from '@fastify/rate-limit';
 import { FpdService } from '@fpd-editor/core';
 import { parseRouter } from './routers/parse.js';
 import { exportRouter } from './routers/export.js';
@@ -14,9 +15,10 @@ const HOST = process.env.HOST || '0.0.0.0';
 /** Maximum request body size (1 MB). */
 const MAX_BODY_SIZE = 1024 * 1024;
 
-async function main() {
+/** Create and configure the Fastify instance (plugins, routers, error handler). */
+export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
     const app = Fastify({
-        logger: true,
+        logger: opts.logger ?? true,
         bodyLimit: MAX_BODY_SIZE,
     });
 
@@ -24,8 +26,17 @@ async function main() {
     const service = new FpdService();
     app.decorate('fpdService', service);
 
-    await app.register(cors, {
-        origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    // CORS
+    const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
+    if (!process.env.CORS_ORIGIN && process.env.NODE_ENV === 'production') {
+        app.log.warn('CORS_ORIGIN not set — defaulting to localhost. Set CORS_ORIGIN in production.');
+    }
+    await app.register(cors, { origin: corsOrigin });
+
+    // Rate limiting
+    await app.register(rateLimit, {
+        max: 100,
+        timeWindow: '1 minute',
     });
 
     // Global error handler
@@ -52,6 +63,12 @@ async function main() {
     // Health check
     app.get('/api/health', async () => ({ status: 'ok' }));
 
+    return app;
+}
+
+async function main() {
+    const app = await buildApp();
+
     // Graceful shutdown
     const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
     for (const signal of signals) {
@@ -66,7 +83,10 @@ async function main() {
     app.log.info(`FPD Backend listening on http://${HOST}:${PORT}`);
 }
 
-main().catch((err) => {
-    console.error('Failed to start server:', err);
-    process.exit(1);
-});
+// Only start the server when executed directly (not when imported by tests).
+if (!process.env.VITEST) {
+    main().catch((err) => {
+        console.error('Failed to start server:', err);
+        process.exit(1);
+    });
+}
