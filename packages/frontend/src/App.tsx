@@ -1,10 +1,11 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import './App.css';
 import FpdEditor, { FpdEditorRef } from './components/Editor/FpdEditor';
 import { DiagramRenderer, DiagramRendererRef } from './components/Diagram/DiagramRenderer';
 import { ViewportControls } from './components/Diagram/ViewportControls';
 import { Toolbar } from './components/Toolbar/Toolbar';
 import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
+import { EditorProvider } from './context/EditorContext';
 import { useFpdParser } from './hooks/useFpdParser';
 import { useDiagramSync } from './hooks/useDiagramSync';
 import { useHistoryManager } from './hooks/useHistoryManager';
@@ -181,14 +182,17 @@ export default function App() {
 
   const { editorStyle, handleMouseDown, handleKeyDown: handleDividerKeyDown } = useSplitPane(splitPaneRef);
 
+  const editorContextValue = useMemo(
+    () => ({ source, model, loading, error }),
+    [source, model, loading, error],
+  );
+
   return (
+    <EditorProvider value={editorContextValue}>
     <div className="app">
       <header>
         <ErrorBoundary componentName="Toolbar">
           <Toolbar
-              loading={loading}
-              error={error}
-              source={source}
               onImport={handleImport}
               onUndo={handleUndo}
               onRedo={handleRedo}
@@ -256,5 +260,6 @@ export default function App() {
         </div>
       </main>
     </div>
+    </EditorProvider>
   );
 }

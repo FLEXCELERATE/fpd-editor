@@ -3,10 +3,9 @@
 import { useCallback, useState } from "react";
 import { exportXml, exportText, downloadBlob } from "../../services/api";
 import { exportSvgToPdf, exportSvgToSvg, exportSvgToPng } from "../../services/pdfExport";
+import { useEditorContext } from "../../context/EditorContext";
 
 interface ExportMenuProps {
-  source: string;
-  disabled?: boolean;
   getSvgElement?: () => SVGSVGElement | null;
   processTitle?: string;
 }
@@ -33,7 +32,8 @@ function sanitizeFilename(title: string): string {
   return title.replace(/["/\\]/g, "_").trim() || "diagram";
 }
 
-export function ExportMenu({ source, disabled, getSvgElement, processTitle }: ExportMenuProps) {
+export function ExportMenu({ getSvgElement, processTitle }: ExportMenuProps) {
+  const { source, loading } = useEditorContext();
   const [open, setOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -79,7 +79,7 @@ export function ExportMenu({ source, disabled, getSvgElement, processTitle }: Ex
     [source, getSvgElement, processTitle],
   );
 
-  const isDisabled = disabled || !source.trim() || exporting;
+  const isDisabled = loading || !source.trim() || exporting;
 
   return (
     <div className="export-menu">

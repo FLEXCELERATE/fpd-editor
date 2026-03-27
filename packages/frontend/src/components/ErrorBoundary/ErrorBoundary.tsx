@@ -78,33 +78,16 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       // Default fallback UI
       const componentName = this.props.componentName || 'Component';
       return (
-        <div
-          style={{
-            padding: '20px',
-            margin: '20px',
-            border: '2px solid #dc3545',
-            borderRadius: '4px',
-            backgroundColor: '#f8d7da',
-            color: '#721c24',
-          }}
-        >
-          <h3 style={{ margin: '0 0 10px 0' }}>
+        <div className="error-boundary">
+          <h3 className="error-boundary__title">
             ⚠️ {componentName} Error
           </h3>
-          <p style={{ margin: '0 0 10px 0' }}>
+          <p className="error-boundary__message">
             <strong>Error:</strong> {this.state.error.message}
           </p>
           <button
             onClick={this.resetError}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: '#721c24',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px',
-            }}
+            className="error-boundary__retry"
           >
             Retry
           </button>

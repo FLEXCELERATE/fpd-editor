@@ -62,15 +62,6 @@ export async function renderSvg(source: string): Promise<string> {
   return response.text();
 }
 
-export async function exportSvg(source: string): Promise<Blob> {
-  const response = await fetch(`${API_BASE}/export/source/svg`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ source }),
-  });
-  return handleBlobResponse(response);
-}
-
 export async function exportXml(source: string): Promise<Blob> {
   const response = await fetch(`${API_BASE}/export/source/xml`, {
     method: "POST",

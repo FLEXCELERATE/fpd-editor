@@ -2,12 +2,10 @@
 
 import { ExportMenu } from "./ExportMenu";
 import { ImportButton } from "./ImportButton";
+import { useEditorContext } from "../../context/EditorContext";
 import type { ProcessModel } from "../../types/fpd";
 
 interface ToolbarProps {
-  loading: boolean;
-  error: string | null;
-  source: string;
   onImport: (source: string, model: ProcessModel) => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -18,9 +16,6 @@ interface ToolbarProps {
 }
 
 export function Toolbar({
-  loading,
-  error,
-  source,
   onImport,
   onUndo,
   onRedo,
@@ -29,6 +24,7 @@ export function Toolbar({
   getSvgElement,
   processTitle,
 }: ToolbarProps) {
+  const { loading, error } = useEditorContext();
   return (
     <nav className="toolbar" aria-label="FPD Editor toolbar">
       <span className="toolbar__title">FPD Editor</span>
@@ -52,7 +48,7 @@ export function Toolbar({
           ↷ Redo
         </button>
         <ImportButton onImport={onImport} />
-        <ExportMenu source={source} disabled={loading} getSvgElement={getSvgElement} processTitle={processTitle} />
+        <ExportMenu getSvgElement={getSvgElement} processTitle={processTitle} />
       </div>
       <div className="toolbar__spacer" />
       {loading && (
