@@ -1,203 +1,106 @@
-# Packaging the FPB VS Code Extension
-
-This guide explains how to package the FPB extension as a `.vsix` file for distribution and installation.
+# Packaging & Publishing the FPD VS Code Extension
 
 ## Prerequisites
 
-Before packaging, ensure you have:
-- Node.js 18+ installed
-- npm or yarn package manager
-- VS Code Extension Manager (`vsce`) tool
+- Node.js 20+
+- [pnpm](https://pnpm.io/) 10+
+- VS Code Extension Manager (`vsce`), included as devDependency
 
-## Step 1: Install Dependencies
+## Build
 
-Navigate to the extension directory and install all required dependencies:
-
-```bash
-cd vscode-extension
-npm install
-```
-
-This will install:
-- TypeScript compiler and type definitions
-- VS Code Extension API types
-- ESLint for code quality
-- vsce for packaging
-- axios for HTTP requests
-
-## Step 2: Compile TypeScript
-
-Compile the TypeScript source code to JavaScript:
+The extension uses esbuild to bundle all source code (including `@fpd-editor/core`) into a single `dist/extension.js` file.
 
 ```bash
-npm run compile
+# From the repository root:
+
+# 1. Install all dependencies
+pnpm install
+
+# 2. Build the core package (extension dependency)
+pnpm turbo build --filter=@fpd-editor/core
+
+# 3. Package the extension as .vsix
+cd packages/vscode-extension
+npx vsce package --no-dependencies
 ```
 
-This will:
-- Run the TypeScript compiler (`tsc`)
-- Generate JavaScript files in the `out/` directory
-- Create source maps for debugging
+This generates `fpd-vscode-extension-<version>.vsix`.
 
-Alternatively, use watch mode during development:
+> **Why `--no-dependencies`?** The extension lives in a pnpm monorepo. `vsce` uses `npm` internally to check dependencies, which fails with pnpm workspace references. The `--no-dependencies` flag skips this check. All runtime code is bundled by esbuild, so no npm-installed dependencies are needed at runtime.
+
+## Install Locally
 
 ```bash
-npm run watch
+code --install-extension fpd-vscode-extension-<version>.vsix
 ```
 
-## Step 3: Lint and Test (Optional)
+Or in VS Code: `Ctrl+Shift+P` > "Extensions: Install from VSIX..."
 
-Run linting to ensure code quality:
+## Publish to VS Code Marketplace
 
-```bash
-npm run lint
-```
+### One-time Setup
 
-Run tests (if available):
-
-```bash
-npm test
-```
-
-## Step 4: Package as VSIX
-
-Create the `.vsix` package file:
-
-```bash
-npm run package
-```
-
-Or directly use vsce:
-
-```bash
-npx vsce package
-```
-
-This will generate a file named `fpb-vscode-extension-0.1.0.vsix` in the current directory.
-
-### Packaging Options
-
-- **Specific version**: `npx vsce package 0.2.0`
-- **Pre-release**: `npx vsce package --pre-release`
-- **Output directory**: `npx vsce package -o ./dist/`
-
-## Step 5: Verify the Package
-
-List the contents of the generated VSIX:
-
-```bash
-npx vsce ls
-```
-
-Check the package file exists:
-
-```bash
-ls -la *.vsix
-```
-
-Expected output:
-```
-fpb-vscode-extension-0.1.0.vsix
-```
-
-## Installation
-
-### Local Installation
-
-Install the packaged extension in VS Code:
-
-```bash
-code --install-extension fpb-vscode-extension-0.1.0.vsix
-```
-
-Or manually:
-1. Open VS Code
-2. Press `Ctrl+Shift+P` (Cmd+Shift+P on macOS)
-3. Select "Extensions: Install from VSIX..."
-4. Choose the `fpb-vscode-extension-0.1.0.vsix` file
-
-### Publishing to Marketplace
-
-To publish to the VS Code Marketplace:
-
-1. Create a publisher account at https://marketplace.visualstudio.com/
-2. Get a Personal Access Token (PAT) from Azure DevOps
-3. Login with vsce:
+1. Create a Personal Access Token (PAT) at https://dev.azure.com:
+   - **Organization**: "All accessible organizations"
+   - **Scopes**: Show all scopes > **Marketplace** > **Manage**
+2. Login:
    ```bash
-   npx vsce login <publisher-name>
-   ```
-4. Publish:
-   ```bash
-   npx vsce publish
+   npx vsce login FLEXCELERATE
    ```
 
-## Files Included in Package
+### Publish
 
-The `.vsix` package includes:
-- Compiled JavaScript (`out/`)
-- TextMate grammar (`syntaxes/`)
-- Language configuration
-- Webview assets (`media/`)
-- Extension icon and images
-- README and CHANGELOG
-- package.json manifest
-
-Files excluded (see `.vscodeignore`):
-- TypeScript source files (`src/`)
-- Test files
-- Node modules (bundled by vsce)
-- Build configuration files
-
-## Troubleshooting
-
-### Missing Dependencies
-
-If you see errors about missing modules:
 ```bash
-rm -rf node_modules package-lock.json
-npm install
+# Bumps version, builds, and publishes in one step:
+npx vsce publish --no-dependencies
+
+# Or publish a specific version:
+npx vsce publish 0.3.1 --no-dependencies
 ```
 
-### Compilation Errors
-
-If TypeScript compilation fails:
-```bash
-npm run compile 2>&1 | tee compile.log
-```
-
-Check `compile.log` for specific errors.
-
-### VSIX Creation Fails
-
-Common issues:
-- Missing required fields in `package.json`
-- Invalid icon path
-- Missing README or CHANGELOG
-- Files too large (>50MB limit)
-
-Run validation:
-```bash
-npx vsce ls --verbose
-```
+`vsce publish` automatically runs the `vscode:prepublish` script, which triggers `esbuild --minify`.
 
 ## Version Management
 
-Update version in `package.json` before packaging:
+Update version in `package.json` and `CHANGELOG.md` before publishing:
 
-```json
-{
-  "version": "0.2.0"
-}
-```
-
-Or use npm version commands:
 ```bash
-npm version patch  # 0.1.0 -> 0.1.1
-npm version minor  # 0.1.0 -> 0.2.0
-npm version major  # 0.1.0 -> 1.0.0
+# Patch: 0.3.0 -> 0.3.1
+npx vsce publish patch --no-dependencies
+
+# Minor: 0.3.0 -> 0.4.0
+npx vsce publish minor --no-dependencies
+
+# Major: 0.3.0 -> 1.0.0
+npx vsce publish major --no-dependencies
 ```
 
-## Additional Resources
+## Files in the Package
 
-- [VS Code Extension Publishing Guide](https://code.visualstudio.com/api/working-with-extensions/publishing-extension)
-- [vsce Documentation](https://github.com/microsoft/vscode-vsce)
-- [Extension Manifest Reference](https://code.visualstudio.com/api/references/extension-manifest)
+Included (see `.vscodeignore` for exclusions):
+
+| File | Purpose |
+|------|---------|
+| `dist/extension.js` | Bundled extension code (esbuild, minified) |
+| `syntaxes/fpd.tmLanguage.json` | TextMate grammar for syntax highlighting |
+| `language-configuration.json` | Language settings (comments, brackets, etc.) |
+| `media/preview.css` | Webview preview stylesheet |
+| `images/` | Extension icon and file icon |
+| `README.md` | Marketplace listing |
+| `CHANGELOG.md` | Version history |
+| `LICENSE.txt` | MIT License |
+| `package.json` | Extension manifest |
+
+## Troubleshooting
+
+### `npm error missing: ...` during packaging
+
+This is expected in a pnpm monorepo. Use `--no-dependencies` flag.
+
+### 401 error when publishing
+
+Your PAT is invalid or missing the **Marketplace Manage** scope. Regenerate it with **Organization: All accessible organizations** and scope **Marketplace > Manage**.
+
+### Build fails: Cannot find `@fpd-editor/core`
+
+Run `pnpm turbo build --filter=@fpd-editor/core` first to compile the core package.

@@ -8,6 +8,8 @@ tsconfig.json
 # Build and test
 out/**
 .vscode-test/**
+.turbo/**
+vitest.config.ts
 *.vsix
 
 # Development

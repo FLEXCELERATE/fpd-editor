@@ -65,7 +65,27 @@ pnpm format:check     # Check formatting
 
 The FPD VS Code extension provides syntax highlighting, IntelliSense, diagnostics, and a live diagram preview — all without requiring the backend server.
 
+**Install from Marketplace:**
+Search for "FPD" in the VS Code Extensions panel, or visit the [Visual Studio Marketplace](https://marketplace.visualstudio.com/publishers/FLEXCELERATE).
+
 See [packages/vscode-extension/README.md](packages/vscode-extension/README.md) for details.
+
+### Building & Publishing the Extension
+
+```bash
+# 1. Build core (dependency of the extension)
+pnpm turbo build --filter=@fpd-editor/core
+
+# 2. Package as .vsix
+cd packages/vscode-extension
+npx vsce package --no-dependencies
+
+# 3. Publish to Marketplace (requires PAT with Marketplace Manage scope)
+npx vsce login FLEXCELERATE
+npx vsce publish --no-dependencies
+```
+
+> `--no-dependencies` is required because `vsce` uses `npm` internally, which doesn't resolve pnpm workspace dependencies.
 
 ## Usage
 

@@ -5,6 +5,30 @@ All notable changes to the FPD Language Support extension will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-03-30
+
+### Changed
+- **Monorepo restructure**: Extension now consumes `@fpd-editor/core` as a workspace dependency instead of bundling core source inline.
+- Replaced `innerHTML` SVG injection with `DOMParser` + `appendChild` to prevent XSS
+- Nonce-based Content Security Policy replaces `'unsafe-inline'` for scripts
+- Error messages sanitized to strip file paths (Windows, Unix, UNC)
+- Tooltip uses VS Code CSS variables for dark mode support
+- OutputChannel replaces console.log for proper logging
+
+### Added
+- 17 unit tests for StateManager (vitest)
+- `onCommand:fpd.preview.show` activation event
+- Debounce timeout cleanup via Disposable in diagnosticsProvider
+
+### Security
+- SVG rendered via DOMParser instead of innerHTML
+- CSP: `script-src 'nonce-...'` instead of `'unsafe-inline'`
+- Error messages no longer leak internal file paths
+
+### Fixed
+- Extension no longer activates on every VS Code startup (proper activation events)
+- OutputChannel properly disposed on deactivate
+
 ## [0.2.0] - 2026-03-16
 
 ### Changed
@@ -59,6 +83,7 @@ First public release with syntax highlighting, IntelliSense, diagnostics, live d
 
 ---
 
+[0.3.0]: https://github.com/FLEXCELERATE/fpd-editor/releases/tag/vscode-0.3.0
 [0.2.0]: https://github.com/FLEXCELERATE/fpd-editor/releases/tag/vscode-0.2.0
 [0.1.2]: https://github.com/FLEXCELERATE/fpd-editor/releases/tag/vscode-0.1.2
 [0.1.1]: https://github.com/FLEXCELERATE/fpd-editor/releases/tag/vscode-0.1.1

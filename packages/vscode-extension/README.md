@@ -2,7 +2,7 @@
 
 > Language support for FPD (Formalized Process Description, VDI 3682) — a text-first approach to process engineering diagrams.
 
-[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)]()
+[![Version](https://img.shields.io/visual-studio-marketplace/v/FLEXCELERATE.fpd-vscode-extension)](https://marketplace.visualstudio.com/items?itemName=FLEXCELERATE.fpd-vscode-extension)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.85.0+-green.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)]()
 
@@ -49,14 +49,19 @@ Export your diagrams in multiple formats via Command Palette (`Ctrl+Shift+P`):
 
 ## Installation
 
+### From VS Code Marketplace (recommended)
+
+1. Open VS Code
+2. Go to Extensions (`Ctrl+Shift+X`)
+3. Search for **"FPD"** by FLEXCELERATE
+4. Click **Install**
+
 ### From VSIX File
 
 1. Download the latest `.vsix` file from the [releases page](https://github.com/FLEXCELERATE/fpd-editor/releases)
 2. Open VS Code
-3. Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac)
-4. Type "Install from VSIX" and select the command
-5. Navigate to the downloaded `.vsix` file and select it
-6. Reload VS Code when prompted
+3. Press `Ctrl+Shift+P` → "Extensions: Install from VSIX..."
+4. Select the downloaded `.vsix` file
 
 ### Prerequisites
 
