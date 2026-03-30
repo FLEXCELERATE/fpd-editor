@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { exportXml, exportText, downloadBlob } from "../../services/api";
 import { exportSvgToPdf, exportSvgToSvg, exportSvgToPng } from "../../services/pdfExport";
 import { useEditorContext } from "../../context/EditorContext";
+import { showToast } from "../Toast/Toast";
 
 interface ExportMenuProps {
   getSvgElement?: () => SVGSVGElement | null;
@@ -29,7 +30,9 @@ const FORMAT_EXTENSIONS: Record<ExportFormat, string> = {
 };
 
 function sanitizeFilename(title: string): string {
-  return title.replace(/["/\\]/g, "_").trim() || "diagram";
+  return title
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
+    .trim() || "diagram";
 }
 
 export function ExportMenu({ getSvgElement, processTitle }: ExportMenuProps) {
@@ -47,7 +50,7 @@ export function ExportMenu({ getSvgElement, processTitle }: ExportMenuProps) {
           // Browser-based export from the rendered SVG
           const svgEl = getSvgElement?.();
           if (!svgEl) {
-            alert("No diagram to export. Write FPD text to create a diagram first.");
+            showToast("No diagram to export. Write FPD text to create a diagram first.");
             return;
           }
           const fname = baseFilename + FORMAT_EXTENSIONS[format];
@@ -71,7 +74,7 @@ export function ExportMenu({ getSvgElement, processTitle }: ExportMenuProps) {
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : "Export failed";
-        alert(message);
+        showToast(message);
       } finally {
         setExporting(false);
       }

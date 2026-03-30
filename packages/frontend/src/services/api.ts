@@ -19,19 +19,18 @@ interface ApiError {
   error: string;
 }
 
+async function handleError(response: Response): Promise<never> {
+  const body = await response.json().catch(() => ({ error: response.statusText }));
+  throw new Error((body as ApiError).error || `Request failed: ${response.status}`);
+}
+
 async function handleResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error((body as ApiError).error || `Request failed: ${response.status}`);
-  }
+  if (!response.ok) await handleError(response);
   return response.json() as Promise<T>;
 }
 
 async function handleBlobResponse(response: Response): Promise<Blob> {
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error((body as ApiError).error || `Request failed: ${response.status}`);
-  }
+  if (!response.ok) await handleError(response);
   return response.blob();
 }
 
@@ -55,10 +54,7 @@ export async function renderSvg(source: string): Promise<string> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ source }),
   });
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error((body as ApiError).error || `Request failed: ${response.status}`);
-  }
+  if (!response.ok) await handleError(response);
   return response.text();
 }
 

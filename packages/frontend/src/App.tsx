@@ -5,6 +5,7 @@ import { DiagramRenderer, DiagramRendererRef } from './components/Diagram/Diagra
 import { ViewportControls } from './components/Diagram/ViewportControls';
 import { Toolbar } from './components/Toolbar/Toolbar';
 import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
+import { ToastContainer } from './components/Toast/Toast';
 import { EditorProvider } from './context/EditorContext';
 import { useFpdParser } from './hooks/useFpdParser';
 import { useDiagramSync } from './hooks/useDiagramSync';
@@ -259,6 +260,7 @@ export default function App() {
           )}
         </div>
       </main>
+      <ToastContainer />
     </div>
     </EditorProvider>
   );

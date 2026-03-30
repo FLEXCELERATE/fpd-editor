@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { importFile } from "../../services/api";
 import type { ProcessModel } from "../../types/fpd";
+import { showToast } from "../Toast/Toast";
 
 interface ImportButtonProps {
   onImport: (source: string, model: ProcessModel) => void;
@@ -31,7 +32,7 @@ export function ImportButton({ onImport, disabled }: ImportButtonProps) {
         onImport(response.source, response.model);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Import failed";
-        alert(message);
+        showToast(message);
       } finally {
         setImporting(false);
         // Reset input so the same file can be re-imported
