@@ -146,3 +146,54 @@ describe('POST /api/import', () => {
         expect(res.json()).toHaveProperty('error');
     });
 });
+
+describe('POST /api/export/source/pdf', () => {
+    it('returns PDF for valid source', async () => {
+        const res = await app.inject({
+            method: 'POST',
+            url: '/api/export/source/pdf',
+            payload: { source: VALID_SOURCE },
+        });
+        expect(res.statusCode).toBe(200);
+        expect(res.headers['content-type']).toContain('application/pdf');
+        expect(res.rawPayload.length).toBeGreaterThan(0);
+    });
+});
+
+describe('Validation edge cases', () => {
+    it('POST /api/parse returns 400 for whitespace-only source', async () => {
+        const res = await app.inject({
+            method: 'POST',
+            url: '/api/parse',
+            payload: { source: '   \n\t  ' },
+        });
+        expect(res.statusCode).toBe(400);
+    });
+
+    it('POST /api/parse returns 400 for wrong field name', async () => {
+        const res = await app.inject({
+            method: 'POST',
+            url: '/api/parse',
+            payload: { wrongField: VALID_SOURCE },
+        });
+        expect(res.statusCode).toBe(400);
+    });
+
+    it('POST /api/import returns 400 when filename is missing', async () => {
+        const res = await app.inject({
+            method: 'POST',
+            url: '/api/import',
+            payload: { content: VALID_FPD_CONTENT },
+        });
+        expect(res.statusCode).toBe(400);
+    });
+
+    it('POST /api/parse rejects oversized source', async () => {
+        const res = await app.inject({
+            method: 'POST',
+            url: '/api/parse',
+            payload: { source: 'x'.repeat(600_000) },
+        });
+        expect(res.statusCode).toBe(400);
+    });
+});

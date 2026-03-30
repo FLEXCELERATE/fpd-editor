@@ -159,6 +159,9 @@ importers:
       typescript:
         specifier: ^5.3.x
         version: 5.9.3
+      vitest:
+        specifier: ^4.1.2
+        version: 4.1.2(@types/node@20.19.37)(jsdom@25.0.1)(vite@6.4.1(@types/node@20.19.37)(tsx@4.21.0))
 
   tooling/eslint-config:
     dependencies:
