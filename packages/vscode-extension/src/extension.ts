@@ -76,7 +76,10 @@ async function exportDiagram(format: ExportFormat): Promise<void> {
     } catch (error) {
         const raw = error instanceof Error ? error.message : String(error);
         // Sanitize: strip file paths and internal details
-        const msg = raw.replace(/[A-Z]:\\[^\s:]+/gi, '<path>').replace(/\/[^\s:]+/g, '<path>');
+        const msg = raw
+            .replace(/\\\\[^\s:]+/g, '<path>')           // UNC paths \\server\share
+            .replace(/[A-Z]:\\[^\s:]+/gi, '<path>')       // Windows paths C:\...
+            .replace(/\/[^\s:]+/g, '<path>');              // Unix paths /...
         vscode.window.showErrorMessage(`Export failed: ${msg}`);
     }
 }

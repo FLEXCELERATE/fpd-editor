@@ -26,7 +26,10 @@
     "diagram"
   ],
   "extensionDependencies": [],
-  "activationEvents": ["onLanguage:fpd"],
+  "activationEvents": [
+    "onLanguage:fpd",
+    "onCommand:fpd.preview.show"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "languages": [
@@ -115,9 +118,8 @@
     "vscode:prepublish": "npm run package",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "node ./out/test/runTest.js",
+    "test": "vitest run",
     "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
     "package": "npm run esbuild-base -- --minify",
     "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch"
@@ -131,7 +133,8 @@
     "@vscode/vsce": "^2.22.0",
     "esbuild": "^0.27.4",
     "eslint": "^8.x",
-    "typescript": "^5.3.x"
+    "typescript": "^5.3.x",
+    "vitest": "^4.1.2"
   },
   "dependencies": {
     "@fpd-editor/core": "workspace:*"

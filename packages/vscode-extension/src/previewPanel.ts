@@ -153,7 +153,7 @@ export class PreviewPanel {
     <div id="preview">
         <div class="placeholder">Loading diagram...</div>
     </div>
-    <div id="tooltip" style="display:none; position:fixed; pointer-events:none; background:#333; color:#fff; padding:6px 10px; border-radius:4px; font-size:12px; font-family:sans-serif; border:1px solid #666; z-index:1000; white-space:nowrap;"></div>
+    <div id="tooltip" style="display:none; position:fixed; pointer-events:none; background:var(--vscode-editorHoverWidget-background, #333); color:var(--vscode-editorHoverWidget-foreground, #fff); padding:6px 10px; border-radius:4px; font-size:12px; font-family:var(--vscode-font-family, sans-serif); border:1px solid var(--vscode-editorHoverWidget-border, #666); z-index:1000; white-space:nowrap;"></div>
     <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
         const preview = document.getElementById('preview');
