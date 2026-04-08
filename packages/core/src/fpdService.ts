@@ -43,8 +43,8 @@ export class FpdService {
 
     /** Export FPD source text to PDF format. */
     async exportPdf(source: string): Promise<Uint8Array> {
-        const { model } = this.parse(source);
-        return exportPdf(model);
+        const { model, diagram } = this.parse(source);
+        return exportPdf(diagram, { title: model.title });
     }
 
     /** Export FPD source text to VDI 3682 XML. */

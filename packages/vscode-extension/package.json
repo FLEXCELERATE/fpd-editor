@@ -2,7 +2,7 @@
   "name": "fpd-vscode-extension",
   "displayName": "FPD - Formalized Process Description (VDI 3682)",
   "description": "Syntax highlighting, IntelliSense, diagnostics, and live diagram preview for FPD (Formalized Process Description, VDI 3682)",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "publisher": "FLEXCELERATE",
   "icon": "images/icon.png",
   "repository": {
@@ -60,6 +60,10 @@
         "title": "FPD: Export SVG"
       },
       {
+        "command": "fpd.export.pdf",
+        "title": "FPD: Export PDF"
+      },
+      {
         "command": "fpd.export.xml",
         "title": "FPD: Export VDI 3682 XML"
       },
@@ -83,6 +87,10 @@
         },
         {
           "command": "fpd.export.svg",
+          "when": "resourceLangId == fpd"
+        },
+        {
+          "command": "fpd.export.pdf",
           "when": "resourceLangId == fpd"
         },
         {

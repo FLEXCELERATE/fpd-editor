@@ -1,14 +1,18 @@
 /**
- * PDF exporter that renders a ProcessModel as a PDF document
- * with configurable page size and orientation.
+ * PDF exporter that renders a DiagramLayout as a PDF document.
  *
- * Port of backend/export/pdf_exporter.py using pdf-lib instead of reportlab.
+ * Uses the same layout, shapes, and colours as the SVG renderer
+ * so the PDF output matches the preview exactly.
  */
 
 import { PDFDocument, PDFPage, rgb, RGB, LineCapStyle } from 'pdf-lib';
 
-import { FlowType, StateType } from '../models/fpdModel';
-import { ProcessModel } from '../models/processModel';
+import {
+    LayoutElement,
+    LayoutConnection,
+    SystemLimitRect,
+    DiagramLayout,
+} from '../services/layout';
 
 // ---------------------------------------------------------------------------
 // Public option types
@@ -21,34 +25,12 @@ export interface PdfOptions {
     pageSize?: PageSizeOption;
     orientation?: OrientationOption;
     author?: string;
+    title?: string;
 }
 
 // ---------------------------------------------------------------------------
-// Layout constants (VDI 3682 standard)
+// Colour scheme (matches svgRenderer / frontend designTokens)
 // ---------------------------------------------------------------------------
-
-const ELEMENT_WIDTH = 140;
-const ELEMENT_HEIGHT = 60;
-const PO_WIDTH = 160;
-const PO_HEIGHT = 70;
-const TR_WIDTH = 140;
-const TR_HEIGHT = 50;
-const H_SPACING = 80;
-const V_SPACING = 100;
-const PADDING = 40;
-const FONT_SIZE = 13;
-const TITLE_FONT_SIZE = 18;
-const TITLE_BLOCK_HEIGHT = 60;
-const MARGIN = 20;
-
-// ---------------------------------------------------------------------------
-// VDI 3682 colour scheme
-// ---------------------------------------------------------------------------
-
-interface ColorPair {
-    fill: RGB;
-    stroke: RGB;
-}
 
 function hexToRgb(hex: string): RGB {
     const h = hex.replace('#', '');
@@ -59,41 +41,30 @@ function hexToRgb(hex: string): RGB {
     );
 }
 
-const COLORS: Record<StateType, ColorPair> = {
-    product: { fill: hexToRgb('#D4E6F1'), stroke: hexToRgb('#2980B9') },
-    energy: { fill: hexToRgb('#FADBD8'), stroke: hexToRgb('#E74C3C') },
-    information: { fill: hexToRgb('#D5F5E3'), stroke: hexToRgb('#27AE60') },
+const COLORS: Record<string, RGB> = {
+    product: hexToRgb('#E51400'),
+    energy: hexToRgb('#6E9AD1'),
+    information: hexToRgb('#2F4DA1'),
+    processOperator: hexToRgb('#11AE4B'),
+    technicalResource: hexToRgb('#888889'),
+    flow: hexToRgb('#000000'),
+    alternativeFlow: hexToRgb('#f5a623'),
+    parallelFlow: hexToRgb('#4a90d9'),
+    usage: hexToRgb('#888889'),
+    crossSystem: hexToRgb('#9b59b6'),
+    black: hexToRgb('#000000'),
+    white: hexToRgb('#ffffff'),
 };
 
-const PO_COLOR: ColorPair = {
-    fill: hexToRgb('#F9E79F'),
-    stroke: hexToRgb('#F39C12'),
-};
-
-const TR_COLOR: ColorPair = {
-    fill: hexToRgb('#E8DAEF'),
-    stroke: hexToRgb('#8E44AD'),
-};
-
-interface FlowStyle {
-    stroke: RGB;
-    dash: number[] | null;
-}
-
-const FLOW_STYLES: Record<FlowType, FlowStyle> = {
-    flow: { stroke: hexToRgb('#2C3E50'), dash: null },
-    alternativeFlow: { stroke: hexToRgb('#7F8C8D'), dash: [6, 4] },
-    parallelFlow: { stroke: hexToRgb('#2C3E50'), dash: null },
-};
-
-const TEXT_COLOR = hexToRgb('#2C3E50');
-const GREY_COLOR = hexToRgb('#7F8C8D');
+const STROKE_WIDTH = 1.5;
+const STATE_LABEL_FONT_SIZE = 11;
+const PROCESS_LABEL_FONT_SIZE = 13;
+const SYSTEM_LIMIT_LABEL_FONT_SIZE = 12;
 
 // ---------------------------------------------------------------------------
 // Page size helpers
 // ---------------------------------------------------------------------------
 
-/** Base page dimensions in points (width, height). */
 const PAGE_SIZES: Record<PageSizeOption, [number, number]> = {
     A4: [595.28, 841.89],
     Letter: [612, 792],
@@ -111,182 +82,464 @@ function getPageSize(
 }
 
 // ---------------------------------------------------------------------------
-// Utility helpers
+// Content bounds (same logic as svgRenderer)
 // ---------------------------------------------------------------------------
 
-type Rect = [x: number, y: number, w: number, h: number];
+interface ContentBounds {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
 
-function truncateLabel(label: string, maxChars = 18): string {
-    if (label.length <= maxChars) {
-        return label;
+function computeContentBounds(
+    elements: LayoutElement[],
+    systemLimits: SystemLimitRect[],
+): ContentBounds {
+    const charW = STATE_LABEL_FONT_SIZE * 0.6;
+    const slCharW = SYSTEM_LIMIT_LABEL_FONT_SIZE * 0.6;
+
+    const allX: number[] = [];
+    const allY: number[] = [];
+    const allRight: number[] = [];
+    const allBottom: number[] = [];
+
+    for (const e of elements) {
+        allRight.push(e.x + e.width);
+        allBottom.push(e.y + e.height);
+        if (e.type === 'state') {
+            const longest = Math.max(e.id.length, (e.label || '').length);
+            const labelWidth = longest * charW;
+            const anchorX = e.x + e.width / 2 - 6;
+            allX.push(anchorX - labelWidth);
+            allY.push(e.y - 35);
+        } else {
+            allX.push(e.x);
+            allY.push(e.y);
+        }
     }
-    return label.substring(0, maxChars - 1) + '\u2026';
-}
 
-/**
- * Approximate width of a string in Helvetica at a given font size.
- * pdf-lib does not expose a synchronous stringWidth for the standard
- * fonts prior to embedding, so we use a rough heuristic
- * (average char width ~0.5 * fontSize).
- */
-function approxTextWidth(text: string, fontSize: number): number {
-    return text.length * fontSize * 0.5;
+    for (const sl of systemLimits) {
+        allX.push(sl.x);
+        allBottom.push(sl.y + sl.height);
+        const slLabelW = (sl.label || '').length * slCharW;
+        allRight.push(sl.x + sl.width + slLabelW);
+        allY.push(sl.y - SYSTEM_LIMIT_LABEL_FONT_SIZE - 5);
+    }
+
+    if (allX.length === 0) {
+        return { x: 0, y: 0, width: 800, height: 600 };
+    }
+
+    const margin = 50;
+    const minX = Math.min(...allX) - margin;
+    const minY = Math.min(...allY) - margin;
+    const maxX = Math.max(...allRight) + margin;
+    const maxY = Math.max(...allBottom) + margin;
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
 // ---------------------------------------------------------------------------
-// Drawing helpers
+// Routing (same logic as svgRenderer)
 // ---------------------------------------------------------------------------
 
-function drawRoundedRect(
-    page: PDFPage,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    _radius: number,
-    fillColor: RGB,
-    strokeColor: RGB,
-    strokeWidth = 2,
-    dash?: number[],
+type Point = [number, number];
+
+function centerOf(el: LayoutElement): Point {
+    return [el.x + el.width / 2, el.y + el.height / 2];
+}
+
+function determineSide(fromEl: LayoutElement, toEl: LayoutElement): string {
+    const [fcx, fcy] = centerOf(fromEl);
+    const [tcx, tcy] = centerOf(toEl);
+    const dx = tcx - fcx;
+    const dy = tcy - fcy;
+    if (Math.abs(dy) >= Math.abs(dx)) {
+        return dy >= 0 ? 'bottom' : 'top';
+    }
+    return dx >= 0 ? 'right' : 'left';
+}
+
+function portPosition(
+    el: LayoutElement,
+    side: string,
+    index: number,
+    count: number,
+): Point {
+    const { x, y, width: w, height: h } = el;
+    if (side === 'top') {
+        const sp = w / (count + 1);
+        return [x + sp * (index + 1), y];
+    }
+    if (side === 'bottom') {
+        const sp = w / (count + 1);
+        return [x + sp * (index + 1), y + h];
+    }
+    if (side === 'left') {
+        const sp = h / (count + 1);
+        return [x, y + sp * (index + 1)];
+    }
+    const sp = h / (count + 1);
+    return [x + w, y + sp * (index + 1)];
+}
+
+function orthogonalWaypoints(
+    src: Point,
+    tgt: Point,
+    sSide: string,
+    tSide: string,
+): Point[] {
+    const isVSrc = sSide === 'top' || sSide === 'bottom';
+    const isVTgt = tSide === 'top' || tSide === 'bottom';
+
+    if (isVSrc && isVTgt) {
+        if (src[0] === tgt[0]) return [src, tgt];
+        const midY = (src[1] + tgt[1]) / 2;
+        return [src, [src[0], midY], [tgt[0], midY], tgt];
+    }
+    if (!isVSrc && !isVTgt) {
+        if (src[1] === tgt[1]) return [src, tgt];
+        const midX = (src[0] + tgt[0]) / 2;
+        return [src, [midX, src[1]], [midX, tgt[1]], tgt];
+    }
+    if (isVSrc) return [src, [src[0], tgt[1]], tgt];
+    return [src, [tgt[0], src[1]], tgt];
+}
+
+interface RoutingMeta {
+    conn: LayoutConnection;
+    source: LayoutElement;
+    target: LayoutElement;
+    sourceSide: string;
+    targetSide: string;
+    isDirect: boolean;
+}
+
+interface PortGroupEntry {
+    metaIndex: number;
+    role: 'source' | 'target';
+}
+
+interface PortGroup {
+    element: LayoutElement;
+    side: string;
+    entries: PortGroupEntry[];
+}
+
+interface RoutedConnection {
+    conn: LayoutConnection;
+    points: Point[];
+}
+
+function computeRouting(
+    elements: LayoutElement[],
+    connections: LayoutConnection[],
+): RoutedConnection[] {
+    const lookup: Record<string, LayoutElement> = {};
+    for (const el of elements) lookup[el.id] = el;
+
+    const metas: RoutingMeta[] = [];
+    for (const conn of connections) {
+        const source = lookup[conn.sourceId];
+        const target = lookup[conn.targetId];
+        if (!source || !target) continue;
+        const sSide = conn.sourceSide || determineSide(source, target);
+        const tSide = conn.targetSide || determineSide(target, source);
+        const isDirect = (conn.flowType || 'flow') === 'alternativeFlow';
+        metas.push({ conn, source, target, sourceSide: sSide, targetSide: tSide, isDirect });
+    }
+
+    const portGroups: Record<string, PortGroup> = {};
+    for (let i = 0; i < metas.length; i++) {
+        const m = metas[i];
+        const sKey = `${m.source.id}:${m.sourceSide}`;
+        if (!portGroups[sKey]) {
+            portGroups[sKey] = { element: m.source, side: m.sourceSide, entries: [] };
+        }
+        portGroups[sKey].entries.push({ metaIndex: i, role: 'source' });
+
+        const tKey = `${m.target.id}:${m.targetSide}`;
+        if (!portGroups[tKey]) {
+            portGroups[tKey] = { element: m.target, side: m.targetSide, entries: [] };
+        }
+        portGroups[tKey].entries.push({ metaIndex: i, role: 'target' });
+    }
+
+    const sourcePorts: Record<number, Point> = {};
+    const targetPorts: Record<number, Point> = {};
+
+    for (const group of Object.values(portGroups)) {
+        const { element: el, side, entries } = group;
+        const useY = side === 'left' || side === 'right';
+        entries.sort((a, b) => {
+            const mA = metas[a.metaIndex];
+            const connA = a.role === 'source' ? mA.target : mA.source;
+            const mB = metas[b.metaIndex];
+            const connB = b.role === 'source' ? mB.target : mB.source;
+            return (useY ? centerOf(connA)[1] : centerOf(connA)[0]) -
+                   (useY ? centerOf(connB)[1] : centerOf(connB)[0]);
+        });
+        for (let idx = 0; idx < entries.length; idx++) {
+            const entry = entries[idx];
+            const port = portPosition(el, side, idx, entries.length);
+            if (entry.role === 'source') sourcePorts[entry.metaIndex] = port;
+            else targetPorts[entry.metaIndex] = port;
+        }
+    }
+
+    const routed: RoutedConnection[] = [];
+    for (let i = 0; i < metas.length; i++) {
+        const m = metas[i];
+        const sp = sourcePorts[i];
+        const tp = targetPorts[i];
+        if (!sp || !tp) continue;
+        const points = m.isDirect ? [sp, tp] : orthogonalWaypoints(sp, tp, m.sourceSide, m.targetSide);
+        routed.push({ conn: m.conn, points });
+    }
+    return routed;
+}
+
+// ---------------------------------------------------------------------------
+// PDF drawing helpers
+// ---------------------------------------------------------------------------
+
+/** Transform a diagram-space coordinate to PDF-space (flip Y). */
+function toPdfY(diagramY: number, bounds: ContentBounds, pageHeight: number, scale: number, offsetY: number): number {
+    return pageHeight - ((diagramY - bounds.y) * scale + offsetY);
+}
+
+function toPdfX(diagramX: number, bounds: ContentBounds, scale: number, offsetX: number): number {
+    return (diagramX - bounds.x) * scale + offsetX;
+}
+
+function autoFontSize(
+    lines: string[],
+    maxWidthPx: number,
+    defaultSize: number,
+    minSize: number = 7,
+): number {
+    const longest = lines.reduce((a, b) => (a.length >= b.length ? a : b), '');
+    const needed = longest.length * defaultSize * 0.6;
+    if (needed <= maxWidthPx) return defaultSize;
+    const scaled = longest.length > 0 ? (maxWidthPx / longest.length) / 0.6 : defaultSize;
+    return Math.max(minSize, scaled);
+}
+
+function drawPolyline(page: PDFPage, pts: Point[], color: RGB, thickness: number, dash?: number[]): void {
+    for (let i = 0; i < pts.length - 1; i++) {
+        page.drawLine({
+            start: { x: pts[i][0], y: pts[i][1] },
+            end: { x: pts[i + 1][0], y: pts[i + 1][1] },
+            color,
+            thickness,
+            dashArray: dash,
+            lineCap: LineCapStyle.Round,
+        });
+    }
+}
+
+function drawArrowhead(page: PDFPage, tip: Point, prev: Point, color: RGB, size: number = 6): void {
+    const dx = tip[0] - prev[0];
+    const dy = tip[1] - prev[1];
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len === 0) return;
+    const ux = dx / len;
+    const uy = dy / len;
+    const px = -uy;
+    const py = ux;
+    const base = [tip[0] - ux * size, tip[1] - uy * size];
+    const left = [base[0] + px * size / 2, base[1] + py * size / 2];
+    const right = [base[0] - px * size / 2, base[1] - py * size / 2];
+
+    const path = `M ${tip[0]} ${tip[1]} L ${left[0]} ${left[1]} L ${right[0]} ${right[1]} Z`;
+    page.drawSvgPath(path, { x: 0, y: 0, color, borderColor: color, borderWidth: 0.5 });
+}
+
+// ---------------------------------------------------------------------------
+// Element renderers
+// ---------------------------------------------------------------------------
+
+function drawState(
+    page: PDFPage, el: LayoutElement,
+    bounds: ContentBounds, pageHeight: number, scale: number, offsetX: number, offsetY: number,
 ): void {
+    const cx = toPdfX(el.x + el.width / 2, bounds, scale, offsetX);
+    const cy = toPdfY(el.y + el.height / 2, bounds, pageHeight, scale, offsetY);
+    const w = el.width * scale;
+    const h = el.height * scale;
+    const stateType = el.stateType || 'product';
+    const color = COLORS[stateType] || COLORS['product'];
+
+    if (stateType === 'energy') {
+        // Diamond
+        const path = `M ${cx} ${cy + h / 2} L ${cx + w / 2} ${cy} L ${cx} ${cy - h / 2} L ${cx - w / 2} ${cy} Z`;
+        page.drawSvgPath(path, { x: 0, y: 0, color, borderColor: COLORS['black'], borderWidth: STROKE_WIDTH });
+    } else if (stateType === 'information') {
+        // Hexagon
+        const qw = w * 0.25;
+        const path = `M ${cx - w / 2 + qw} ${cy + h / 2} L ${cx + w / 2 - qw} ${cy + h / 2} ` +
+            `L ${cx + w / 2} ${cy} L ${cx + w / 2 - qw} ${cy - h / 2} ` +
+            `L ${cx - w / 2 + qw} ${cy - h / 2} L ${cx - w / 2} ${cy} Z`;
+        page.drawSvgPath(path, { x: 0, y: 0, color, borderColor: COLORS['black'], borderWidth: STROKE_WIDTH });
+    } else {
+        // Circle (product)
+        const r = Math.min(w, h) / 2;
+        page.drawCircle({ x: cx, y: cy, size: r, color, borderColor: COLORS['black'], borderWidth: STROKE_WIDTH });
+    }
+
+    // Labels above shape
+    const label = el.label || el.id;
+    const hasName = label !== el.id;
+    const fontSize = STATE_LABEL_FONT_SIZE * scale;
+    const labelX = cx - 6 * scale;
+
+    if (hasName) {
+        page.drawText(el.id, { x: labelX - el.id.length * fontSize * 0.5, y: cy + h / 2 + 14 * scale, size: fontSize, color: COLORS['black'] });
+        page.drawText(label, { x: labelX - label.length * fontSize * 0.5, y: cy + h / 2 + 3 * scale, size: fontSize, color: COLORS['black'] });
+    } else {
+        page.drawText(el.id, { x: labelX - el.id.length * fontSize * 0.5, y: cy + h / 2 + 6 * scale, size: fontSize, color: COLORS['black'] });
+    }
+}
+
+function drawProcessOperator(
+    page: PDFPage, el: LayoutElement,
+    bounds: ContentBounds, pageHeight: number, scale: number, offsetX: number, offsetY: number,
+): void {
+    const px = toPdfX(el.x, bounds, scale, offsetX);
+    const py = toPdfY(el.y + el.height, bounds, pageHeight, scale, offsetY);
+    const w = el.width * scale;
+    const h = el.height * scale;
+
     page.drawRectangle({
-        x,
-        y,
-        width,
-        height,
-        // borderRadius not supported in pdf-lib; using sharp corners
-        color: fillColor,
-        borderColor: strokeColor,
-        borderWidth: strokeWidth,
-        borderDashArray: dash,
+        x: px, y: py, width: w, height: h,
+        color: COLORS['processOperator'],
+        borderColor: COLORS['black'],
+        borderWidth: STROKE_WIDTH,
     });
+
+    const label = el.label || el.id;
+    const hasName = label !== el.id;
+    const lines = hasName ? [el.id, label] : [el.id];
+    const fontSize = autoFontSize(lines, w - 12 * scale, PROCESS_LABEL_FONT_SIZE * scale, 7 * scale);
+    const cx = px + w / 2;
+    const cy = py + h / 2;
+
+    if (hasName) {
+        const idW = el.id.length * fontSize * 0.5;
+        const labelW = label.length * fontSize * 0.5;
+        page.drawText(el.id, { x: cx - idW / 2, y: cy + fontSize * 0.3, size: fontSize, color: COLORS['black'] });
+        page.drawText(label, { x: cx - labelW / 2, y: cy - fontSize * 0.9, size: fontSize, color: COLORS['black'] });
+    } else {
+        const idW = el.id.length * fontSize * 0.5;
+        page.drawText(el.id, { x: cx - idW / 2, y: cy - fontSize / 3, size: fontSize, color: COLORS['black'] });
+    }
 }
 
-function drawLine(
-    page: PDFPage,
-    x1: number,
-    y1: number,
-    x2: number,
-    y2: number,
-    color: RGB,
-    lineWidth: number,
-    dash?: number[],
+function drawTechnicalResource(
+    page: PDFPage, el: LayoutElement,
+    bounds: ContentBounds, pageHeight: number, scale: number, offsetX: number, offsetY: number,
 ): void {
-    page.drawLine({
-        start: { x: x1, y: y1 },
-        end: { x: x2, y: y2 },
-        color,
-        thickness: lineWidth,
-        dashArray: dash,
-        lineCap: LineCapStyle.Round,
-    });
-}
+    const px = toPdfX(el.x, bounds, scale, offsetX);
+    const py = toPdfY(el.y + el.height, bounds, pageHeight, scale, offsetY);
+    const w = el.width * scale;
+    const h = el.height * scale;
 
-function drawCenteredText(
-    page: PDFPage,
-    text: string,
-    cx: number,
-    cy: number,
-    fontSize: number,
-    color: RGB,
-    _fontFamily: 'Helvetica' | 'Helvetica-Bold' | 'Helvetica-Oblique' = 'Helvetica',
-): void {
-    // We have to manually offset so the text is roughly centred.
-    const textWidth = approxTextWidth(text, fontSize);
-    const x = cx - textWidth / 2;
-    // Baseline adjustment – move down by roughly 1/3 of font size so
-    // text appears vertically centred.
-    const y = cy - fontSize / 3;
-
-    page.drawText(text, {
-        x,
-        y,
-        size: fontSize,
-        color,
-        // pdf-lib font is set on embed; for standard fonts the family string
-        // is accepted directly when using the helpers below.  The caller is
-        // responsible for embedding fonts and passing them here if needed.
-        // For now we rely on the default Helvetica that pdf-lib uses.
-    });
-}
-
-function drawArrowhead(
-    page: PDFPage,
-    tipX: number,
-    tipY: number,
-    pointsRight: boolean,
-    color: RGB,
-    size = 8,
-): void {
-    const dir = pointsRight ? -1 : 1;
-    const x1 = tipX + dir * size;
-    const y1Top = tipY + size / 2;
-    const y1Bot = tipY - size / 2;
-
-    // Draw filled triangle as three lines + filled polygon.
-    // pdf-lib does not have a dedicated polygon fill, but drawSvgPath works.
-    const path = pointsRight
-        ? `M ${tipX} ${tipY} L ${x1} ${y1Top} L ${x1} ${y1Bot} Z`
-        : `M ${tipX} ${tipY} L ${x1} ${y1Top} L ${x1} ${y1Bot} Z`;
-
-    // Use drawSvgPath which handles filled polygons.
+    // Rounded rectangle (pdf-lib drawRectangle doesn't support borderRadius,
+    // so we approximate with an SVG path with arcs)
+    const r = Math.min(20 * scale, w / 2, h / 2);
+    const path = `M ${px + r} ${py} ` +
+        `L ${px + w - r} ${py} A ${r} ${r} 0 0 1 ${px + w} ${py + r} ` +
+        `L ${px + w} ${py + h - r} A ${r} ${r} 0 0 1 ${px + w - r} ${py + h} ` +
+        `L ${px + r} ${py + h} A ${r} ${r} 0 0 1 ${px} ${py + h - r} ` +
+        `L ${px} ${py + r} A ${r} ${r} 0 0 1 ${px + r} ${py} Z`;
     page.drawSvgPath(path, {
-        x: 0,
-        y: 0,
-        color,
-        borderColor: color,
-        borderWidth: 1,
+        x: 0, y: 0,
+        color: COLORS['technicalResource'],
+        borderColor: COLORS['black'],
+        borderWidth: STROKE_WIDTH,
     });
+
+    const label = el.label || el.id;
+    const hasName = label !== el.id;
+    const lines = hasName ? [el.id, label] : [el.id];
+    const fontSize = autoFontSize(lines, w - 24 * scale, PROCESS_LABEL_FONT_SIZE * scale, 7 * scale);
+    const cx = px + w / 2;
+    const cy = py + h / 2;
+
+    if (hasName) {
+        const idW = el.id.length * fontSize * 0.5;
+        const labelW = label.length * fontSize * 0.5;
+        page.drawText(el.id, { x: cx - idW / 2, y: cy + fontSize * 0.3, size: fontSize, color: COLORS['black'] });
+        page.drawText(label, { x: cx - labelW / 2, y: cy - fontSize * 0.9, size: fontSize, color: COLORS['black'] });
+    } else {
+        const idW = el.id.length * fontSize * 0.5;
+        page.drawText(el.id, { x: cx - idW / 2, y: cy - fontSize / 3, size: fontSize, color: COLORS['black'] });
+    }
 }
 
-function drawTitleBlock(
-    page: PDFPage,
-    model: ProcessModel,
-    pageWidth: number,
-    _pageHeight: number,
+function drawSystemLimit(
+    page: PDFPage, sl: SystemLimitRect,
+    bounds: ContentBounds, pageHeight: number, scale: number, offsetX: number, offsetY: number,
 ): void {
-    const blockY = MARGIN;
-    const blockHeight = TITLE_BLOCK_HEIGHT;
+    const px = toPdfX(sl.x, bounds, scale, offsetX);
+    const py = toPdfY(sl.y + sl.height, bounds, pageHeight, scale, offsetY);
+    const w = sl.width * scale;
+    const h = sl.height * scale;
 
-    // Border rectangle
     page.drawRectangle({
-        x: MARGIN,
-        y: blockY,
-        width: pageWidth - 2 * MARGIN,
-        height: blockHeight,
-        borderColor: TEXT_COLOR,
-        borderWidth: 1,
+        x: px, y: py, width: w, height: h,
+        borderColor: COLORS['black'],
+        borderWidth: STROKE_WIDTH,
+        borderDashArray: [10, 12],
     });
 
-    // Process title (bold, 14pt)
-    page.drawText(`Process: ${model.title}`, {
-        x: MARGIN + 10,
-        y: blockY + blockHeight - 25,
-        size: 14,
-        color: TEXT_COLOR,
-    });
+    if (sl.label) {
+        const fontSize = SYSTEM_LIMIT_LABEL_FONT_SIZE * scale;
+        page.drawText(sl.label, {
+            x: px + w,
+            y: py + h + 5 * scale,
+            size: fontSize,
+            color: COLORS['black'],
+        });
+    }
+}
 
-    // Export date
-    const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const exportDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+function drawConnection(
+    page: PDFPage, routed: RoutedConnection,
+    bounds: ContentBounds, pageHeight: number, scale: number, offsetX: number, offsetY: number,
+): void {
+    const { conn, points } = routed;
+    if (points.length < 2) return;
 
-    page.drawText(`Exported: ${exportDate}`, {
-        x: MARGIN + 10,
-        y: blockY + blockHeight - 45,
-        size: 10,
-        color: TEXT_COLOR,
-    });
+    // Transform points to PDF space
+    const pdfPts: Point[] = points.map(([x, y]) => [
+        toPdfX(x, bounds, scale, offsetX),
+        toPdfY(y, bounds, pageHeight, scale, offsetY),
+    ]);
 
-    // VDI 3682 label (right side)
-    const vdiLabel = 'VDI 3682 Formalized Process Description';
-    const labelWidth = approxTextWidth(vdiLabel, 9);
-    page.drawText(vdiLabel, {
-        x: pageWidth - MARGIN - labelWidth - 10,
-        y: blockY + 10,
-        size: 9,
-        color: GREY_COLOR,
-    });
+    let color = COLORS['flow'];
+    let dash: number[] | undefined;
+    let thickness = STROKE_WIDTH;
+
+    if (conn.isCrossSystem) {
+        color = COLORS['crossSystem'];
+        dash = [8, 4];
+    } else if (conn.isUsage) {
+        color = COLORS['usage'];
+        dash = [6, 4];
+    }
+
+    drawPolyline(page, pdfPts, color, thickness, dash);
+
+    // Arrowhead at last segment
+    const tip = pdfPts[pdfPts.length - 1];
+    const prev = pdfPts[pdfPts.length - 2];
+    drawArrowhead(page, tip, prev, color);
+
+    // Usage gets arrowhead at start too
+    if (conn.isUsage && pdfPts.length >= 2) {
+        drawArrowhead(page, pdfPts[0], pdfPts[1], color);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -294,261 +547,79 @@ function drawTitleBlock(
 // ---------------------------------------------------------------------------
 
 /**
- * Render a ProcessModel as a PDF document.
+ * Render a DiagramLayout as a PDF document.
  *
- * Lays out states on the left and right of process operators, with
- * technical resources below their associated operators.  Includes a
- * title block with process name, date, and VDI 3682 reference.
- *
- * @param model   The process model to render.
- * @param options Optional page size, orientation, and author metadata.
- * @returns       Uint8Array containing the PDF bytes.
+ * Uses the same positions and shapes as the SVG renderer so
+ * the output matches the preview exactly.
  */
 export async function exportPdf(
-    model: ProcessModel,
+    diagram: DiagramLayout,
     options?: PdfOptions,
 ): Promise<Uint8Array> {
     const pageSize: PageSizeOption = options?.pageSize ?? 'A4';
     const orientation: OrientationOption = options?.orientation ?? 'landscape';
     const author: string | undefined = options?.author;
+    const title: string | undefined = options?.title;
 
-    // Page dimensions
     const [pageWidth, pageHeight] = getPageSize(pageSize, orientation);
 
-    // Create PDF document
+    const elements = diagram.elements || [];
+    const connections = diagram.connections || [];
+    const systemLimits = diagram.systemLimits || [];
+
+    // Compute bounds and routing (same as SVG renderer)
+    const bounds = computeContentBounds(elements, systemLimits);
+    const routed = computeRouting(elements, connections);
+
+    // Compute scale to fit diagram on page with margins
+    const margin = 40;
+    const availW = pageWidth - 2 * margin;
+    const availH = pageHeight - 2 * margin;
+    const scaleX = bounds.width > 0 ? availW / bounds.width : 1;
+    const scaleY = bounds.height > 0 ? availH / bounds.height : 1;
+    const scale = Math.min(scaleX, scaleY, 1); // never upscale
+
+    // Center the diagram on the page
+    const scaledW = bounds.width * scale;
+    const scaledH = bounds.height * scale;
+    const offsetX = margin + (availW - scaledW) / 2;
+    const offsetY = margin + (availH - scaledH) / 2;
+
+    // Create PDF
     const pdfDoc = await PDFDocument.create();
-
-    // Metadata
-    pdfDoc.setTitle(model.title);
+    if (title) pdfDoc.setTitle(title);
     pdfDoc.setSubject('VDI 3682 Formalized Process Description');
-    pdfDoc.setCreator('Text-Based FPD Tool');
-    if (author) {
-        pdfDoc.setAuthor(author);
-    }
+    pdfDoc.setCreator('FPD Editor');
+    if (author) pdfDoc.setAuthor(author);
 
-    // Add a single page
     const page = pdfDoc.addPage([pageWidth, pageHeight]);
 
-    // Available drawing area (above title block)
-    const drawAreaY = MARGIN + TITLE_BLOCK_HEIGHT + MARGIN;
-    // const drawAreaHeight = pageHeight - drawAreaY - PADDING;
+    // White background
+    page.drawRectangle({
+        x: 0, y: 0, width: pageWidth, height: pageHeight,
+        color: COLORS['white'],
+    });
 
-    // ------------------------------------------------------------------
-    // Build position map
-    // ------------------------------------------------------------------
-    const positions = new Map<string, Rect>();
-
-    // Determine input / output states from flows
-    const inputStateIds = new Set<string>();
-    const outputStateIds = new Set<string>();
-    const poIds = new Set(model.processOperators.map((po) => po.id));
-
-    for (const flow of model.flows) {
-        if (poIds.has(flow.targetRef)) {
-            inputStateIds.add(flow.sourceRef);
-        }
-        if (poIds.has(flow.sourceRef)) {
-            outputStateIds.add(flow.targetRef);
-        }
+    // System limits
+    for (const sl of systemLimits) {
+        drawSystemLimit(page, sl, bounds, pageHeight, scale, offsetX, offsetY);
     }
 
-    // Unconnected states go to the input side
-    const allStateIds = new Set(model.states.map((s) => s.id));
-    for (const sid of allStateIds) {
-        if (!inputStateIds.has(sid) && !outputStateIds.has(sid)) {
-            inputStateIds.add(sid);
+    // Connections
+    for (const r of routed) {
+        drawConnection(page, r, bounds, pageHeight, scale, offsetX, offsetY);
+    }
+
+    // Elements
+    for (const el of elements) {
+        if (el.type === 'state') {
+            drawState(page, el, bounds, pageHeight, scale, offsetX, offsetY);
+        } else if (el.type === 'processOperator') {
+            drawProcessOperator(page, el, bounds, pageHeight, scale, offsetX, offsetY);
+        } else if (el.type === 'technicalResource') {
+            drawTechnicalResource(page, el, bounds, pageHeight, scale, offsetX, offsetY);
         }
     }
 
-    // Column x-positions
-    const colInputX = PADDING;
-    const colPoX = PADDING + ELEMENT_WIDTH + H_SPACING;
-    const colOutputX = colPoX + PO_WIDTH + H_SPACING;
-
-    const titleOffset = model.title ? TITLE_FONT_SIZE + PADDING : 0;
-    const baseY = drawAreaY + titleOffset;
-
-    // Place input states
-    const inputStates = model.states.filter((s) => inputStateIds.has(s.id));
-    for (let i = 0; i < inputStates.length; i++) {
-        const y = baseY + i * (ELEMENT_HEIGHT + V_SPACING);
-        positions.set(inputStates[i].id, [colInputX, y, ELEMENT_WIDTH, ELEMENT_HEIGHT]);
-    }
-
-    // Place process operators
-    for (let i = 0; i < model.processOperators.length; i++) {
-        const y = baseY + i * (PO_HEIGHT + V_SPACING);
-        positions.set(model.processOperators[i].id, [colPoX, y, PO_WIDTH, PO_HEIGHT]);
-    }
-
-    // Place output states
-    const outputStates = model.states.filter((s) => outputStateIds.has(s.id));
-    for (let i = 0; i < outputStates.length; i++) {
-        const y = baseY + i * (ELEMENT_HEIGHT + V_SPACING);
-        positions.set(outputStates[i].id, [colOutputX, y, ELEMENT_WIDTH, ELEMENT_HEIGHT]);
-    }
-
-    // Place technical resources below their connected POs
-    const trMap = new Map<string, string>();
-    for (const usage of model.usages) {
-        trMap.set(usage.technicalResourceRef, usage.processOperatorRef);
-    }
-
-    for (const tr of model.technicalResources) {
-        const poRef = trMap.get(tr.id);
-        if (poRef && positions.has(poRef)) {
-            const [px, py, pw] = positions.get(poRef)!;
-            const tx = px + (pw - TR_WIDTH) / 2;
-            const ty = py + PO_HEIGHT + 40; // below the PO
-            positions.set(tr.id, [tx, ty, TR_WIDTH, TR_HEIGHT]);
-        } else {
-            // Place unconnected TRs at the bottom
-            const maxRows = Math.max(
-                inputStates.length,
-                model.processOperators.length,
-                outputStates.length,
-            );
-            const y = baseY + maxRows * (ELEMENT_HEIGHT + V_SPACING);
-            positions.set(tr.id, [colPoX, y, TR_WIDTH, TR_HEIGHT]);
-        }
-    }
-
-    // ------------------------------------------------------------------
-    // Flip y-coordinates from top-left layout to PDF bottom-left origin
-    // ------------------------------------------------------------------
-    const pdfPositions = new Map<string, Rect>();
-
-    if (positions.size > 0) {
-        let maxY = 0;
-        for (const [, [, y, , h]] of positions) {
-            if (y + h > maxY) {
-                maxY = y + h;
-            }
-        }
-
-        for (const [id, [x, y, w, h]] of positions) {
-            const pdfY = pageHeight - y - h;
-            pdfPositions.set(id, [x, pdfY, w, h]);
-        }
-    }
-
-    // ------------------------------------------------------------------
-    // Draw title
-    // ------------------------------------------------------------------
-    if (model.title) {
-        const titleX = pageWidth / 2;
-        const titleY = pageHeight - MARGIN - TITLE_FONT_SIZE;
-        drawCenteredText(page, model.title, titleX, titleY, TITLE_FONT_SIZE, TEXT_COLOR, 'Helvetica-Bold');
-    }
-
-    // ------------------------------------------------------------------
-    // Draw flows (lines with arrowheads)
-    // ------------------------------------------------------------------
-    for (const flow of model.flows) {
-        if (!pdfPositions.has(flow.sourceRef) || !pdfPositions.has(flow.targetRef)) {
-            continue;
-        }
-        const [sx, sy, sw, sh] = pdfPositions.get(flow.sourceRef)!;
-        const [tx, ty, tw, th] = pdfPositions.get(flow.targetRef)!;
-
-        // Default: connect right edge of source to left edge of target
-        let x1 = sx + sw;
-        const y1 = sy + sh / 2;
-        let x2 = tx;
-        const y2 = ty + th / 2;
-
-        // If target centre is to the left of source centre, reverse
-        if (tx + tw / 2 < sx + sw / 2) {
-            x1 = sx;
-            x2 = tx + tw;
-        }
-
-        const style = FLOW_STYLES[flow.flowType] ?? FLOW_STYLES.flow;
-        const strokeWidth = flow.flowType === 'parallelFlow' ? 3 : 1.5;
-
-        drawLine(
-            page,
-            x1, y1, x2, y2,
-            style.stroke,
-            strokeWidth,
-            style.dash ?? undefined,
-        );
-
-        // Arrowhead
-        const pointsRight = x2 > x1;
-        drawArrowhead(page, x2, y2, pointsRight, style.stroke);
-    }
-
-    // ------------------------------------------------------------------
-    // Draw usage connections (dashed lines)
-    // ------------------------------------------------------------------
-    for (const usage of model.usages) {
-        const poRef = usage.processOperatorRef;
-        const trRef = usage.technicalResourceRef;
-        if (!pdfPositions.has(poRef) || !pdfPositions.has(trRef)) {
-            continue;
-        }
-        const [px, py, pw] = pdfPositions.get(poRef)!;
-        const [trx, trY, trW, trH] = pdfPositions.get(trRef)!;
-
-        const x1 = px + pw / 2;
-        const y1 = py;           // bottom edge of PO (lower y in PDF coords)
-        const x2 = trx + trW / 2;
-        const y2 = trY + trH;    // top edge of TR
-
-        drawLine(page, x1, y1, x2, y2, TR_COLOR.stroke, 1.5, [4, 3]);
-    }
-
-    // ------------------------------------------------------------------
-    // Draw states (rounded rectangles with coloured fills)
-    // ------------------------------------------------------------------
-    for (const state of model.states) {
-        if (!pdfPositions.has(state.id)) {
-            continue;
-        }
-        const [x, y, w, h] = pdfPositions.get(state.id)!;
-        const colors = COLORS[state.stateType] ?? COLORS.product;
-        const label = truncateLabel(state.label || state.id);
-
-        drawRoundedRect(page, x, y, w, h, 10, colors.fill, colors.stroke);
-        drawCenteredText(page, label, x + w / 2, y + h / 2, FONT_SIZE, TEXT_COLOR);
-    }
-
-    // ------------------------------------------------------------------
-    // Draw process operators (rectangles)
-    // ------------------------------------------------------------------
-    for (const po of model.processOperators) {
-        if (!pdfPositions.has(po.id)) {
-            continue;
-        }
-        const [x, y, w, h] = pdfPositions.get(po.id)!;
-        const label = truncateLabel(po.label || po.id);
-
-        drawRoundedRect(page, x, y, w, h, 4, PO_COLOR.fill, PO_COLOR.stroke);
-        drawCenteredText(page, label, x + w / 2, y + h / 2, FONT_SIZE, TEXT_COLOR, 'Helvetica-Bold');
-    }
-
-    // ------------------------------------------------------------------
-    // Draw technical resources (dashed rectangles)
-    // ------------------------------------------------------------------
-    for (const tr of model.technicalResources) {
-        if (!pdfPositions.has(tr.id)) {
-            continue;
-        }
-        const [x, y, w, h] = pdfPositions.get(tr.id)!;
-        const label = truncateLabel(tr.label || tr.id);
-
-        drawRoundedRect(page, x, y, w, h, 4, TR_COLOR.fill, TR_COLOR.stroke, 2, [6, 3]);
-        drawCenteredText(page, label, x + w / 2, y + h / 2, FONT_SIZE, TEXT_COLOR);
-    }
-
-    // ------------------------------------------------------------------
-    // Draw title block at bottom
-    // ------------------------------------------------------------------
-    drawTitleBlock(page, model, pageWidth, pageHeight);
-
-    // ------------------------------------------------------------------
-    // Serialize and return
-    // ------------------------------------------------------------------
     return pdfDoc.save();
 }

@@ -9,10 +9,11 @@ import { StateManager } from './stateManager';
 let stateManager: StateManager | null = null;
 let outputChannel: vscode.OutputChannel | null = null;
 
-type ExportFormat = 'svg' | 'xml' | 'text';
+type ExportFormat = 'svg' | 'pdf' | 'xml' | 'text';
 
 const FORMAT_INFO: Record<ExportFormat, { extension: string; label: string }> = {
     svg: { extension: '.svg', label: 'SVG Image' },
+    pdf: { extension: '.pdf', label: 'PDF Document' },
     xml: { extension: '.xml', label: 'VDI 3682 XML' },
     text: { extension: '.fpd', label: 'FPD Text' },
 };
@@ -57,6 +58,9 @@ async function exportDiagram(format: ExportFormat): Promise<void> {
         switch (format) {
             case 'svg':
                 data = service.exportSvg(source);
+                break;
+            case 'pdf':
+                data = await service.exportPdf(source);
                 break;
             case 'xml':
                 data = service.exportXml(source);

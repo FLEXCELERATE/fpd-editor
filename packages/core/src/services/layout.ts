@@ -661,7 +661,12 @@ function _computeSingleSystemLayout(
         }
     }
 
-    // --- Phase 5: Compute system limit ---
+    // --- Phase 5: Compute system limit and place boundary states ---
+    //
+    // Left/right boundary states are distributed vertically around PO row
+    // centres — their Y positions are fixed and independent of the system
+    // limit.  We pre-compute those positions so the system limit is sized
+    // correctly in a single pass.
 
     const internalIds = new Set(internalStates.map(s => s.id));
     const coreElements = elements.filter(
@@ -670,7 +675,12 @@ function _computeSingleSystemLayout(
 
     let systemLimit: BoundsRect | null = null;
 
-    if (coreElements.length > 0 || boundaryTop.length > 0 || boundaryBottom.length > 0) {
+    const hasBoundaries = coreElements.length > 0 || boundaryTop.length > 0 || boundaryBottom.length > 0;
+
+    if (hasBoundaries) {
+        const slp = config.systemLimitPadding;
+
+        // --- Compute initial content bounds from core elements ---
         let slMinX: number;
         let slMinY: number;
         let slMaxX: number;
@@ -688,6 +698,7 @@ function _computeSingleSystemLayout(
             slMaxY = startY + PROCESS_H;
         }
 
+        // Horizontal space for left/right boundaries
         const leftValues = Object.values(boundaryLeft);
         const rightValues = Object.values(boundaryRight);
         const maxLeftCount = leftValues.length > 0 ? Math.max(...leftValues.map(v => v.length)) : 0;
@@ -699,6 +710,7 @@ function _computeSingleSystemLayout(
             slMaxX += STATE_MAX_W / 2 + config.hGap;
         }
 
+        // Horizontal space for top/bottom boundaries
         const topW = boundaryTop.length > 0
             ? boundaryTop.length * (STATE_MAX_W + config.hGap) - config.hGap
             : 0;
@@ -713,7 +725,7 @@ function _computeSingleSystemLayout(
             slMaxX += extra;
         }
 
-        // Extra vertical space when boundary states sit on top/bottom edges
+        // Vertical space for top/bottom boundaries
         if (boundaryTop.length > 0) {
             slMinY -= BOUNDARY_EXTRA_V;
         }
@@ -721,17 +733,32 @@ function _computeSingleSystemLayout(
             slMaxY += BOUNDARY_EXTRA_V;
         }
 
-        const slp = config.systemLimitPadding;
+        // Pre-compute Y positions of left/right boundary states (they are
+        // distributed around PO row centres, independent of system limit).
+        // Expand slMinY/slMaxY so the system limit encompasses them.
+        const allSideBoundaries: [string, typeof boundaryTop][] = [
+            ...Object.entries(boundaryLeft),
+            ...Object.entries(boundaryRight),
+        ];
+        for (const [rankStr, sideStates] of allSideBoundaries) {
+            const rank = parseInt(rankStr, 10);
+            const poY = poRowY[rank] ?? startY;
+            const rowCenterY = poY + PROCESS_H / 2;
+            const ys = _distributeCentered(sideStates.length, STATE_H, config.hGap, rowCenterY);
+            if (ys.length > 0) {
+                slMinY = Math.min(slMinY, ys[0]);
+                slMaxY = Math.max(slMaxY, ys[ys.length - 1] + STATE_H);
+            }
+        }
+
         systemLimit = {
             x: slMinX - slp,
             y: slMinY - slp,
             width: slMaxX - slMinX + slp * 2,
             height: slMaxY - slMinY + slp * 2,
         };
-    }
 
-    // Position boundary states on system limit edges
-    if (systemLimit) {
+        // --- Place boundary states on system limit edges ---
         const slLeft = systemLimit.x;
         const slRight = systemLimit.x + systemLimit.width;
         const slTop = systemLimit.y;
@@ -744,15 +771,9 @@ function _computeSingleSystemLayout(
             for (let i = 0; i < boundaryTop.length; i++) {
                 const s = boundaryTop[i];
                 elements.push({
-                    id: s.id,
-                    type: 'state',
-                    label: s.label,
-                    x: bTopXs[i],
-                    y: bTopY,
-                    width: STATE_MAX_W,
-                    height: STATE_H,
-                    stateType: s.stateType,
-                    lineNumber: s.lineNumber,
+                    id: s.id, type: 'state', label: s.label,
+                    x: bTopXs[i], y: bTopY, width: STATE_MAX_W, height: STATE_H,
+                    stateType: s.stateType, lineNumber: s.lineNumber,
                 });
             }
         }
@@ -763,15 +784,9 @@ function _computeSingleSystemLayout(
             for (let i = 0; i < boundaryBottom.length; i++) {
                 const s = boundaryBottom[i];
                 elements.push({
-                    id: s.id,
-                    type: 'state',
-                    label: s.label,
-                    x: bBotXs[i],
-                    y: bBotY,
-                    width: STATE_MAX_W,
-                    height: STATE_H,
-                    stateType: s.stateType,
-                    lineNumber: s.lineNumber,
+                    id: s.id, type: 'state', label: s.label,
+                    x: bBotXs[i], y: bBotY, width: STATE_MAX_W, height: STATE_H,
+                    stateType: s.stateType, lineNumber: s.lineNumber,
                 });
             }
         }
@@ -783,19 +798,12 @@ function _computeSingleSystemLayout(
             const rowCenterY = poY + PROCESS_H / 2;
             const ys = _distributeCentered(leftStates.length, STATE_H, config.hGap, rowCenterY);
             const bLeftX = slLeft - STATE_MAX_W / 2;
-
             for (let i = 0; i < leftStates.length; i++) {
                 const s = leftStates[i];
                 elements.push({
-                    id: s.id,
-                    type: 'state',
-                    label: s.label,
-                    x: bLeftX,
-                    y: ys[i],
-                    width: STATE_MAX_W,
-                    height: STATE_H,
-                    stateType: s.stateType,
-                    lineNumber: s.lineNumber,
+                    id: s.id, type: 'state', label: s.label,
+                    x: bLeftX, y: ys[i], width: STATE_MAX_W, height: STATE_H,
+                    stateType: s.stateType, lineNumber: s.lineNumber,
                 });
             }
         }
@@ -807,19 +815,12 @@ function _computeSingleSystemLayout(
             const rowCenterY = poY + PROCESS_H / 2;
             const ys = _distributeCentered(rightStates.length, STATE_H, config.hGap, rowCenterY);
             const bRightX = slRight - STATE_MAX_W / 2;
-
             for (let i = 0; i < rightStates.length; i++) {
                 const s = rightStates[i];
                 elements.push({
-                    id: s.id,
-                    type: 'state',
-                    label: s.label,
-                    x: bRightX,
-                    y: ys[i],
-                    width: STATE_MAX_W,
-                    height: STATE_H,
-                    stateType: s.stateType,
-                    lineNumber: s.lineNumber,
+                    id: s.id, type: 'state', label: s.label,
+                    x: bRightX, y: ys[i], width: STATE_MAX_W, height: STATE_H,
+                    stateType: s.stateType, lineNumber: s.lineNumber,
                 });
             }
         }
