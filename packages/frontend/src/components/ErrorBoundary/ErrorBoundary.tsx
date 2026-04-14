@@ -1,14 +1,14 @@
 import { Component, ReactNode } from 'react';
 
 interface ErrorBoundaryProps {
-  children: ReactNode;
-  fallback?: (error: Error, reset: () => void) => ReactNode;
-  componentName?: string;
+    children: ReactNode;
+    fallback?: (error: Error, reset: () => void) => ReactNode;
+    componentName?: string;
 }
 
 interface ErrorBoundaryState {
-  hasError: boolean;
-  error: Error | null;
+    hasError: boolean;
+    error: Error | null;
 }
 
 /**
@@ -28,73 +28,68 @@ interface ErrorBoundaryState {
  * ```
  */
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = {
-      hasError: false,
-      error: null,
-    };
-  }
-
-  /**
-   * Update state so the next render will show the fallback UI.
-   * This lifecycle is invoked after an error has been thrown by a descendant component.
-   */
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return {
-      hasError: true,
-      error,
-    };
-  }
-
-  /**
-   * Log error information for debugging.
-   * This lifecycle is invoked after an error has been thrown by a descendant component.
-   */
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-    const componentName = this.props.componentName || 'Component';
-
-    console.error(`[ErrorBoundary] Error in ${componentName}:`, error);
-    console.error('[ErrorBoundary] Component stack:', errorInfo.componentStack);
-  }
-
-  /**
-   * Reset the error boundary state to allow retry.
-   */
-  resetError = (): void => {
-    this.setState({
-      hasError: false,
-      error: null,
-    });
-  };
-
-  render(): ReactNode {
-    if (this.state.hasError && this.state.error) {
-      // If a custom fallback is provided, use it
-      if (this.props.fallback) {
-        return this.props.fallback(this.state.error, this.resetError);
-      }
-
-      // Default fallback UI
-      const componentName = this.props.componentName || 'Component';
-      return (
-        <div className="error-boundary">
-          <h3 className="error-boundary__title">
-            ⚠️ {componentName} Error
-          </h3>
-          <p className="error-boundary__message">
-            <strong>Error:</strong> {this.state.error.message}
-          </p>
-          <button
-            onClick={this.resetError}
-            className="error-boundary__retry"
-          >
-            Retry
-          </button>
-        </div>
-      );
+    constructor(props: ErrorBoundaryProps) {
+        super(props);
+        this.state = {
+            hasError: false,
+            error: null,
+        };
     }
 
-    return this.props.children;
-  }
+    /**
+     * Update state so the next render will show the fallback UI.
+     * This lifecycle is invoked after an error has been thrown by a descendant component.
+     */
+    static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+        return {
+            hasError: true,
+            error,
+        };
+    }
+
+    /**
+     * Log error information for debugging.
+     * This lifecycle is invoked after an error has been thrown by a descendant component.
+     */
+    componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
+        const componentName = this.props.componentName || 'Component';
+
+        console.error(`[ErrorBoundary] Error in ${componentName}:`, error);
+        console.error('[ErrorBoundary] Component stack:', errorInfo.componentStack);
+    }
+
+    /**
+     * Reset the error boundary state to allow retry.
+     */
+    resetError = (): void => {
+        this.setState({
+            hasError: false,
+            error: null,
+        });
+    };
+
+    render(): ReactNode {
+        if (this.state.hasError && this.state.error) {
+            // If a custom fallback is provided, use it
+            if (this.props.fallback) {
+                return this.props.fallback(this.state.error, this.resetError);
+            }
+
+            // Default fallback UI
+            const componentName = this.props.componentName || 'Component';
+            return (
+                <div className="error-boundary">
+                    <h3 className="error-boundary__title">⚠️ {componentName} Error</h3>
+                    <p className="error-boundary__message">
+                        <strong>Error:</strong> {this.state.error.message}
+                    </p>
+                    <button onClick={this.resetError} className="error-boundary__retry">
+                        Retry
+                    </button>
+                </div>
+            );
+        }
+
+        return this.props.children;
+    }
 }

@@ -144,7 +144,12 @@ export class Lexer {
             this.column++;
         }
         const value = '//' + this.source.substring(start, this.pos);
-        this.tokens.push({ type: TokenType.COMMENT, value: value.trim(), line: startLine, column: startCol });
+        this.tokens.push({
+            type: TokenType.COMMENT,
+            value: value.trim(),
+            line: startLine,
+            column: startCol,
+        });
     }
 
     private readDelimiter(): void {
@@ -186,7 +191,11 @@ export class Lexer {
         const startLine = this.line;
         this.advance(); // skip opening quote
         const start = this.pos;
-        while (this.pos < this.source.length && this.source[this.pos] !== '"' && this.source[this.pos] !== '\n') {
+        while (
+            this.pos < this.source.length &&
+            this.source[this.pos] !== '"' &&
+            this.source[this.pos] !== '\n'
+        ) {
             this.pos++;
             this.column++;
         }
@@ -217,15 +226,28 @@ export class Lexer {
         const startCol = this.column;
         const startLine = this.line;
         const start = this.pos;
-        while (this.pos < this.source.length && (this.isAlphaNumeric(this.source[this.pos]) || this.source[this.pos] === '_')) {
+        while (
+            this.pos < this.source.length &&
+            (this.isAlphaNumeric(this.source[this.pos]) || this.source[this.pos] === '_')
+        ) {
             this.pos++;
             this.column++;
         }
         const word = this.source.substring(start, this.pos);
         if (KEYWORDS.has(word)) {
-            this.tokens.push({ type: TokenType.KEYWORD, value: word, line: startLine, column: startCol });
+            this.tokens.push({
+                type: TokenType.KEYWORD,
+                value: word,
+                line: startLine,
+                column: startCol,
+            });
         } else {
-            this.tokens.push({ type: TokenType.IDENTIFIER, value: word, line: startLine, column: startCol });
+            this.tokens.push({
+                type: TokenType.IDENTIFIER,
+                value: word,
+                line: startLine,
+                column: startCol,
+            });
         }
     }
 

@@ -4,13 +4,25 @@ import { z } from 'zod/v4';
 
 /** Schema for endpoints that accept FPD source text. */
 export const sourceSchema = z.object({
-    source: z.string().trim().min(1, 'Field "source" must not be empty').max(500_000, 'Source text too large (max 500KB)'),
+    source: z
+        .string()
+        .trim()
+        .min(1, 'Field "source" must not be empty')
+        .max(500_000, 'Source text too large (max 500KB)'),
 });
 
 /** Schema for the import endpoint. */
 export const importSchema = z.object({
-    content: z.string().trim().min(1, 'Field "content" must not be empty').max(500_000, 'Content too large (max 500KB)'),
-    filename: z.string().trim().min(1, 'Field "filename" must not be empty').max(255, 'Filename too long'),
+    content: z
+        .string()
+        .trim()
+        .min(1, 'Field "content" must not be empty')
+        .max(500_000, 'Content too large (max 500KB)'),
+    filename: z
+        .string()
+        .trim()
+        .min(1, 'Field "filename" must not be empty')
+        .max(255, 'Filename too long'),
 });
 
 export type SourceInput = z.infer<typeof sourceSchema>;

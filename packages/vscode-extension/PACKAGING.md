@@ -41,12 +41,12 @@ Or in VS Code: `Ctrl+Shift+P` > "Extensions: Install from VSIX..."
 ### One-time Setup
 
 1. Create a Personal Access Token (PAT) at https://dev.azure.com:
-   - **Organization**: "All accessible organizations"
-   - **Scopes**: Show all scopes > **Marketplace** > **Manage**
+    - **Organization**: "All accessible organizations"
+    - **Scopes**: Show all scopes > **Marketplace** > **Manage**
 2. Login:
-   ```bash
-   npx vsce login FLEXCELERATE
-   ```
+    ```bash
+    npx vsce login FLEXCELERATE
+    ```
 
 ### Publish
 
@@ -79,17 +79,17 @@ npx vsce publish major --no-dependencies
 
 Included (see `.vscodeignore` for exclusions):
 
-| File | Purpose |
-|------|---------|
-| `dist/extension.js` | Bundled extension code (esbuild, minified) |
-| `syntaxes/fpd.tmLanguage.json` | TextMate grammar for syntax highlighting |
-| `language-configuration.json` | Language settings (comments, brackets, etc.) |
-| `media/preview.css` | Webview preview stylesheet |
-| `images/` | Extension icon and file icon |
-| `README.md` | Marketplace listing |
-| `CHANGELOG.md` | Version history |
-| `LICENSE.txt` | MIT License |
-| `package.json` | Extension manifest |
+| File                           | Purpose                                      |
+| ------------------------------ | -------------------------------------------- |
+| `dist/extension.js`            | Bundled extension code (esbuild, minified)   |
+| `syntaxes/fpd.tmLanguage.json` | TextMate grammar for syntax highlighting     |
+| `language-configuration.json`  | Language settings (comments, brackets, etc.) |
+| `media/preview.css`            | Webview preview stylesheet                   |
+| `images/`                      | Extension icon and file icon                 |
+| `README.md`                    | Marketplace listing                          |
+| `CHANGELOG.md`                 | Version history                              |
+| `LICENSE.txt`                  | MIT License                                  |
+| `package.json`                 | Extension manifest                           |
 
 ## Troubleshooting
 

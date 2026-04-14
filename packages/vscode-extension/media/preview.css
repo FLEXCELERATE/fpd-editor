@@ -2,10 +2,10 @@
 
 :root {
     /* VDI 3682 element colors (from FPB.JS reference) */
-    --color-product: #E51400;
-    --color-energy: #6E9AD1;
-    --color-information: #2F4DA1;
-    --color-process: #11AE4B;
+    --color-product: #e51400;
+    --color-energy: #6e9ad1;
+    --color-information: #2f4da1;
+    --color-process: #11ae4b;
     --color-technical: #888889;
     --color-cross-system: #9b59b6;
 

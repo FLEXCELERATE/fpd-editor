@@ -10,37 +10,40 @@ The backend manager should automatically start the FPB backend server when the V
 
 1. Python 3.x installed and available in PATH
 2. Backend dependencies installed:
-   ```bash
-   cd /c/Development/textbasedfpd/backend
-   pip install -r requirements.txt
-   ```
+    ```bash
+    cd /c/Development/textbasedfpd/backend
+    pip install -r requirements.txt
+    ```
 
 ### Verification Steps
 
 1. **Install the extension in VS Code** (for development testing)
-   ```bash
-   cd vscode-extension
-   npm install
-   npm run compile
-   code --extensionDevelopmentHost=. .
-   ```
+
+    ```bash
+    cd vscode-extension
+    npm install
+    npm run compile
+    code --extensionDevelopmentHost=. .
+    ```
 
 2. **Open a .fpb file** to activate the extension
 
 3. **Check the FPB Backend output channel** in VS Code:
-   - View > Output
-   - Select "FPB Backend" from the dropdown
-   - You should see logs showing the backend initialization
+    - View > Output
+    - Select "FPB Backend" from the dropdown
+    - You should see logs showing the backend initialization
 
 4. **Verify backend health endpoint**:
-   ```bash
-   curl http://localhost:8082/api/health
-   ```
 
-   **Expected output:**
-   ```json
-   {"status":"ok"}
-   ```
+    ```bash
+    curl http://localhost:8082/api/health
+    ```
+
+    **Expected output:**
+
+    ```json
+    { "status": "ok" }
+    ```
 
 ## Manual Backend Start (for testing without extension)
 
@@ -52,6 +55,7 @@ python -m uvicorn main:app --host localhost --port 8082 --reload
 ```
 
 Then test the health endpoint:
+
 ```bash
 curl http://localhost:8082/api/health
 ```
@@ -61,12 +65,13 @@ curl http://localhost:8082/api/health
 The backend manager respects these VS Code settings:
 
 - `fpb.backend.url` (default: `http://localhost:8082`)
-  - URL where the backend server runs
+    - URL where the backend server runs
 
 - `fpb.backend.autoStart` (default: `true`)
-  - Whether to automatically start the backend if not running
+    - Whether to automatically start the backend if not running
 
 To disable auto-start:
+
 1. Open VS Code Settings (Ctrl+,)
 2. Search for "fpb"
 3. Uncheck "Fpb > Backend: Auto Start"

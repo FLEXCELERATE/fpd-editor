@@ -7,7 +7,7 @@ import { computeLayout, DiagramLayout } from './services/layout';
 import { renderSvg } from './services/svgRenderer';
 import { exportText } from './export/textExporter';
 import { exportXml } from './export/xmlExporter';
-import { exportPdf } from './export/pdfExporter';
+import { exportPdf, PdfOptions } from './export/pdfExporter';
 import { detectFormat, importXml } from './import/xmlImporter';
 
 export interface ParseResult {
@@ -42,9 +42,9 @@ export class FpdService {
     }
 
     /** Export FPD source text to PDF format. */
-    async exportPdf(source: string): Promise<Uint8Array> {
+    async exportPdf(source: string, options?: PdfOptions): Promise<Uint8Array> {
         const { model, diagram } = this.parse(source);
-        return exportPdf(diagram, { title: model.title });
+        return exportPdf(diagram, { title: model.title, ...options });
     }
 
     /** Export FPD source text to VDI 3682 XML. */
@@ -60,7 +60,10 @@ export class FpdService {
     }
 
     /** Import a file (text or XML) and return model, diagram, and generated FPD source. */
-    importFile(content: string, filename: string): { model: ProcessModel; diagram: DiagramLayout; source: string } {
+    importFile(
+        content: string,
+        filename: string,
+    ): { model: ProcessModel; diagram: DiagramLayout; source: string } {
         const format = detectFormat(filename, content);
 
         let model: ProcessModel;

@@ -1,25 +1,25 @@
 {
-  "comments": {
-    "lineComment": "//"
-  },
-  "brackets": [],
-  "autoClosingPairs": [
-    {
-      "open": "\"",
-      "close": "\""
-    }
-  ],
-  "surroundingPairs": [
-    {
-      "open": "\"",
-      "close": "\""
-    }
-  ],
-  "folding": {
-    "markers": {
-      "start": "^\\s*@startfpd\\b",
-      "end": "^\\s*@endfpd\\b"
-    }
-  },
-  "wordPattern": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\!\\@\\#\\%\\^\\&\\*\\(\\)\\-\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)"
+    "comments": {
+        "lineComment": "//"
+    },
+    "brackets": [],
+    "autoClosingPairs": [
+        {
+            "open": "\"",
+            "close": "\""
+        }
+    ],
+    "surroundingPairs": [
+        {
+            "open": "\"",
+            "close": "\""
+        }
+    ],
+    "folding": {
+        "markers": {
+            "start": "^\\s*@startfpd\\b",
+            "end": "^\\s*@endfpd\\b"
+        }
+    },
+    "wordPattern": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\!\\@\\#\\%\\^\\&\\*\\(\\)\\-\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)"
 }

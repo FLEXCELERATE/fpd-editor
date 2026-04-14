@@ -18,7 +18,7 @@ export class PreviewPanel {
     public static createOrShow(
         extensionUri: vscode.Uri,
         stateManager: StateManager,
-        sourceEditor?: vscode.TextEditor
+        sourceEditor?: vscode.TextEditor,
     ): PreviewPanel {
         const column = vscode.ViewColumn.Beside;
 
@@ -32,18 +32,18 @@ export class PreviewPanel {
             return PreviewPanel.currentPanel;
         }
 
-        const panel = vscode.window.createWebviewPanel(
-            'fpdPreview',
-            'FPD Preview',
-            column,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true,
-                localResourceRoots: [extensionUri]
-            }
-        );
+        const panel = vscode.window.createWebviewPanel('fpdPreview', 'FPD Preview', column, {
+            enableScripts: true,
+            retainContextWhenHidden: true,
+            localResourceRoots: [extensionUri],
+        });
 
-        PreviewPanel.currentPanel = new PreviewPanel(panel, extensionUri, stateManager, sourceEditor);
+        PreviewPanel.currentPanel = new PreviewPanel(
+            panel,
+            extensionUri,
+            stateManager,
+            sourceEditor,
+        );
         return PreviewPanel.currentPanel;
     }
 
@@ -51,7 +51,7 @@ export class PreviewPanel {
         panel: vscode.WebviewPanel,
         extensionUri: vscode.Uri,
         stateManager: StateManager,
-        sourceEditor?: vscode.TextEditor
+        sourceEditor?: vscode.TextEditor,
     ) {
         this.panel = panel;
         this.extensionUri = extensionUri;
@@ -73,7 +73,7 @@ export class PreviewPanel {
 
         // Handle messages from webview
         this.panel.webview.onDidReceiveMessage(
-            message => {
+            (message) => {
                 if (message.type === 'ready') {
                     this.update();
                 } else if (message.type === 'goToLine') {
@@ -81,7 +81,7 @@ export class PreviewPanel {
                 }
             },
             null,
-            this.disposables
+            this.disposables,
         );
     }
 
@@ -270,10 +270,18 @@ export class PreviewPanel {
     }
 
     /** Navigate source editor to a specific line. */
-    private goToLine(line: number): void {
+    private goToLine(line: unknown): void {
         const editor = this.sourceEditor ?? vscode.window.activeTextEditor;
-        if (!editor) { return; }
-        const lineIndex = Math.max(0, line - 1);
+        if (!editor) {
+            return;
+        }
+
+        const lineNum = typeof line === 'number' ? line : parseInt(String(line), 10);
+        if (!Number.isFinite(lineNum)) {
+            return;
+        }
+
+        const lineIndex = Math.max(0, Math.min(lineNum - 1, editor.document.lineCount - 1));
         const range = editor.document.lineAt(lineIndex).range;
         editor.selection = new vscode.Selection(range.start, range.start);
         editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
@@ -294,7 +302,9 @@ export class PreviewPanel {
 
         while (this.disposables.length) {
             const d = this.disposables.pop();
-            if (d) { d.dispose(); }
+            if (d) {
+                d.dispose();
+            }
         }
     }
 

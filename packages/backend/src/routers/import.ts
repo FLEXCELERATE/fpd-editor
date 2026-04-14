@@ -1,11 +1,11 @@
 /** Import endpoint: accept FPD text or VDI 3682 XML. */
 
 import { FastifyInstance } from 'fastify';
-import { FpdService } from '@fpd-editor/core';
 import { importSchema } from '../schemas.js';
+import '../types.js';
 
 export async function importRouter(app: FastifyInstance) {
-    const service: FpdService = (app as unknown as { fpdService: FpdService }).fpdService;
+    const service = app.fpdService;
 
     app.post('/import', async (request, reply) => {
         const parsed = importSchema.safeParse(request.body);
@@ -21,8 +21,8 @@ export async function importRouter(app: FastifyInstance) {
                 source: result.source,
             };
         } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Processing error';
-            return reply.status(422).send({ error: msg });
+            request.log.error(err);
+            return reply.status(422).send({ error: 'Processing error' });
         }
     });
 }

@@ -1,3 +1,3 @@
-import config from "@fpd-editor/eslint-config";
+import config from './tooling/eslint-config/index.js';
 
 export default config;

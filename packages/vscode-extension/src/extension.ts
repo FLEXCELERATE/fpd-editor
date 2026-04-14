@@ -39,7 +39,7 @@ async function exportDiagram(format: ExportFormat): Promise<void> {
     const info = FORMAT_INFO[format];
     const baseName = path.basename(editor.document.fileName, '.fpd');
     const defaultUri = vscode.Uri.file(
-        path.join(path.dirname(editor.document.fileName), baseName + info.extension)
+        path.join(path.dirname(editor.document.fileName), baseName + info.extension),
     );
 
     const saveUri = await vscode.window.showSaveDialog({
@@ -76,14 +76,16 @@ async function exportDiagram(format: ExportFormat): Promise<void> {
             fs.writeFileSync(saveUri.fsPath, Buffer.from(data));
         }
 
-        vscode.window.showInformationMessage(`Exported ${info.label}: ${path.basename(saveUri.fsPath)}`);
+        vscode.window.showInformationMessage(
+            `Exported ${info.label}: ${path.basename(saveUri.fsPath)}`,
+        );
     } catch (error) {
         const raw = error instanceof Error ? error.message : String(error);
         // Sanitize: strip file paths and internal details
         const msg = raw
-            .replace(/\\\\[^\s:]+/g, '<path>')           // UNC paths \\server\share
-            .replace(/[A-Z]:\\[^\s:]+/gi, '<path>')       // Windows paths C:\...
-            .replace(/\/[^\s:]+/g, '<path>');              // Unix paths /...
+            .replace(/\\\\[^\s:]+/g, '<path>') // UNC paths \\server\share
+            .replace(/[A-Z]:\\[^\s:]+/gi, '<path>') // Windows paths C:\...
+            .replace(/\/[^\s:]+/g, '<path>'); // Unix paths /...
         vscode.window.showErrorMessage(`Export failed: ${msg}`);
     }
 }
@@ -112,13 +114,13 @@ export function activate(context: vscode.ExtensionContext) {
             if (stateManager) {
                 PreviewPanel.createOrShow(context.extensionUri, stateManager, activeEditor);
             }
-        })
+        }),
     );
 
     // Export commands
     for (const format of Object.keys(FORMAT_INFO) as ExportFormat[]) {
         context.subscriptions.push(
-            vscode.commands.registerCommand(`fpd.export.${format}`, () => exportDiagram(format))
+            vscode.commands.registerCommand(`fpd.export.${format}`, () => exportDiagram(format)),
         );
     }
 
@@ -129,24 +131,24 @@ export function activate(context: vscode.ExtensionContext) {
 
     if (autoUpdate) {
         context.subscriptions.push(
-            vscode.workspace.onDidChangeTextDocument(event => {
+            vscode.workspace.onDidChangeTextDocument((event) => {
                 if (event.document.languageId === 'fpd' && PreviewPanel.isActive()) {
                     const panel = PreviewPanel.getCurrent();
                     if (panel && panel.isPreviewingDocument(event.document)) {
                         panel.scheduleUpdate(updateDelay);
                     }
                 }
-            })
+            }),
         );
 
         context.subscriptions.push(
-            vscode.window.onDidChangeActiveTextEditor(editor => {
+            vscode.window.onDidChangeActiveTextEditor((editor) => {
                 if (editor && editor.document.languageId === 'fpd' && PreviewPanel.isActive()) {
                     if (stateManager) {
                         PreviewPanel.createOrShow(context.extensionUri, stateManager, editor);
                     }
                 }
-            })
+            }),
         );
     }
 }

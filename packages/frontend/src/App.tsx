@@ -109,159 +109,166 @@ system "DosingModule_v01" {
 `;
 
 export default function App() {
-  const splitPaneRef = useRef<HTMLElement>(null);
-  const editorRef = useRef<FpdEditorRef>(null);
-  const diagramRef = useRef<DiagramRendererRef>(null);
-  const diagramContainerRef = useRef<HTMLDivElement>(null);
-  const contentBoundsRef = useRef<DiagramBounds | null>(null);
+    const splitPaneRef = useRef<HTMLElement>(null);
+    const editorRef = useRef<FpdEditorRef>(null);
+    const diagramRef = useRef<DiagramRendererRef>(null);
+    const diagramContainerRef = useRef<HTMLDivElement>(null);
+    const contentBoundsRef = useRef<DiagramBounds | null>(null);
 
-  // Use history manager for application-level undo/redo
-  const historyManager = useHistoryManager(DEFAULT_SOURCE);
-  const source = historyManager.currentState;
+    // Use history manager for application-level undo/redo
+    const historyManager = useHistoryManager(DEFAULT_SOURCE);
+    const source = historyManager.currentState;
 
-  const { model, svgContent, error, loading } = useFpdParser(source);
-  const { lineToElement, setSelectedElementId } = useDiagramSync(model);
-  const {
-    viewport,
-    setViewport,
-    zoomIn,
-    zoomOut,
-    zoomToFit,
-    resetViewport,
-    handleWheel,
-    handleMouseDown: handleDiagramMouseDown,
-    handleTouchStart,
-  } = useViewport();
+    const { model, svgContent, error, loading } = useFpdParser(source);
+    const { lineToElement, setSelectedElementId } = useDiagramSync(model);
+    const {
+        viewport,
+        setViewport,
+        zoomIn,
+        zoomOut,
+        zoomToFit,
+        resetViewport,
+        handleWheel,
+        handleMouseDown: handleDiagramMouseDown,
+        handleTouchStart,
+    } = useViewport();
 
-  const handleContentBounds = useCallback((bounds: DiagramBounds) => {
-    contentBoundsRef.current = bounds;
-  }, []);
+    const handleContentBounds = useCallback((bounds: DiagramBounds) => {
+        contentBoundsRef.current = bounds;
+    }, []);
 
-  const handleZoomToFit = useCallback(() => {
-    const container = diagramContainerRef.current;
-    const bounds = contentBoundsRef.current;
-    if (!container || !bounds) return;
-    const rect = container.getBoundingClientRect();
-    zoomToFit(bounds, rect.width, rect.height);
-  }, [zoomToFit]);
+    const handleZoomToFit = useCallback(() => {
+        const container = diagramContainerRef.current;
+        const bounds = contentBoundsRef.current;
+        if (!container || !bounds) return;
+        const rect = container.getBoundingClientRect();
+        zoomToFit(bounds, rect.width, rect.height);
+    }, [zoomToFit]);
 
-  const handleElementClick = useCallback((lineNumber: number) => {
-    editorRef.current?.scrollToLine(lineNumber);
-  }, []);
+    const handleElementClick = useCallback((lineNumber: number) => {
+        editorRef.current?.scrollToLine(lineNumber);
+    }, []);
 
-  const getSvgElement = useCallback(() => {
-    return diagramRef.current?.getSvgElement() ?? null;
-  }, []);
+    const getSvgElement = useCallback(() => {
+        return diagramRef.current?.getSvgElement() ?? null;
+    }, []);
 
-  const handleUndo = useCallback(() => {
-    historyManager.undo();
-  }, [historyManager]);
+    const handleUndo = useCallback(() => {
+        historyManager.undo();
+    }, [historyManager]);
 
-  const handleRedo = useCallback(() => {
-    historyManager.redo();
-  }, [historyManager]);
+    const handleRedo = useCallback(() => {
+        historyManager.redo();
+    }, [historyManager]);
 
-  useKeyboardShortcuts({
-    onUndo: handleUndo,
-    onRedo: handleRedo,
-    onZoomIn: zoomIn,
-    onZoomOut: zoomOut,
-    onResetViewport: resetViewport,
-  });
+    useKeyboardShortcuts({
+        onUndo: handleUndo,
+        onRedo: handleRedo,
+        onZoomIn: zoomIn,
+        onZoomOut: zoomOut,
+        onResetViewport: resetViewport,
+    });
 
-  const handleImport = useCallback((_source: string, _model: ProcessModel) => {
-    historyManager.pushState(_source);
-  }, [historyManager]);
+    const handleImport = useCallback(
+        (_source: string, _model: ProcessModel) => {
+            historyManager.pushState(_source);
+        },
+        [historyManager],
+    );
 
-  const handleCursorPositionChange = useCallback(
-    (lineNumber: number) => {
-      const elementMapping = lineToElement.get(lineNumber);
-      setSelectedElementId(elementMapping?.elementId ?? null);
-    },
-    [lineToElement, setSelectedElementId],
-  );
+    const handleCursorPositionChange = useCallback(
+        (lineNumber: number) => {
+            const elementMapping = lineToElement.get(lineNumber);
+            setSelectedElementId(elementMapping?.elementId ?? null);
+        },
+        [lineToElement, setSelectedElementId],
+    );
 
-  const { editorStyle, handleMouseDown, handleKeyDown: handleDividerKeyDown } = useSplitPane(splitPaneRef);
+    const {
+        editorStyle,
+        handleMouseDown,
+        handleKeyDown: handleDividerKeyDown,
+    } = useSplitPane(splitPaneRef);
 
-  const editorContextValue = useMemo(
-    () => ({ source, model, loading, error }),
-    [source, model, loading, error],
-  );
+    const editorContextValue = useMemo(
+        () => ({ source, model, loading, error }),
+        [source, model, loading, error],
+    );
 
-  return (
-    <EditorProvider value={editorContextValue}>
-    <div className="app">
-      <header>
-        <ErrorBoundary componentName="Toolbar">
-          <Toolbar
-              onImport={handleImport}
-              onUndo={handleUndo}
-              onRedo={handleRedo}
-              canUndo={historyManager.canUndo}
-              canRedo={historyManager.canRedo}
-              getSvgElement={getSvgElement}
-              processTitle={model?.title}
-            />
-        </ErrorBoundary>
-      </header>
-      <main className="split-pane" ref={splitPaneRef}>
-        <div className="split-pane__editor" style={editorStyle}>
-          <ErrorBoundary componentName="Editor">
-            <FpdEditor
-              ref={editorRef}
-              value={source}
-              onChange={historyManager.pushState}
-              parseError={error}
-              onCursorPositionChange={handleCursorPositionChange}
-            />
-          </ErrorBoundary>
-        </div>
-        <div
-          className="split-pane__divider"
-          onMouseDown={handleMouseDown}
-          onKeyDown={handleDividerKeyDown}
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize editor and preview panels"
-          tabIndex={0}
-        />
-        <div className="split-pane__preview">
-          <div className="split-pane__diagram" ref={diagramContainerRef}>
-            <ErrorBoundary componentName="Diagram">
-              <DiagramRenderer
-                ref={diagramRef}
-                svgContent={svgContent}
-                viewport={viewport}
-                onElementClick={handleElementClick}
-                onContentBounds={handleContentBounds}
-                onWheel={handleWheel}
-                onMouseDown={handleDiagramMouseDown}
-                onTouchStart={handleTouchStart}
-                onZoomIn={zoomIn}
-                onZoomOut={zoomOut}
-                onSetViewport={setViewport}
-              />
-            </ErrorBoundary>
-            <ViewportControls
-              zoom={viewport.zoom}
-              onZoomIn={zoomIn}
-              onZoomOut={zoomOut}
-              onZoomToFit={handleZoomToFit}
-            />
-          </div>
-          {error && !loading && (
-            <div className="error-panel">
-              <div className="error-panel__header">
-                <span className="error-panel__icon">⚠</span>
-                Errors
-              </div>
-              <pre className="error-panel__body">{error}</pre>
+    return (
+        <EditorProvider value={editorContextValue}>
+            <div className="app">
+                <header>
+                    <ErrorBoundary componentName="Toolbar">
+                        <Toolbar
+                            onImport={handleImport}
+                            onUndo={handleUndo}
+                            onRedo={handleRedo}
+                            canUndo={historyManager.canUndo}
+                            canRedo={historyManager.canRedo}
+                            getSvgElement={getSvgElement}
+                            processTitle={model?.title}
+                        />
+                    </ErrorBoundary>
+                </header>
+                <main className="split-pane" ref={splitPaneRef}>
+                    <div className="split-pane__editor" style={editorStyle}>
+                        <ErrorBoundary componentName="Editor">
+                            <FpdEditor
+                                ref={editorRef}
+                                value={source}
+                                onChange={historyManager.pushState}
+                                parseError={error}
+                                onCursorPositionChange={handleCursorPositionChange}
+                            />
+                        </ErrorBoundary>
+                    </div>
+                    <div
+                        className="split-pane__divider"
+                        onMouseDown={handleMouseDown}
+                        onKeyDown={handleDividerKeyDown}
+                        role="separator"
+                        aria-orientation="vertical"
+                        aria-label="Resize editor and preview panels"
+                        tabIndex={0}
+                    />
+                    <div className="split-pane__preview">
+                        <div className="split-pane__diagram" ref={diagramContainerRef}>
+                            <ErrorBoundary componentName="Diagram">
+                                <DiagramRenderer
+                                    ref={diagramRef}
+                                    svgContent={svgContent}
+                                    viewport={viewport}
+                                    onElementClick={handleElementClick}
+                                    onContentBounds={handleContentBounds}
+                                    onWheel={handleWheel}
+                                    onMouseDown={handleDiagramMouseDown}
+                                    onTouchStart={handleTouchStart}
+                                    onZoomIn={zoomIn}
+                                    onZoomOut={zoomOut}
+                                    onSetViewport={setViewport}
+                                />
+                            </ErrorBoundary>
+                            <ViewportControls
+                                zoom={viewport.zoom}
+                                onZoomIn={zoomIn}
+                                onZoomOut={zoomOut}
+                                onZoomToFit={handleZoomToFit}
+                            />
+                        </div>
+                        {error && !loading && (
+                            <div className="error-panel">
+                                <div className="error-panel__header">
+                                    <span className="error-panel__icon">⚠</span>
+                                    Errors
+                                </div>
+                                <pre className="error-panel__body">{error}</pre>
+                            </div>
+                        )}
+                    </div>
+                </main>
+                <ToastContainer />
             </div>
-          )}
-        </div>
-      </main>
-      <ToastContainer />
-    </div>
-    </EditorProvider>
-  );
+        </EditorProvider>
+    );
 }

@@ -5,10 +5,7 @@
  * Uses a minimal regex-based XML parser to avoid external dependencies.
  */
 
-import type {
-    FlowType,
-    StateType,
-} from '../models/fpdModel';
+import type { FlowType, StateType } from '../models/fpdModel';
 import { STATE_TYPE_MAP, FLOW_TYPE_MAP } from '../models/constants';
 import { ProcessModel, createProcessModel } from '../models/processModel';
 import { exportText } from '../export/textExporter';
@@ -18,11 +15,11 @@ import { exportText } from '../export/textExporter';
 // ---------------------------------------------------------------------------
 
 interface XmlElement {
-    tag: string;           // local name (namespace prefix stripped)
-    fullTag: string;       // original tag including prefix
+    tag: string; // local name (namespace prefix stripped)
+    fullTag: string; // original tag including prefix
     attrs: Record<string, string>;
     children: XmlElement[];
-    text: string;          // direct text content
+    text: string; // direct text content
 }
 
 /**
@@ -115,7 +112,8 @@ function parseChildren(s: string): XmlElement[] {
 
 function parseElement(s: string, start: number): { element: XmlElement; endPos: number } | null {
     // Match opening tag: <tagname attrs...> or <tagname attrs.../>
-    const openTagRe = /^<([a-zA-Z_][\w:.-]*)((?:\s+[a-zA-Z_][\w:.-]*\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/?)>/;
+    const openTagRe =
+        /^<([a-zA-Z_][\w:.-]*)((?:\s+[a-zA-Z_][\w:.-]*\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/?)>/;
     const sub = s.substring(start);
     const m = openTagRe.exec(sub);
     if (!m) return null;
@@ -149,7 +147,14 @@ function parseElement(s: string, start: number): { element: XmlElement; endPos: 
         if (nextOpen !== -1 && nextOpen < nextClose) {
             // Check if this is actually an opening tag (not a different tag starting with same prefix)
             const charAfter = s[nextOpen + fullTag.length + 1];
-            if (charAfter === '>' || charAfter === ' ' || charAfter === '/' || charAfter === '\t' || charAfter === '\n' || charAfter === '\r') {
+            if (
+                charAfter === '>' ||
+                charAfter === ' ' ||
+                charAfter === '/' ||
+                charAfter === '\t' ||
+                charAfter === '\n' ||
+                charAfter === '\r'
+            ) {
                 depth++;
             }
             pos = nextOpen + 1;
@@ -162,7 +167,9 @@ function parseElement(s: string, start: number): { element: XmlElement; endPos: 
                 // Extract direct text content (text not inside child elements)
                 let text = innerContent;
                 // Remove child elements from text to get direct text
-                text = text.replace(/<[a-zA-Z_][\w:.-]*[\s\S]*?(?:\/>|<\/[a-zA-Z_][\w:.-]*>)/g, '').trim();
+                text = text
+                    .replace(/<[a-zA-Z_][\w:.-]*[\s\S]*?(?:\/>|<\/[a-zA-Z_][\w:.-]*>)/g, '')
+                    .trim();
 
                 return {
                     element: { tag, fullTag, attrs, children, text },
@@ -188,14 +195,14 @@ function parseElement(s: string, start: number): { element: XmlElement; endPos: 
  * Find a direct child element by local tag name.
  */
 function findChild(elem: XmlElement, localTag: string): XmlElement | undefined {
-    return elem.children.find(c => c.tag === localTag);
+    return elem.children.find((c) => c.tag === localTag);
 }
 
 /**
  * Find all direct children by local tag name.
  */
 function findChildren(elem: XmlElement, localTag: string): XmlElement[] {
-    return elem.children.filter(c => c.tag === localTag);
+    return elem.children.filter((c) => c.tag === localTag);
 }
 
 /**
@@ -236,7 +243,11 @@ function findFirst(elem: XmlElement, localTag: string): XmlElement | undefined {
 // Parsing helpers
 // ---------------------------------------------------------------------------
 
-function parseIdentification(elem: XmlElement): { uniqueId: string; longName: string; shortName: string | undefined } {
+function parseIdentification(elem: XmlElement): {
+    uniqueId: string;
+    longName: string;
+    shortName: string | undefined;
+} {
     const ident = findChild(elem, 'identification');
     if (!ident) {
         return { uniqueId: '', longName: '', shortName: undefined };
@@ -452,8 +463,8 @@ function parseXmlHsu(root: XmlElement): ProcessModel {
     }
 
     // Create Flow and Usage objects from the registry + bindings
-    const poIds = new Set(model.processOperators.map(po => po.id));
-    const trIds = new Set(model.technicalResources.map(tr => tr.id));
+    const poIds = new Set(model.processOperators.map((po) => po.id));
+    const trIds = new Set(model.technicalResources.map((tr) => tr.id));
 
     for (const [fid, ftypeStr] of Object.entries(flowRegistry)) {
         const src = flowSources[fid] ?? '';
@@ -533,7 +544,8 @@ function parseXmlHsu(root: XmlElement): ProcessModel {
 export function detectFormat(filename: string, content: string): 'text' | 'xml' {
     const lowerName = filename.toLowerCase();
     if (lowerName.endsWith('.xml')) return 'xml';
-    if (lowerName.endsWith('.fpd') || lowerName.endsWith('.fpb') || lowerName.endsWith('.txt')) return 'text';
+    if (lowerName.endsWith('.fpd') || lowerName.endsWith('.fpb') || lowerName.endsWith('.txt'))
+        return 'text';
 
     // Fallback: inspect content
     const stripped = content.trim();
@@ -548,7 +560,11 @@ export function detectFormat(filename: string, content: string): 'text' | 'xml' 
  *
  * @returns Object containing the parsed model, generated FPD source text, and XSD warnings.
  */
-export function importXml(content: string): { model: ProcessModel; source: string; xsdWarnings: string[] } {
+export function importXml(content: string): {
+    model: ProcessModel;
+    source: string;
+    xsdWarnings: string[];
+} {
     let root: XmlElement;
     try {
         root = parseXml(content);

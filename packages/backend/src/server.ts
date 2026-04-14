@@ -4,6 +4,7 @@ import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import { FpdService } from '@fpd-editor/core';
+import './types.js';
 import { parseRouter } from './routers/parse.js';
 import { exportRouter } from './routers/export.js';
 import { importRouter } from './routers/import.js';
@@ -27,10 +28,10 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     app.decorate('fpdService', service);
 
     // CORS
-    const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
     if (!process.env.CORS_ORIGIN && process.env.NODE_ENV === 'production') {
-        app.log.warn('CORS_ORIGIN not set — defaulting to localhost. Set CORS_ORIGIN in production.');
+        throw new Error('CORS_ORIGIN must be set in production');
     }
+    const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
     await app.register(cors, { origin: corsOrigin });
 
     // Rate limiting
@@ -40,19 +41,25 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     });
 
     // Global error handler
-    app.setErrorHandler((error: Error & { validation?: Array<{ message: string }>; statusCode?: number }, _request, reply) => {
-        if (error.validation) {
-            return reply.status(400).send({
-                error: 'Validation error',
-                details: error.validation.map((v: { message: string }) => v.message),
-            });
-        }
+    app.setErrorHandler(
+        (
+            error: Error & { validation?: Array<{ message: string }>; statusCode?: number },
+            _request,
+            reply,
+        ) => {
+            if (error.validation) {
+                return reply.status(400).send({
+                    error: 'Validation error',
+                    details: error.validation.map((v: { message: string }) => v.message),
+                });
+            }
 
-        app.log.error(error);
-        const statusCode = error.statusCode ?? 500;
-        const message = statusCode >= 500 ? 'Internal server error' : error.message;
-        return reply.status(statusCode).send({ error: message });
-    });
+            app.log.error(error);
+            const statusCode = error.statusCode ?? 500;
+            const message = statusCode >= 500 ? 'Internal server error' : error.message;
+            return reply.status(statusCode).send({ error: message });
+        },
+    );
 
     // API routes
     await app.register(parseRouter, { prefix: '/api' });

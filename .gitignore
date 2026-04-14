@@ -27,6 +27,8 @@ packages/frontend/vite.config.d.ts
 
 # Test/coverage
 coverage/
+test-results/
+playwright-report/
 
 # Turbo
 .turbo/

@@ -1,5 +1,5 @@
 {
-  "name": "@fpd-editor/tsconfig",
-  "private": true,
-  "version": "0.0.0"
+    "name": "@fpd-editor/tsconfig",
+    "private": true,
+    "version": "0.0.0"
 }

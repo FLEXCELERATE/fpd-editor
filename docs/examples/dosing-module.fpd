@@ -13,6 +13,10 @@ system "DosingModule_v01" {
   product P8 "Transported Medium"
   product P9 "Circulation"
   product P10 "Circulated Medium"
+  product ID "Label"
+  product ID2 "Label"
+  product ID3 "label"
+
 
   // === Output Products ===
   product P5 "Exhaust Gas"
@@ -57,6 +61,10 @@ system "DosingModule_v01" {
   O1 --> P5
   O1 --> P6
   O1 --> P7
+  O1 --> ID
+  O1 --> ID2
+
+
 
   // === O2 Transporting ===
   P7 --> O2
@@ -85,6 +93,15 @@ system "DosingModule_v01" {
   O4 --> I12
   O4 --> I13
   O4 --> I14
+}
+
+system "Test2" {
+product P123 "Label"
+product ID24353 "Label"
+process_operator O12423 "Label"
+
+P123 --> O12423
+O12423 --> ID24353
 }
 
 @endfpd

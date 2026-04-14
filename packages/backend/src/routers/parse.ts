@@ -1,11 +1,11 @@
 /** Parse FPD source text and return the model + diagram layout. */
 
 import { FastifyInstance } from 'fastify';
-import { FpdService } from '@fpd-editor/core';
 import { sourceSchema } from '../schemas.js';
+import '../types.js';
 
 export async function parseRouter(app: FastifyInstance) {
-    const service: FpdService = (app as unknown as { fpdService: FpdService }).fpdService;
+    const service = app.fpdService;
 
     app.post('/parse', async (request, reply) => {
         const parsed = sourceSchema.safeParse(request.body);
@@ -17,8 +17,8 @@ export async function parseRouter(app: FastifyInstance) {
             const result = service.parse(parsed.data.source);
             return { model: result.model, diagram: result.diagram };
         } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Processing error';
-            return reply.status(422).send({ error: msg });
+            app.log.error(err);
+            return reply.status(422).send({ error: 'Processing error' });
         }
     });
 }

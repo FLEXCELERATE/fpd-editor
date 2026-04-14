@@ -5,6 +5,23 @@ import { buildApp } from '../server.js';
 /** Minimal valid FPD source for testing. */
 const VALID_SOURCE = '@startfpd\ntitle "Test"\n@endfpd';
 
+/** A richer FPD source that produces elements, flows, and usages. */
+const RICH_SOURCE = [
+    '@startfpd',
+    'title "Integration"',
+    'product p1 "Raw"',
+    'process_operator po1 "Cut"',
+    'technical_resource tr1 "Laser"',
+    'product p2 "Done"',
+    'p1 --> po1',
+    'po1 --> p2',
+    'po1 <..> tr1',
+    '@endfpd',
+].join('\n');
+
+/** FPD source with deliberate syntax errors (unknown keyword). */
+const INVALID_SYNTAX_SOURCE = '@startfpd\nfoobar baz\n@endfpd';
+
 /** Valid FPD content for import (plain text format). */
 const VALID_FPD_CONTENT = '@startfpd\ntitle "Imported"\n@endfpd';
 
@@ -32,12 +49,35 @@ describe('POST /api/parse', () => {
         const res = await app.inject({
             method: 'POST',
             url: '/api/parse',
-            payload: { source: VALID_SOURCE },
+            payload: { source: RICH_SOURCE },
         });
         expect(res.statusCode).toBe(200);
         const body = res.json();
-        expect(body).toHaveProperty('model');
-        expect(body).toHaveProperty('diagram');
+
+        // Model structure
+        expect(body.model.title).toBe('Integration');
+        expect(body.model.states.length).toBeGreaterThanOrEqual(2);
+        expect(body.model.processOperators).toHaveLength(1);
+        expect(body.model.technicalResources).toHaveLength(1);
+        expect(body.model.flows.length).toBeGreaterThanOrEqual(2);
+        expect(body.model.usages).toHaveLength(1);
+        expect(body.model.errors).toHaveLength(0);
+
+        // Diagram layout
+        expect(body.diagram.elements.length).toBeGreaterThanOrEqual(4);
+        expect(body.diagram.connections.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it('returns 200 with errors array for syntactically invalid FPD', async () => {
+        const res = await app.inject({
+            method: 'POST',
+            url: '/api/parse',
+            payload: { source: INVALID_SYNTAX_SOURCE },
+        });
+        // Parser is error-tolerant: returns 200 with errors in the model
+        expect(res.statusCode).toBe(200);
+        const body = res.json();
+        expect(body.model.errors.length).toBeGreaterThan(0);
     });
 
     it('returns 400 for empty body', async () => {
@@ -62,15 +102,18 @@ describe('POST /api/parse', () => {
 });
 
 describe('POST /api/render/svg', () => {
-    it('returns 200 with SVG string for valid source', async () => {
+    it('returns 200 with well-formed SVG for valid source', async () => {
         const res = await app.inject({
             method: 'POST',
             url: '/api/render/svg',
-            payload: { source: VALID_SOURCE },
+            payload: { source: RICH_SOURCE },
         });
         expect(res.statusCode).toBe(200);
         expect(res.headers['content-type']).toContain('image/svg+xml');
         expect(res.body).toContain('<svg');
+        expect(res.body).toContain('</svg>');
+        // SVG should contain rendered element labels
+        expect(res.body).toContain('Cut');
     });
 });
 
@@ -88,28 +131,32 @@ describe('POST /api/export/source/xml', () => {
 });
 
 describe('POST /api/export/source/text', () => {
-    it('returns 200 with text for valid source', async () => {
+    it('returns 200 with reconstructed FPD text for valid source', async () => {
         const res = await app.inject({
             method: 'POST',
             url: '/api/export/source/text',
-            payload: { source: VALID_SOURCE },
+            payload: { source: RICH_SOURCE },
         });
         expect(res.statusCode).toBe(200);
         expect(res.headers['content-type']).toContain('text/plain');
-        expect(res.body).toBeTruthy();
+        // Exported text must contain FPD delimiters and declared elements
+        expect(res.body).toContain('@startfpd');
+        expect(res.body).toContain('@endfpd');
+        expect(res.body).toContain('po1');
     });
 });
 
 describe('POST /api/export/source/svg', () => {
-    it('returns 200 with SVG for valid source', async () => {
+    it('returns 200 with well-formed SVG for valid source', async () => {
         const res = await app.inject({
             method: 'POST',
             url: '/api/export/source/svg',
-            payload: { source: VALID_SOURCE },
+            payload: { source: RICH_SOURCE },
         });
         expect(res.statusCode).toBe(200);
         expect(res.headers['content-type']).toContain('image/svg+xml');
         expect(res.body).toContain('<svg');
+        expect(res.body).toContain('</svg>');
     });
 });
 
@@ -124,6 +171,39 @@ describe('POST /api/import', () => {
         const body = res.json();
         expect(body).toHaveProperty('source');
         expect(body).toHaveProperty('model');
+    });
+
+    it('imports XML via .xml filename (round-trip)', async () => {
+        // First export the rich source to XML
+        const xmlRes = await app.inject({
+            method: 'POST',
+            url: '/api/export/source/xml',
+            payload: { source: RICH_SOURCE },
+        });
+        expect(xmlRes.statusCode).toBe(200);
+        const xmlContent = xmlRes.body;
+
+        // Then import the XML back
+        const importRes = await app.inject({
+            method: 'POST',
+            url: '/api/import',
+            payload: { content: xmlContent, filename: 'roundtrip.xml' },
+        });
+        expect(importRes.statusCode).toBe(200);
+        const body = importRes.json();
+        expect(body.model.processOperators.length).toBeGreaterThanOrEqual(1);
+        expect(body.model.states.length).toBeGreaterThanOrEqual(2);
+        expect(body.source).toContain('@startfpd');
+    });
+
+    it('returns 422 for undetectable file format', async () => {
+        const res = await app.inject({
+            method: 'POST',
+            url: '/api/import',
+            payload: { content: 'random garbage', filename: 'data.csv' },
+        });
+        expect(res.statusCode).toBe(422);
+        expect(res.json()).toHaveProperty('error');
     });
 
     it('returns 400 when content is missing', async () => {
@@ -175,15 +255,6 @@ describe('Validation edge cases', () => {
             method: 'POST',
             url: '/api/parse',
             payload: { wrongField: VALID_SOURCE },
-        });
-        expect(res.statusCode).toBe(400);
-    });
-
-    it('POST /api/import returns 400 when filename is missing', async () => {
-        const res = await app.inject({
-            method: 'POST',
-            url: '/api/import',
-            payload: { content: VALID_FPD_CONTENT },
         });
         expect(res.statusCode).toBe(400);
     });

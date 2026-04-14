@@ -67,7 +67,7 @@ describe('FpdParser', () => {
     it('reports error on duplicate element ID', () => {
         const model = parse('@startfpd\nproduct p1\nproduct p1\n@endfpd');
         expect(model.errors.length).toBeGreaterThan(0);
-        expect(model.errors.some(e => e.includes('Duplicate element ID'))).toBe(true);
+        expect(model.errors.some((e) => e.includes('Duplicate element ID'))).toBe(true);
     });
 
     it('parses flow connections (-->) into model.flows', () => {
@@ -91,7 +91,9 @@ describe('FpdParser', () => {
     });
 
     it('parses usage connections (<..>) into model.usages', () => {
-        const model = parse('@startfpd\nprocess_operator po1\ntechnical_resource tr1\npo1 <..> tr1\n@endfpd');
+        const model = parse(
+            '@startfpd\nprocess_operator po1\ntechnical_resource tr1\npo1 <..> tr1\n@endfpd',
+        );
         expect(model.usages).toHaveLength(1);
         expect(model.usages[0].processOperatorRef).toBe('po1');
         expect(model.usages[0].technicalResourceRef).toBe('tr1');
@@ -99,7 +101,7 @@ describe('FpdParser', () => {
 
     it('reports error for undefined element in connection', () => {
         const model = parse('@startfpd\nproduct s1\ns1 --> unknown\n@endfpd');
-        expect(model.errors.some(e => e.includes("'unknown' is not defined"))).toBe(true);
+        expect(model.errors.some((e) => e.includes("'unknown' is not defined"))).toBe(true);
     });
 
     it('parses system blocks into model.systemLimits', () => {
@@ -109,7 +111,9 @@ describe('FpdParser', () => {
     });
 
     it('assigns systemId to elements inside system blocks', () => {
-        const model = parse('@startfpd\nsystem "Sys" {\nproduct p1\nprocess_operator po1\n}\n@endfpd');
+        const model = parse(
+            '@startfpd\nsystem "Sys" {\nproduct p1\nprocess_operator po1\n}\n@endfpd',
+        );
         expect(model.states[0].systemId).toBeDefined();
         expect(model.processOperators[0].systemId).toBeDefined();
         expect(model.states[0].systemId).toBe(model.processOperators[0].systemId);
@@ -136,12 +140,12 @@ describe('FpdParser', () => {
     it('reports error for missing @startfpd', () => {
         const model = parse('product p1\n@endfpd');
         expect(model.errors.length).toBeGreaterThan(0);
-        expect(model.errors.some(e => e.includes('Expected START_FPD'))).toBe(true);
+        expect(model.errors.some((e) => e.includes('Expected START_FPD'))).toBe(true);
     });
 
     it('reports error for missing @endfpd but model is still valid', () => {
         const model = parse('@startfpd\nproduct p1');
-        expect(model.errors.some(e => e.includes('Missing @endfpd'))).toBe(true);
+        expect(model.errors.some((e) => e.includes('Missing @endfpd'))).toBe(true);
         // Model still has the parsed element
         expect(model.states).toHaveLength(1);
     });
@@ -155,7 +159,7 @@ describe('FpdParser', () => {
     it('warns when placement annotation is used on non-state element', () => {
         const model = parse('@startfpd\nprocess_operator po1 @boundary\n@endfpd');
         expect(model.warnings.length).toBeGreaterThan(0);
-        expect(model.warnings.some(w => w.includes('ignored'))).toBe(true);
+        expect(model.warnings.some((w) => w.includes('ignored'))).toBe(true);
     });
 
     it('skips comments', () => {
@@ -166,6 +170,66 @@ describe('FpdParser', () => {
 
     it('reports error for empty source', () => {
         const model = parse('');
+        expect(model.errors.length).toBeGreaterThan(0);
+    });
+
+    it('collects multiple errors in a single parse', () => {
+        const src = [
+            '@startfpd',
+            'product p1',
+            'product p1', // duplicate ID
+            's1 --> s2', // both undefined
+            '@endfpd',
+        ].join('\n');
+        const model = parse(src);
+        // Should contain at least 2 distinct errors (duplicate + undefined ref)
+        expect(model.errors.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('continues parsing after encountering an unknown keyword', () => {
+        const src = [
+            '@startfpd',
+            'foobar baz', // unknown keyword
+            'product p1 "Valid"', // valid element after the error
+            '@endfpd',
+        ].join('\n');
+        const model = parse(src);
+        // Parser should recover and still parse the valid product
+        expect(model.states).toHaveLength(1);
+        expect(model.states[0].id).toBe('p1');
+        // But also report the error
+        expect(model.errors.length).toBeGreaterThan(0);
+    });
+
+    it('recovers after a malformed connection and parses subsequent statements', () => {
+        const src = [
+            '@startfpd',
+            'product p1',
+            'process_operator po1',
+            'p1 -->', // missing target
+            'p1 --> po1', // valid connection
+            '@endfpd',
+        ].join('\n');
+        const model = parse(src);
+        // The valid connection should still be parsed
+        expect(model.flows.length).toBeGreaterThanOrEqual(1);
+        expect(model.flows.some((f) => f.sourceRef === 'p1' && f.targetRef === 'po1')).toBe(true);
+        // And the malformed connection should produce an error
+        expect(model.errors.length).toBeGreaterThan(0);
+    });
+
+    it('handles system with missing closing brace gracefully', () => {
+        const src = [
+            '@startfpd',
+            'system "Open" {',
+            '  product p1',
+            // missing closing brace
+            '@endfpd',
+        ].join('\n');
+        const model = parse(src);
+        // Should still parse the product inside the system
+        expect(model.states).toHaveLength(1);
+        // Should report an error about missing brace or @endfpd
         expect(model.errors.length).toBeGreaterThan(0);
     });
 });

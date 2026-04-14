@@ -1,1 +1,1 @@
-export default (await import("@fpd-editor/prettier-config")).default;
+export default (await import('./tooling/prettier-config/index.js')).default;

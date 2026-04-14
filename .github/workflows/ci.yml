@@ -1,45 +1,53 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
 
 jobs:
-  ci:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [20, 22]
+    ci:
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                node-version: [20, 22]
 
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  submodules: true
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
+            - uses: pnpm/action-setup@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: "pnpm"
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ matrix.node-version }}
+                  cache: 'pnpm'
 
-      - run: pnpm install --frozen-lockfile
+            - run: pnpm install --frozen-lockfile
 
-      - name: Build all packages
-        run: pnpm turbo build
+            - name: Audit dependencies
+              run: pnpm audit --audit-level=high
+              continue-on-error: true
 
-      - name: Type check
-        run: pnpm turbo build --dry-run > /dev/null && pnpm -r --filter='./packages/*' exec tsc --noEmit
+            - name: Build all packages
+              run: pnpm turbo build
 
-      - name: Lint
-        run: pnpm turbo lint
+            - name: Type check
+              run: pnpm -r --filter='./packages/*' exec tsc --noEmit
 
-      - name: Check formatting
-        run: pnpm format:check
+            - name: Lint
+              run: pnpm turbo lint
 
-      - name: Test
-        run: pnpm turbo test
+            - name: Check formatting
+              run: pnpm format:check
+
+            - name: Test with coverage
+              run: pnpm -r --filter='./packages/*' exec vitest run --coverage
+
+            - name: Verify VSIX packaging
+              run: |
+                  cd packages/vscode-extension
+                  pnpm run package
+                  pnpm exec vsce package --no-dependencies --skip-license

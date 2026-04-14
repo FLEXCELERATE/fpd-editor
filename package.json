@@ -1,24 +1,44 @@
 {
-  "name": "fpd-editor",
-  "private": true,
-  "type": "module",
-  "packageManager": "pnpm@10.32.1",
-  "scripts": {
-    "build": "turbo run build",
-    "test": "turbo run test",
-    "lint": "turbo run lint",
-    "dev": "turbo run dev",
-    "clean": "turbo run clean",
-    "format": "prettier --write . --ignore-path .gitignore",
-    "format:check": "prettier --check . --ignore-path .gitignore",
-    "changeset": "changeset",
-    "version-packages": "changeset version",
-    "release": "turbo run build && changeset publish"
-  },
-  "devDependencies": {
-    "@changesets/changelog-github": "^0.6.0",
-    "@changesets/cli": "^2.30.0",
-    "prettier": "^3.5.0",
-    "turbo": "^2.5.0"
-  }
+    "name": "fpd-editor",
+    "private": true,
+    "type": "module",
+    "packageManager": "pnpm@10.32.1",
+    "engines": {
+        "node": ">=20.0.0"
+    },
+    "scripts": {
+        "build": "turbo run build",
+        "test": "turbo run test",
+        "lint": "turbo run lint",
+        "dev": "turbo run dev",
+        "clean": "turbo run clean",
+        "format": "prettier --write . --ignore-path .gitignore --ignore-path .prettierignore",
+        "test:e2e": "playwright test",
+        "format:check": "prettier --check . --ignore-path .gitignore --ignore-path .prettierignore",
+        "changeset": "changeset",
+        "version-packages": "changeset version",
+        "release": "turbo run build && changeset publish",
+        "prepare": "husky"
+    },
+    "devDependencies": {
+        "@changesets/changelog-github": "^0.6.0",
+        "@changesets/cli": "^2.30.0",
+        "@playwright/test": "^1.59.1",
+        "@vitest/coverage-v8": "^4.1.4",
+        "husky": "^9.0.0",
+        "lint-staged": "^15.0.0",
+        "prettier": "^3.5.0",
+        "turbo": "^2.5.0"
+    },
+    "pnpm": {
+        "overrides": {
+            "picomatch@>=4.0.0 <4.0.4": ">=4.0.4",
+            "brace-expansion@<1.1.13": ">=1.1.13",
+            "brace-expansion@>=4.0.0 <5.0.5": ">=5.0.5"
+        }
+    },
+    "lint-staged": {
+        "*.{ts,tsx,js,jsx}": "prettier --write",
+        "*.{json,md,css}": "prettier --write"
+    }
 }

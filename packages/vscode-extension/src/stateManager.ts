@@ -33,7 +33,9 @@ export class StateManager {
     /** Subscribe to state changes. Returns unsubscribe function. */
     onStateChanged(listener: (s: StateSnapshot) => void): () => void {
         this.listeners.add(listener);
-        return () => { this.listeners.delete(listener); };
+        return () => {
+            this.listeners.delete(listener);
+        };
     }
 
     private notify(): void {

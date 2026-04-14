@@ -99,9 +99,7 @@ export class FpdParser {
             } else if (ELEMENT_KEYWORDS.has(token.value)) {
                 this.parseElementDecl();
             } else {
-                this.model.errors.push(
-                    `Line ${token.line}: Unknown keyword '${token.value}'`
-                );
+                this.model.errors.push(`Line ${token.line}: Unknown keyword '${token.value}'`);
                 this.advance();
             }
             return;
@@ -121,7 +119,7 @@ export class FpdParser {
     private parseTitle(): void {
         if (this.currentSystemId !== null) {
             this.model.errors.push(
-                `Line ${this.current().line}: title cannot be used inside a system block`
+                `Line ${this.current().line}: title cannot be used inside a system block`,
             );
             this.advance();
             return;
@@ -131,9 +129,7 @@ export class FpdParser {
             this.model.title = this.current().value;
             this.advance();
         } else {
-            this.model.errors.push(
-                `Line ${this.current().line}: Expected string after 'title'`
-            );
+            this.model.errors.push(`Line ${this.current().line}: Expected string after 'title'`);
         }
     }
 
@@ -144,9 +140,7 @@ export class FpdParser {
         this.advance(); // consume 'system'
 
         if (!this.check(TokenType.STRING)) {
-            this.model.errors.push(
-                `Line ${systemToken.line}: Expected string after 'system'`
-            );
+            this.model.errors.push(`Line ${systemToken.line}: Expected string after 'system'`);
             return;
         }
 
@@ -154,9 +148,7 @@ export class FpdParser {
         this.advance();
 
         if (!this.check(TokenType.LBRACE)) {
-            this.model.errors.push(
-                `Line ${systemToken.line}: Expected '{' after system name`
-            );
+            this.model.errors.push(`Line ${systemToken.line}: Expected '{' after system name`);
             return;
         }
         this.advance(); // consume '{'
@@ -175,7 +167,11 @@ export class FpdParser {
         this.currentSystemId = systemId;
         this.skipTrivial();
 
-        while (!this.check(TokenType.RBRACE) && !this.check(TokenType.EOF) && !this.check(TokenType.END_FPD)) {
+        while (
+            !this.check(TokenType.RBRACE) &&
+            !this.check(TokenType.EOF) &&
+            !this.check(TokenType.END_FPD)
+        ) {
             this.parseStatement();
             this.skipTrivial();
         }
@@ -184,7 +180,7 @@ export class FpdParser {
             this.advance();
         } else {
             this.model.errors.push(
-                `Line ${systemToken.line}: Missing '}' for system '${systemName}'`
+                `Line ${systemToken.line}: Missing '}' for system '${systemName}'`,
             );
         }
 
@@ -200,7 +196,7 @@ export class FpdParser {
 
         if (!this.check(TokenType.IDENTIFIER)) {
             this.model.errors.push(
-                `Line ${keywordToken.line}: Expected identifier after '${keyword}'`
+                `Line ${keywordToken.line}: Expected identifier after '${keyword}'`,
             );
             return;
         }
@@ -210,9 +206,7 @@ export class FpdParser {
 
         // Check for duplicate ID
         if (this.elementIds.has(elemId)) {
-            this.model.errors.push(
-                `Line ${keywordToken.line}: Duplicate element ID '${elemId}'`
-            );
+            this.model.errors.push(`Line ${keywordToken.line}: Duplicate element ID '${elemId}'`);
             return;
         }
 
@@ -233,8 +227,8 @@ export class FpdParser {
             } else {
                 this.model.warnings.push(
                     `Line ${keywordToken.line}: Placement annotation ` +
-                    `'${annotationValue}' ignored on '${keyword}' ` +
-                    `(only valid on state elements)`
+                        `'${annotationValue}' ignored on '${keyword}' ` +
+                        `(only valid on state elements)`,
                 );
             }
         }
@@ -283,7 +277,7 @@ export class FpdParser {
             this.advance();
             if (!this.check(TokenType.IDENTIFIER)) {
                 this.model.errors.push(
-                    `Line ${sourceToken.line}: Expected identifier after connection operator`
+                    `Line ${sourceToken.line}: Expected identifier after connection operator`,
                 );
                 return;
             }
@@ -292,13 +286,13 @@ export class FpdParser {
 
             if (!this.elementIds.has(sourceId)) {
                 this.model.errors.push(
-                    `Line ${sourceToken.line}: Element '${sourceId}' is not defined`
+                    `Line ${sourceToken.line}: Element '${sourceId}' is not defined`,
                 );
                 return;
             }
             if (!this.elementIds.has(targetId)) {
                 this.model.errors.push(
-                    `Line ${sourceToken.line}: Element '${targetId}' is not defined`
+                    `Line ${sourceToken.line}: Element '${targetId}' is not defined`,
                 );
                 return;
             }
@@ -311,14 +305,13 @@ export class FpdParser {
                 lineNumber: sourceToken.line,
                 systemId: this.currentSystemId ?? undefined,
             } as Usage);
-
         } else if (FLOW_TOKEN_MAP.has(token.type)) {
             const flowType = FLOW_TOKEN_MAP.get(token.type)!;
             this.advance();
 
             if (!this.check(TokenType.IDENTIFIER)) {
                 this.model.errors.push(
-                    `Line ${sourceToken.line}: Expected identifier after connection operator`
+                    `Line ${sourceToken.line}: Expected identifier after connection operator`,
                 );
                 return;
             }
@@ -327,13 +320,13 @@ export class FpdParser {
 
             if (!this.elementIds.has(sourceId)) {
                 this.model.errors.push(
-                    `Line ${sourceToken.line}: Element '${sourceId}' is not defined`
+                    `Line ${sourceToken.line}: Element '${sourceId}' is not defined`,
                 );
                 return;
             }
             if (!this.elementIds.has(targetId)) {
                 this.model.errors.push(
-                    `Line ${sourceToken.line}: Element '${targetId}' is not defined`
+                    `Line ${sourceToken.line}: Element '${targetId}' is not defined`,
                 );
                 return;
             }
@@ -347,10 +340,9 @@ export class FpdParser {
                 lineNumber: sourceToken.line,
                 systemId: this.currentSystemId ?? undefined,
             } as Flow);
-
         } else {
             this.model.errors.push(
-                `Line ${sourceToken.line}: Expected connection operator after '${sourceId}'`
+                `Line ${sourceToken.line}: Expected connection operator after '${sourceId}'`,
             );
         }
     }
@@ -381,14 +373,15 @@ export class FpdParser {
             return this.advance();
         }
         const token = this.current();
-        this.model.errors.push(
-            `Line ${token.line}: Expected ${tokenType}, got ${token.type}`
-        );
+        this.model.errors.push(`Line ${token.line}: Expected ${tokenType}, got ${token.type}`);
         return token;
     }
 
     private skipTrivial(): void {
-        while (this.current().type === TokenType.NEWLINE || this.current().type === TokenType.COMMENT) {
+        while (
+            this.current().type === TokenType.NEWLINE ||
+            this.current().type === TokenType.COMMENT
+        ) {
             this.advance();
         }
     }

@@ -1,147 +1,149 @@
 {
-  "name": "fpd-vscode-extension",
-  "displayName": "FPD - Formalized Process Description (VDI 3682)",
-  "description": "Syntax highlighting, IntelliSense, diagnostics, and live diagram preview for FPD (Formalized Process Description, VDI 3682)",
-  "version": "0.4.0",
-  "publisher": "FLEXCELERATE",
-  "icon": "images/icon.png",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/FLEXCELERATE/fpd-editor"
-  },
-  "engines": {
-    "vscode": "^1.85.0"
-  },
-  "categories": [
-    "Programming Languages",
-    "Snippets",
-    "Visualization"
-  ],
-  "license": "MIT",
-  "keywords": [
-    "fpd",
-    "vdi3682",
-    "formalized-process-description",
-    "process",
-    "diagram"
-  ],
-  "extensionDependencies": [],
-  "activationEvents": [],
-  "main": "./dist/extension.js",
-  "contributes": {
-    "languages": [
-      {
-        "id": "fpd",
-        "aliases": [
-          "FPD",
-          "Formalized Process Description"
-        ],
-        "extensions": [
-          ".fpd"
-        ],
-        "configuration": "./language-configuration.json"
-      }
-    ],
-    "grammars": [
-      {
-        "language": "fpd",
-        "scopeName": "source.fpd",
-        "path": "./syntaxes/fpd.tmLanguage.json"
-      }
-    ],
-    "commands": [
-      {
-        "command": "fpd.preview.show",
-        "title": "FPD: Show Preview",
-        "icon": "$(preview)"
-      },
-      {
-        "command": "fpd.export.svg",
-        "title": "FPD: Export SVG"
-      },
-      {
-        "command": "fpd.export.pdf",
-        "title": "FPD: Export PDF"
-      },
-      {
-        "command": "fpd.export.xml",
-        "title": "FPD: Export VDI 3682 XML"
-      },
-      {
-        "command": "fpd.export.text",
-        "title": "FPD: Export FPD Text"
-      }
-    ],
-    "menus": {
-      "editor/title": [
-        {
-          "when": "resourceLangId == fpd",
-          "command": "fpd.preview.show",
-          "group": "navigation"
-        }
-      ],
-      "commandPalette": [
-        {
-          "command": "fpd.preview.show",
-          "when": "resourceLangId == fpd"
-        },
-        {
-          "command": "fpd.export.svg",
-          "when": "resourceLangId == fpd"
-        },
-        {
-          "command": "fpd.export.pdf",
-          "when": "resourceLangId == fpd"
-        },
-        {
-          "command": "fpd.export.xml",
-          "when": "resourceLangId == fpd"
-        },
-        {
-          "command": "fpd.export.text",
-          "when": "resourceLangId == fpd"
-        }
-      ]
+    "name": "fpd-vscode-extension",
+    "displayName": "FPD - Formalized Process Description (VDI 3682)",
+    "description": "Syntax highlighting, IntelliSense, diagnostics, and live diagram preview for FPD (Formalized Process Description, VDI 3682)",
+    "version": "0.4.0",
+    "publisher": "FLEXCELERATE",
+    "icon": "images/icon.png",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/FLEXCELERATE/fpd-editor"
     },
-    "configuration": {
-      "title": "FPD",
-      "properties": {
-        "fpd.preview.autoUpdate": {
-          "type": "boolean",
-          "default": true,
-          "description": "Automatically update the preview panel when editing"
+    "engines": {
+        "vscode": "^1.85.0"
+    },
+    "categories": [
+        "Programming Languages",
+        "Snippets",
+        "Visualization"
+    ],
+    "license": "MIT",
+    "keywords": [
+        "fpd",
+        "vdi3682",
+        "formalized-process-description",
+        "process",
+        "diagram"
+    ],
+    "extensionDependencies": [],
+    "activationEvents": [],
+    "main": "./dist/extension.js",
+    "contributes": {
+        "languages": [
+            {
+                "id": "fpd",
+                "aliases": [
+                    "FPD",
+                    "Formalized Process Description"
+                ],
+                "extensions": [
+                    ".fpd"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "fpd",
+                "scopeName": "source.fpd",
+                "path": "./syntaxes/fpd.tmLanguage.json"
+            }
+        ],
+        "commands": [
+            {
+                "command": "fpd.preview.show",
+                "title": "FPD: Show Preview",
+                "icon": "$(preview)"
+            },
+            {
+                "command": "fpd.export.svg",
+                "title": "FPD: Export SVG"
+            },
+            {
+                "command": "fpd.export.pdf",
+                "title": "FPD: Export PDF"
+            },
+            {
+                "command": "fpd.export.xml",
+                "title": "FPD: Export VDI 3682 XML"
+            },
+            {
+                "command": "fpd.export.text",
+                "title": "FPD: Export FPD Text"
+            }
+        ],
+        "menus": {
+            "editor/title": [
+                {
+                    "when": "resourceLangId == fpd",
+                    "command": "fpd.preview.show",
+                    "group": "navigation"
+                }
+            ],
+            "commandPalette": [
+                {
+                    "command": "fpd.preview.show",
+                    "when": "resourceLangId == fpd"
+                },
+                {
+                    "command": "fpd.export.svg",
+                    "when": "resourceLangId == fpd"
+                },
+                {
+                    "command": "fpd.export.pdf",
+                    "when": "resourceLangId == fpd"
+                },
+                {
+                    "command": "fpd.export.xml",
+                    "when": "resourceLangId == fpd"
+                },
+                {
+                    "command": "fpd.export.text",
+                    "when": "resourceLangId == fpd"
+                }
+            ]
         },
-        "fpd.preview.updateDelay": {
-          "type": "number",
-          "default": 500,
-          "description": "Delay in milliseconds before updating the preview after typing (debounce)"
+        "configuration": {
+            "title": "FPD",
+            "properties": {
+                "fpd.preview.autoUpdate": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Automatically update the preview panel when editing"
+                },
+                "fpd.preview.updateDelay": {
+                    "type": "number",
+                    "default": 500,
+                    "description": "Delay in milliseconds before updating the preview after typing (debounce)"
+                }
+            }
         }
-      }
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run package",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "lint": "eslint src",
+        "test": "vitest run",
+        "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
+        "package": "npm run esbuild-base -- --minify",
+        "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch"
+    },
+    "devDependencies": {
+        "@fpd-editor/tsconfig": "workspace:*",
+        "@types/node": "^20.x",
+        "@types/vscode": "^1.85.0",
+        "@typescript-eslint/eslint-plugin": "^8.x",
+        "@typescript-eslint/parser": "^8.x",
+        "@vitest/coverage-v8": "^4.1.4",
+        "@vscode/test-electron": "^2.3.x",
+        "@vscode/vsce": "^2.22.0",
+        "esbuild": "^0.27.4",
+        "eslint": "^8.x",
+        "typescript": "^5.3.x",
+        "vitest": "^4.1.2"
+    },
+    "dependencies": {
+        "@fpd-editor/core": "workspace:*"
     }
-  },
-  "scripts": {
-    "vscode:prepublish": "npm run package",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "lint": "eslint src",
-    "test": "vitest run",
-    "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
-    "package": "npm run esbuild-base -- --minify",
-    "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch"
-  },
-  "devDependencies": {
-    "@types/node": "^20.x",
-    "@types/vscode": "^1.85.0",
-    "@typescript-eslint/eslint-plugin": "^8.x",
-    "@typescript-eslint/parser": "^8.x",
-    "@vscode/test-electron": "^2.3.x",
-    "@vscode/vsce": "^2.22.0",
-    "esbuild": "^0.27.4",
-    "eslint": "^8.x",
-    "typescript": "^5.3.x",
-    "vitest": "^4.1.2"
-  },
-  "dependencies": {
-    "@fpd-editor/core": "workspace:*"
-  }
 }

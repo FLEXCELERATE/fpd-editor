@@ -34,6 +34,16 @@ export type {
 } from './services/layout';
 export { createLayoutConfig, computeLayout } from './services/layout';
 
+// Design tokens
+export {
+    COLORS,
+    FONT_FAMILY,
+    STROKE_WIDTH,
+    STATE_LABEL_FONT_SIZE,
+    PROCESS_LABEL_FONT_SIZE,
+    SYSTEM_LIMIT_LABEL_FONT_SIZE,
+} from './services/designTokens';
+
 // Rendering
 export { renderSvg } from './services/svgRenderer';
 
