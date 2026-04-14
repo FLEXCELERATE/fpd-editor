@@ -32,16 +32,10 @@ export const ELEMENT_KEYWORDS: ReadonlySet<string> = new Set([
 ]);
 
 /** Other keywords */
-const OTHER_KEYWORDS: ReadonlySet<string> = new Set([
-    'title',
-    'system',
-]);
+const OTHER_KEYWORDS: ReadonlySet<string> = new Set(['title', 'system']);
 
 /** All keywords */
-export const KEYWORDS: ReadonlySet<string> = new Set([
-    ...ELEMENT_KEYWORDS,
-    ...OTHER_KEYWORDS,
-]);
+export const KEYWORDS: ReadonlySet<string> = new Set([...ELEMENT_KEYWORDS, ...OTHER_KEYWORDS]);
 
 /** Placement annotations for states */
 export const PLACEMENT_ANNOTATIONS: ReadonlySet<string> = new Set([
@@ -56,11 +50,12 @@ export const PLACEMENT_ANNOTATIONS: ReadonlySet<string> = new Set([
 /** Connection operators mapped to token types */
 export const CONNECTION_OPERATORS: ReadonlyMap<string, TokenType> = new Map([
     ['-->', TokenType.FLOW],
-    ['-.->',TokenType.ALTERNATIVE_FLOW],
+    ['-.->', TokenType.ALTERNATIVE_FLOW],
     ['==>', TokenType.PARALLEL_FLOW],
     ['<..>', TokenType.USAGE],
 ]);
 
 /** Sorted by length descending for greedy matching */
-export const CONNECTION_OPERATORS_SORTED: readonly string[] =
-    [...CONNECTION_OPERATORS.keys()].sort((a, b) => b.length - a.length);
+export const CONNECTION_OPERATORS_SORTED: readonly string[] = [...CONNECTION_OPERATORS.keys()].sort(
+    (a, b) => b.length - a.length,
+);

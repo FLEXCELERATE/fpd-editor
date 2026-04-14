@@ -1,8 +1,8 @@
 {
-  "extends": "@fpd-editor/tsconfig/node.json",
-  "compilerOptions": {
-    "outDir": "./dist",
-    "rootDir": "./src"
-  },
-  "include": ["src"]
+    "extends": "@fpd-editor/tsconfig/node.json",
+    "compilerOptions": {
+        "outDir": "./dist",
+        "rootDir": "./src"
+    },
+    "include": ["src"]
 }

@@ -60,7 +60,10 @@ export class FpdService {
     }
 
     /** Import a file (text or XML) and return model, diagram, and generated FPD source. */
-    importFile(content: string, filename: string): { model: ProcessModel; diagram: DiagramLayout; source: string } {
+    importFile(
+        content: string,
+        filename: string,
+    ): { model: ProcessModel; diagram: DiagramLayout; source: string } {
         const format = detectFormat(filename, content);
 
         let model: ProcessModel;

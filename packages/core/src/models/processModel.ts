@@ -1,13 +1,6 @@
 /** Container model for a complete VDI 3682 process description. */
 
-import {
-    Flow,
-    ProcessOperator,
-    State,
-    SystemLimit,
-    TechnicalResource,
-    Usage,
-} from './fpdModel';
+import { Flow, ProcessOperator, State, SystemLimit, TechnicalResource, Usage } from './fpdModel';
 
 export interface ProcessModel {
     title: string;

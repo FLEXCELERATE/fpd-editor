@@ -3,11 +3,7 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import Editor, { BeforeMount, OnMount } from '@monaco-editor/react';
 import type { editor as monacoEditor, IDisposable } from 'monaco-editor';
-import {
-  FPD_LANGUAGE_ID,
-  fpdLanguageDefinition,
-  fpdLanguageConfiguration,
-} from './fpdLanguage';
+import { FPD_LANGUAGE_ID, fpdLanguageDefinition, fpdLanguageConfiguration } from './fpdLanguage';
 import { createFpdCompletionProvider } from './fpdCompletion';
 import { typography } from '../../theme/designTokens';
 
@@ -32,137 +28,132 @@ PO1 <..> TR1
 
 /** Parse an error string to extract line number if present (e.g. "Line 5: ..."). */
 function parseErrorLine(errorMsg: string): number {
-  const match = errorMsg.match(/^(?:line\s+)(\d+)/i);
-  return match ? parseInt(match[1], 10) : 1;
+    const match = errorMsg.match(/^(?:line\s+)(\d+)/i);
+    return match ? parseInt(match[1], 10) : 1;
 }
 
 interface FpdEditorProps {
-  value?: string;
-  onChange?: (value: string) => void;
-  /** Newline-separated parse error string from the backend. */
-  parseError?: string | null;
-  /** Called when cursor position changes, with the current line number. */
-  onCursorPositionChange?: (lineNumber: number) => void;
+    value?: string;
+    onChange?: (value: string) => void;
+    /** Newline-separated parse error string from the backend. */
+    parseError?: string | null;
+    /** Called when cursor position changes, with the current line number. */
+    onCursorPositionChange?: (lineNumber: number) => void;
 }
 
 export interface FpdEditorRef {
-  scrollToLine: (lineNumber: number) => void;
+    scrollToLine: (lineNumber: number) => void;
 }
 
 const FpdEditor = forwardRef<FpdEditorRef, FpdEditorProps>(
-  ({ value, onChange, parseError, onCursorPositionChange }, ref) => {
-    const editorRef = useRef<monacoEditor.IStandaloneCodeEditor | null>(null);
-    const monacoRef = useRef<typeof import('monaco-editor') | null>(null);
-    const cursorDisposableRef = useRef<IDisposable | null>(null);
+    ({ value, onChange, parseError, onCursorPositionChange }, ref) => {
+        const editorRef = useRef<monacoEditor.IStandaloneCodeEditor | null>(null);
+        const monacoRef = useRef<typeof import('monaco-editor') | null>(null);
+        const cursorDisposableRef = useRef<IDisposable | null>(null);
 
-    useImperativeHandle(ref, () => ({
-      scrollToLine: (lineNumber: number) => {
-        const editor = editorRef.current;
-        const model = editor?.getModel();
-        if (!editor || !model) return;
+        useImperativeHandle(ref, () => ({
+            scrollToLine: (lineNumber: number) => {
+                const editor = editorRef.current;
+                const model = editor?.getModel();
+                if (!editor || !model) return;
 
-        const clampedLine = Math.min(Math.max(lineNumber, 1), model.getLineCount());
+                const clampedLine = Math.min(Math.max(lineNumber, 1), model.getLineCount());
 
-        // Scroll to the line and center it in view
-        editor.revealLineInCenter(clampedLine);
+                // Scroll to the line and center it in view
+                editor.revealLineInCenter(clampedLine);
 
-        // Highlight the line by setting selection
-        editor.setSelection({
-          startLineNumber: clampedLine,
-          startColumn: 1,
-          endLineNumber: clampedLine,
-          endColumn: model.getLineMaxColumn(clampedLine),
-        });
+                // Highlight the line by setting selection
+                editor.setSelection({
+                    startLineNumber: clampedLine,
+                    startColumn: 1,
+                    endLineNumber: clampedLine,
+                    endColumn: model.getLineMaxColumn(clampedLine),
+                });
 
-        // Focus the editor
-        editor.focus();
-      },
-    }));
+                // Focus the editor
+                editor.focus();
+            },
+        }));
 
-    const handleBeforeMount: BeforeMount = (monaco) => {
-    monaco.languages.register({ id: FPD_LANGUAGE_ID });
-    monaco.languages.setMonarchTokensProvider(
-      FPD_LANGUAGE_ID,
-      fpdLanguageDefinition,
-    );
-    monaco.languages.setLanguageConfiguration(
-      FPD_LANGUAGE_ID,
-      fpdLanguageConfiguration,
-    );
-    monaco.languages.registerCompletionItemProvider(
-      FPD_LANGUAGE_ID,
-      createFpdCompletionProvider(monaco),
-    );
-  };
+        const handleBeforeMount: BeforeMount = (monaco) => {
+            monaco.languages.register({ id: FPD_LANGUAGE_ID });
+            monaco.languages.setMonarchTokensProvider(FPD_LANGUAGE_ID, fpdLanguageDefinition);
+            monaco.languages.setLanguageConfiguration(FPD_LANGUAGE_ID, fpdLanguageConfiguration);
+            monaco.languages.registerCompletionItemProvider(
+                FPD_LANGUAGE_ID,
+                createFpdCompletionProvider(monaco),
+            );
+        };
 
-  const handleMount: OnMount = (editor, monaco) => {
-    editorRef.current = editor;
-    monacoRef.current = monaco;
-    editor.focus();
+        const handleMount: OnMount = (editor, monaco) => {
+            editorRef.current = editor;
+            monacoRef.current = monaco;
+            editor.focus();
 
-    // Track cursor position changes
-    cursorDisposableRef.current = editor.onDidChangeCursorPosition((e) => {
-      onCursorPositionChange?.(e.position.lineNumber);
-    });
-  };
+            // Track cursor position changes
+            cursorDisposableRef.current = editor.onDidChangeCursorPosition((e) => {
+                onCursorPositionChange?.(e.position.lineNumber);
+            });
+        };
 
-  // Cleanup cursor position listener on unmount
-  useEffect(() => {
-    return () => {
-      cursorDisposableRef.current?.dispose();
-    };
-  }, []);
+        // Cleanup cursor position listener on unmount
+        useEffect(() => {
+            return () => {
+                cursorDisposableRef.current?.dispose();
+            };
+        }, []);
 
-  // Set Monaco error markers when parseError changes.
-  useEffect(() => {
-    const editor = editorRef.current;
-    const monaco = monacoRef.current;
-    const model = editor?.getModel();
-    if (!monaco || !model) return;
+        // Set Monaco error markers when parseError changes.
+        useEffect(() => {
+            const editor = editorRef.current;
+            const monaco = monacoRef.current;
+            const model = editor?.getModel();
+            if (!monaco || !model) return;
 
-    if (!parseError) {
-      monaco.editor.setModelMarkers(model, 'fpd-parser', []);
-      return;
-    }
+            if (!parseError) {
+                monaco.editor.setModelMarkers(model, 'fpd-parser', []);
+                return;
+            }
 
-    const errors = parseError.split('\n').filter(Boolean);
-    const markers: monacoEditor.IMarkerData[] = errors.map((msg) => {
-      const line = parseErrorLine(msg);
-      const clampedLine = Math.min(Math.max(line, 1), model.getLineCount());
-      return {
-        severity: monaco.MarkerSeverity.Error,
-        message: msg,
-        startLineNumber: clampedLine,
-        startColumn: 1,
-        endLineNumber: clampedLine,
-        endColumn: model.getLineMaxColumn(clampedLine),
-      };
-    });
+            const errors = parseError.split('\n').filter(Boolean);
+            const markers: monacoEditor.IMarkerData[] = errors.map((msg) => {
+                const line = parseErrorLine(msg);
+                const clampedLine = Math.min(Math.max(line, 1), model.getLineCount());
+                return {
+                    severity: monaco.MarkerSeverity.Error,
+                    message: msg,
+                    startLineNumber: clampedLine,
+                    startColumn: 1,
+                    endLineNumber: clampedLine,
+                    endColumn: model.getLineMaxColumn(clampedLine),
+                };
+            });
 
-    monaco.editor.setModelMarkers(model, 'fpd-parser', markers);
-  }, [parseError]);
+            monaco.editor.setModelMarkers(model, 'fpd-parser', markers);
+        }, [parseError]);
 
-  return (
-    <Editor
-      defaultValue={DEFAULT_VALUE}
-      value={value}
-      language={FPD_LANGUAGE_ID}
-      theme="vs-dark"
-      beforeMount={handleBeforeMount}
-      onMount={handleMount}
-      onChange={(v) => onChange?.(v ?? '')}
-      options={{
-        minimap: { enabled: false },
-        fontSize: typography.fontSize.editor,
-        lineNumbers: 'on',
-        scrollBeyondLastLine: false,
-        wordWrap: 'on',
-        automaticLayout: true,
-        tabSize: 2,
-      }}
-    />
-  );
-});
+        return (
+            <Editor
+                defaultValue={DEFAULT_VALUE}
+                value={value}
+                language={FPD_LANGUAGE_ID}
+                theme="vs-dark"
+                beforeMount={handleBeforeMount}
+                onMount={handleMount}
+                onChange={(v) => onChange?.(v ?? '')}
+                options={{
+                    minimap: { enabled: false },
+                    fontSize: typography.fontSize.editor,
+                    lineNumbers: 'on',
+                    scrollBeyondLastLine: false,
+                    wordWrap: 'on',
+                    automaticLayout: true,
+                    tabSize: 2,
+                }}
+            />
+        );
+    },
+);
 
 FpdEditor.displayName = 'FpdEditor';
 

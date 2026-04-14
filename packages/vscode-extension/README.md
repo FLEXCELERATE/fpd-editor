@@ -9,7 +9,9 @@
 ## Features
 
 ### Syntax Highlighting
+
 Rich syntax highlighting for `.fpd` files with TextMate grammar support:
+
 - **Keywords**: `product`, `energy`, `information`, `process_operator`, `technical_resource`, `system`, `title`
 - **Operators**: `-->` (flow), `-.->` (alternative flow), `==>` (parallel flow), `<..>` (usage)
 - **Annotations**: `@boundary`, `@internal`
@@ -18,21 +20,27 @@ Rich syntax highlighting for `.fpd` files with TextMate grammar support:
 - **Strings**: Double-quoted labels
 
 ### IntelliSense & Autocompletion
+
 Smart autocompletion as you type:
+
 - Element type keywords with snippets
 - Connection operators after identifiers
 - Automatic snippet expansion with placeholders
 - Context-aware suggestions
 
 ### Real-time Diagnostics
+
 Instant error detection with red squiggly underlines:
+
 - Syntax validation
 - Connection type rules (e.g., products cannot connect directly to products)
 - Missing or duplicate declarations
 - Invalid operator usage
 
 ### Live Diagram Preview
+
 Side-by-side diagram preview that updates as you type:
+
 - Real-time SVG rendering
 - Auto-update on document changes (configurable debounce)
 - Visual representation of all element types
@@ -42,7 +50,9 @@ Side-by-side diagram preview that updates as you type:
 - Theme-aware styling
 
 ### Export Commands
+
 Export your diagrams in multiple formats via Command Palette (`Ctrl+Shift+P`):
+
 - **FPD: Export SVG** — Scalable vector graphics
 - **FPD: Export VDI 3682 XML** — Structured VDI 3682 XML format
 - **FPD: Export FPD Text** — Plain `.fpd` text file
@@ -96,6 +106,7 @@ T1 <..> OP1
 ### 2. View the Diagram
 
 Click the preview icon in the editor toolbar or press `Ctrl+Shift+P` and run:
+
 ```
 FPD: Show Preview
 ```
@@ -110,22 +121,22 @@ Press `Ctrl+Shift+P` and run one of the export commands (SVG, XML, or Text).
 
 ### Element Types
 
-| Keyword | Description | Example |
-|---------|-------------|---------|
-| `product` | Material or immaterial goods | `product P1 "Water"` |
-| `energy` | Energy flow | `energy E1 "Electricity"` |
-| `information` | Information flow | `information I1 "Recipe"` |
-| `process_operator` | Active transformation process | `process_operator PO1 "Mixer"` |
-| `technical_resource` | Equipment/infrastructure | `technical_resource TR1 "Storage Tank"` |
+| Keyword              | Description                   | Example                                 |
+| -------------------- | ----------------------------- | --------------------------------------- |
+| `product`            | Material or immaterial goods  | `product P1 "Water"`                    |
+| `energy`             | Energy flow                   | `energy E1 "Electricity"`               |
+| `information`        | Information flow              | `information I1 "Recipe"`               |
+| `process_operator`   | Active transformation process | `process_operator PO1 "Mixer"`          |
+| `technical_resource` | Equipment/infrastructure      | `technical_resource TR1 "Storage Tank"` |
 
 ### Connection Operators
 
-| Operator | Type | Description | Example |
-|----------|------|-------------|---------|
-| `-->` | Flow | Product/material flow | `P1 --> PO1` |
-| `-.->` | Alternative flow | Alternative connection | `P9 -.-> O2` |
-| `==>` | Parallel flow | Parallel connection | `E1 ==> PO1` |
-| `<..>` | Usage | Equipment connection | `TR1 <..> PO1` |
+| Operator | Type             | Description            | Example        |
+| -------- | ---------------- | ---------------------- | -------------- |
+| `-->`    | Flow             | Product/material flow  | `P1 --> PO1`   |
+| `-.->`   | Alternative flow | Alternative connection | `P9 -.-> O2`   |
+| `==>`    | Parallel flow    | Parallel connection    | `E1 ==> PO1`   |
+| `<..>`   | Usage            | Equipment connection   | `TR1 <..> PO1` |
 
 ### System Blocks
 
@@ -149,10 +160,10 @@ system "SystemName" {
 
 ### Annotations
 
-| Annotation | Description |
-|------------|-------------|
+| Annotation  | Description                    |
+| ----------- | ------------------------------ |
 | `@boundary` | Marks system boundary elements |
-| `@internal` | Marks internal elements |
+| `@internal` | Marks internal elements        |
 
 ### Comments
 
@@ -167,21 +178,21 @@ product P1 "Water"  // Inline comment
 
 Configure the extension in VS Code settings (`Ctrl+,`):
 
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `fpd.preview.autoUpdate` | `boolean` | `true` | Automatically update the preview panel when editing |
-| `fpd.preview.updateDelay` | `number` | `500` | Debounce delay in ms before updating the preview |
+| Setting                   | Type      | Default | Description                                         |
+| ------------------------- | --------- | ------- | --------------------------------------------------- |
+| `fpd.preview.autoUpdate`  | `boolean` | `true`  | Automatically update the preview panel when editing |
+| `fpd.preview.updateDelay` | `number`  | `500`   | Debounce delay in ms before updating the preview    |
 
 ## Commands
 
 Access these commands via Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`):
 
-| Command | Description |
-|---------|-------------|
-| `FPD: Show Preview` | Open live diagram preview panel |
-| `FPD: Export SVG` | Export diagram as SVG image |
-| `FPD: Export VDI 3682 XML` | Export diagram as VDI 3682 XML |
-| `FPD: Export FPD Text` | Export diagram as FPD text file |
+| Command                    | Description                     |
+| -------------------------- | ------------------------------- |
+| `FPD: Show Preview`        | Open live diagram preview panel |
+| `FPD: Export SVG`          | Export diagram as SVG image     |
+| `FPD: Export VDI 3682 XML` | Export diagram as VDI 3682 XML  |
+| `FPD: Export FPD Text`     | Export diagram as FPD text file |
 
 ## Troubleshooting
 

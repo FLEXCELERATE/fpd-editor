@@ -41,19 +41,25 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     });
 
     // Global error handler
-    app.setErrorHandler((error: Error & { validation?: Array<{ message: string }>; statusCode?: number }, _request, reply) => {
-        if (error.validation) {
-            return reply.status(400).send({
-                error: 'Validation error',
-                details: error.validation.map((v: { message: string }) => v.message),
-            });
-        }
+    app.setErrorHandler(
+        (
+            error: Error & { validation?: Array<{ message: string }>; statusCode?: number },
+            _request,
+            reply,
+        ) => {
+            if (error.validation) {
+                return reply.status(400).send({
+                    error: 'Validation error',
+                    details: error.validation.map((v: { message: string }) => v.message),
+                });
+            }
 
-        app.log.error(error);
-        const statusCode = error.statusCode ?? 500;
-        const message = statusCode >= 500 ? 'Internal server error' : error.message;
-        return reply.status(statusCode).send({ error: message });
-    });
+            app.log.error(error);
+            const statusCode = error.statusCode ?? 500;
+            const message = statusCode >= 500 ? 'Internal server error' : error.message;
+            return reply.status(statusCode).send({ error: message });
+        },
+    );
 
     // API routes
     await app.register(parseRouter, { prefix: '/api' });

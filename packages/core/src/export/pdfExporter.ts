@@ -7,11 +7,7 @@
 
 import { PDFDocument, PDFPage, rgb, RGB, LineCapStyle } from 'pdf-lib';
 
-import {
-    LayoutElement,
-    SystemLimitRect,
-    DiagramLayout,
-} from '../services/layout';
+import { LayoutElement, SystemLimitRect, DiagramLayout } from '../services/layout';
 import {
     COLORS as HEX_COLORS,
     STROKE_WIDTH,
@@ -68,10 +64,7 @@ const PAGE_SIZES: Record<PageSizeOption, [number, number]> = {
     Letter: [612, 792],
 };
 
-function getPageSize(
-    pageSize: PageSizeOption,
-    orientation: OrientationOption,
-): [number, number] {
+function getPageSize(pageSize: PageSizeOption, orientation: OrientationOption): [number, number] {
     const [w, h] = PAGE_SIZES[pageSize] ?? PAGE_SIZES.A4;
     if (orientation === 'landscape') {
         return [h, w];
@@ -79,13 +72,18 @@ function getPageSize(
     return [w, h];
 }
 
-
 // ---------------------------------------------------------------------------
 // PDF drawing helpers
 // ---------------------------------------------------------------------------
 
 /** Transform a diagram-space coordinate to PDF-space (flip Y). */
-function toPdfY(diagramY: number, bounds: ContentBounds, pageHeight: number, scale: number, offsetY: number): number {
+function toPdfY(
+    diagramY: number,
+    bounds: ContentBounds,
+    pageHeight: number,
+    scale: number,
+    offsetY: number,
+): number {
     return pageHeight - ((diagramY - bounds.y) * scale + offsetY);
 }
 
@@ -93,7 +91,13 @@ function toPdfX(diagramX: number, bounds: ContentBounds, scale: number, offsetX:
     return (diagramX - bounds.x) * scale + offsetX;
 }
 
-function drawPolyline(page: PDFPage, pts: Point[], color: RGB, thickness: number, dash?: number[]): void {
+function drawPolyline(
+    page: PDFPage,
+    pts: Point[],
+    color: RGB,
+    thickness: number,
+    dash?: number[],
+): void {
     for (let i = 0; i < pts.length - 1; i++) {
         page.drawLine({
             start: { x: pts[i][0], y: pts[i][1] },
@@ -116,8 +120,8 @@ function drawArrowhead(page: PDFPage, tip: Point, prev: Point, color: RGB, size:
     const px = -uy;
     const py = ux;
     const base = [tip[0] - ux * size, tip[1] - uy * size];
-    const left = [base[0] + px * size / 2, base[1] + py * size / 2];
-    const right = [base[0] - px * size / 2, base[1] - py * size / 2];
+    const left = [base[0] + (px * size) / 2, base[1] + (py * size) / 2];
+    const right = [base[0] - (px * size) / 2, base[1] - (py * size) / 2];
 
     const path = `M ${tip[0]} ${tip[1]} L ${left[0]} ${left[1]} L ${right[0]} ${right[1]} Z`;
     page.drawSvgPath(path, { x: 0, y: 0, color, borderColor: color, borderWidth: 0.5 });
@@ -128,8 +132,13 @@ function drawArrowhead(page: PDFPage, tip: Point, prev: Point, color: RGB, size:
 // ---------------------------------------------------------------------------
 
 function drawState(
-    page: PDFPage, el: LayoutElement,
-    bounds: ContentBounds, pageHeight: number, scale: number, offsetX: number, offsetY: number,
+    page: PDFPage,
+    el: LayoutElement,
+    bounds: ContentBounds,
+    pageHeight: number,
+    scale: number,
+    offsetX: number,
+    offsetY: number,
 ): void {
     const cx = toPdfX(el.x + el.width / 2, bounds, scale, offsetX);
     const cy = toPdfY(el.y + el.height / 2, bounds, pageHeight, scale, offsetY);
@@ -141,18 +150,38 @@ function drawState(
     if (stateType === 'energy') {
         // Diamond
         const path = `M ${cx} ${cy + h / 2} L ${cx + w / 2} ${cy} L ${cx} ${cy - h / 2} L ${cx - w / 2} ${cy} Z`;
-        page.drawSvgPath(path, { x: 0, y: 0, color, borderColor: COLORS['black'], borderWidth: STROKE_WIDTH });
+        page.drawSvgPath(path, {
+            x: 0,
+            y: 0,
+            color,
+            borderColor: COLORS['black'],
+            borderWidth: STROKE_WIDTH,
+        });
     } else if (stateType === 'information') {
         // Hexagon
         const qw = w * 0.25;
-        const path = `M ${cx - w / 2 + qw} ${cy + h / 2} L ${cx + w / 2 - qw} ${cy + h / 2} ` +
+        const path =
+            `M ${cx - w / 2 + qw} ${cy + h / 2} L ${cx + w / 2 - qw} ${cy + h / 2} ` +
             `L ${cx + w / 2} ${cy} L ${cx + w / 2 - qw} ${cy - h / 2} ` +
             `L ${cx - w / 2 + qw} ${cy - h / 2} L ${cx - w / 2} ${cy} Z`;
-        page.drawSvgPath(path, { x: 0, y: 0, color, borderColor: COLORS['black'], borderWidth: STROKE_WIDTH });
+        page.drawSvgPath(path, {
+            x: 0,
+            y: 0,
+            color,
+            borderColor: COLORS['black'],
+            borderWidth: STROKE_WIDTH,
+        });
     } else {
         // Circle (product)
         const r = Math.min(w, h) / 2;
-        page.drawCircle({ x: cx, y: cy, size: r, color, borderColor: COLORS['black'], borderWidth: STROKE_WIDTH });
+        page.drawCircle({
+            x: cx,
+            y: cy,
+            size: r,
+            color,
+            borderColor: COLORS['black'],
+            borderWidth: STROKE_WIDTH,
+        });
     }
 
     // Labels above shape
@@ -162,16 +191,36 @@ function drawState(
     const labelX = cx - 6 * scale;
 
     if (hasName) {
-        page.drawText(el.id, { x: labelX - el.id.length * fontSize * 0.5, y: cy + h / 2 + 14 * scale, size: fontSize, color: COLORS['black'] });
-        page.drawText(label, { x: labelX - label.length * fontSize * 0.5, y: cy + h / 2 + 3 * scale, size: fontSize, color: COLORS['black'] });
+        page.drawText(el.id, {
+            x: labelX - el.id.length * fontSize * 0.5,
+            y: cy + h / 2 + 14 * scale,
+            size: fontSize,
+            color: COLORS['black'],
+        });
+        page.drawText(label, {
+            x: labelX - label.length * fontSize * 0.5,
+            y: cy + h / 2 + 3 * scale,
+            size: fontSize,
+            color: COLORS['black'],
+        });
     } else {
-        page.drawText(el.id, { x: labelX - el.id.length * fontSize * 0.5, y: cy + h / 2 + 6 * scale, size: fontSize, color: COLORS['black'] });
+        page.drawText(el.id, {
+            x: labelX - el.id.length * fontSize * 0.5,
+            y: cy + h / 2 + 6 * scale,
+            size: fontSize,
+            color: COLORS['black'],
+        });
     }
 }
 
 function drawProcessOperator(
-    page: PDFPage, el: LayoutElement,
-    bounds: ContentBounds, pageHeight: number, scale: number, offsetX: number, offsetY: number,
+    page: PDFPage,
+    el: LayoutElement,
+    bounds: ContentBounds,
+    pageHeight: number,
+    scale: number,
+    offsetX: number,
+    offsetY: number,
 ): void {
     const px = toPdfX(el.x, bounds, scale, offsetX);
     const py = toPdfY(el.y + el.height, bounds, pageHeight, scale, offsetY);
@@ -179,7 +228,10 @@ function drawProcessOperator(
     const h = el.height * scale;
 
     page.drawRectangle({
-        x: px, y: py, width: w, height: h,
+        x: px,
+        y: py,
+        width: w,
+        height: h,
         color: COLORS['processOperator'],
         borderColor: COLORS['black'],
         borderWidth: STROKE_WIDTH,
@@ -188,24 +240,49 @@ function drawProcessOperator(
     const label = el.label || el.id;
     const hasName = label !== el.id;
     const lines = hasName ? [el.id, label] : [el.id];
-    const fontSize = autoFontSize(lines, w - 12 * scale, PROCESS_LABEL_FONT_SIZE * scale, 7 * scale);
+    const fontSize = autoFontSize(
+        lines,
+        w - 12 * scale,
+        PROCESS_LABEL_FONT_SIZE * scale,
+        7 * scale,
+    );
     const cx = px + w / 2;
     const cy = py + h / 2;
 
     if (hasName) {
         const idW = el.id.length * fontSize * 0.5;
         const labelW = label.length * fontSize * 0.5;
-        page.drawText(el.id, { x: cx - idW / 2, y: cy + fontSize * 0.3, size: fontSize, color: COLORS['black'] });
-        page.drawText(label, { x: cx - labelW / 2, y: cy - fontSize * 0.9, size: fontSize, color: COLORS['black'] });
+        page.drawText(el.id, {
+            x: cx - idW / 2,
+            y: cy + fontSize * 0.3,
+            size: fontSize,
+            color: COLORS['black'],
+        });
+        page.drawText(label, {
+            x: cx - labelW / 2,
+            y: cy - fontSize * 0.9,
+            size: fontSize,
+            color: COLORS['black'],
+        });
     } else {
         const idW = el.id.length * fontSize * 0.5;
-        page.drawText(el.id, { x: cx - idW / 2, y: cy - fontSize / 3, size: fontSize, color: COLORS['black'] });
+        page.drawText(el.id, {
+            x: cx - idW / 2,
+            y: cy - fontSize / 3,
+            size: fontSize,
+            color: COLORS['black'],
+        });
     }
 }
 
 function drawTechnicalResource(
-    page: PDFPage, el: LayoutElement,
-    bounds: ContentBounds, pageHeight: number, scale: number, offsetX: number, offsetY: number,
+    page: PDFPage,
+    el: LayoutElement,
+    bounds: ContentBounds,
+    pageHeight: number,
+    scale: number,
+    offsetX: number,
+    offsetY: number,
 ): void {
     const px = toPdfX(el.x, bounds, scale, offsetX);
     const py = toPdfY(el.y + el.height, bounds, pageHeight, scale, offsetY);
@@ -215,13 +292,15 @@ function drawTechnicalResource(
     // Rounded rectangle (pdf-lib drawRectangle doesn't support borderRadius,
     // so we approximate with an SVG path with arcs)
     const r = Math.min(20 * scale, w / 2, h / 2);
-    const path = `M ${px + r} ${py} ` +
+    const path =
+        `M ${px + r} ${py} ` +
         `L ${px + w - r} ${py} A ${r} ${r} 0 0 1 ${px + w} ${py + r} ` +
         `L ${px + w} ${py + h - r} A ${r} ${r} 0 0 1 ${px + w - r} ${py + h} ` +
         `L ${px + r} ${py + h} A ${r} ${r} 0 0 1 ${px} ${py + h - r} ` +
         `L ${px} ${py + r} A ${r} ${r} 0 0 1 ${px + r} ${py} Z`;
     page.drawSvgPath(path, {
-        x: 0, y: 0,
+        x: 0,
+        y: 0,
         color: COLORS['technicalResource'],
         borderColor: COLORS['black'],
         borderWidth: STROKE_WIDTH,
@@ -230,24 +309,49 @@ function drawTechnicalResource(
     const label = el.label || el.id;
     const hasName = label !== el.id;
     const lines = hasName ? [el.id, label] : [el.id];
-    const fontSize = autoFontSize(lines, w - 24 * scale, PROCESS_LABEL_FONT_SIZE * scale, 7 * scale);
+    const fontSize = autoFontSize(
+        lines,
+        w - 24 * scale,
+        PROCESS_LABEL_FONT_SIZE * scale,
+        7 * scale,
+    );
     const cx = px + w / 2;
     const cy = py + h / 2;
 
     if (hasName) {
         const idW = el.id.length * fontSize * 0.5;
         const labelW = label.length * fontSize * 0.5;
-        page.drawText(el.id, { x: cx - idW / 2, y: cy + fontSize * 0.3, size: fontSize, color: COLORS['black'] });
-        page.drawText(label, { x: cx - labelW / 2, y: cy - fontSize * 0.9, size: fontSize, color: COLORS['black'] });
+        page.drawText(el.id, {
+            x: cx - idW / 2,
+            y: cy + fontSize * 0.3,
+            size: fontSize,
+            color: COLORS['black'],
+        });
+        page.drawText(label, {
+            x: cx - labelW / 2,
+            y: cy - fontSize * 0.9,
+            size: fontSize,
+            color: COLORS['black'],
+        });
     } else {
         const idW = el.id.length * fontSize * 0.5;
-        page.drawText(el.id, { x: cx - idW / 2, y: cy - fontSize / 3, size: fontSize, color: COLORS['black'] });
+        page.drawText(el.id, {
+            x: cx - idW / 2,
+            y: cy - fontSize / 3,
+            size: fontSize,
+            color: COLORS['black'],
+        });
     }
 }
 
 function drawSystemLimit(
-    page: PDFPage, sl: SystemLimitRect,
-    bounds: ContentBounds, pageHeight: number, scale: number, offsetX: number, offsetY: number,
+    page: PDFPage,
+    sl: SystemLimitRect,
+    bounds: ContentBounds,
+    pageHeight: number,
+    scale: number,
+    offsetX: number,
+    offsetY: number,
 ): void {
     const px = toPdfX(sl.x, bounds, scale, offsetX);
     const py = toPdfY(sl.y + sl.height, bounds, pageHeight, scale, offsetY);
@@ -255,7 +359,10 @@ function drawSystemLimit(
     const h = sl.height * scale;
 
     page.drawRectangle({
-        x: px, y: py, width: w, height: h,
+        x: px,
+        y: py,
+        width: w,
+        height: h,
         borderColor: COLORS['black'],
         borderWidth: STROKE_WIDTH,
         borderDashArray: [10, 12],
@@ -273,8 +380,13 @@ function drawSystemLimit(
 }
 
 function drawConnection(
-    page: PDFPage, routed: RoutedConnection,
-    bounds: ContentBounds, pageHeight: number, scale: number, offsetX: number, offsetY: number,
+    page: PDFPage,
+    routed: RoutedConnection,
+    bounds: ContentBounds,
+    pageHeight: number,
+    scale: number,
+    offsetX: number,
+    offsetY: number,
 ): void {
     const { conn, points } = routed;
     if (points.length < 2) return;
@@ -320,10 +432,7 @@ function drawConnection(
  * Uses the same positions and shapes as the SVG renderer so
  * the output matches the preview exactly.
  */
-export async function exportPdf(
-    diagram: DiagramLayout,
-    options?: PdfOptions,
-): Promise<Uint8Array> {
+export async function exportPdf(diagram: DiagramLayout, options?: PdfOptions): Promise<Uint8Array> {
     const pageSize: PageSizeOption = options?.pageSize ?? 'A4';
     const orientation: OrientationOption = options?.orientation ?? 'landscape';
     const author: string | undefined = options?.author;
@@ -364,7 +473,10 @@ export async function exportPdf(
 
     // White background
     page.drawRectangle({
-        x: 0, y: 0, width: pageWidth, height: pageHeight,
+        x: 0,
+        y: 0,
+        width: pageWidth,
+        height: pageHeight,
         color: COLORS['white'],
     });
 

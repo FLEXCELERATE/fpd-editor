@@ -4,22 +4,25 @@ import { StateType } from '../models/fpdModel';
 import { ProcessModel } from '../models/processModel';
 
 const FLOW_TYPE_OPERATORS: Record<string, string> = {
-    'flow': '-->',
-    'alternativeFlow': '-.->',
-    'parallelFlow': '==>',
+    flow: '-->',
+    alternativeFlow: '-.->',
+    parallelFlow: '==>',
 };
 
 const STATE_TYPE_KEYWORDS: Record<string, string> = {
-    'product': 'product',
-    'energy': 'energy',
-    'information': 'information',
+    product: 'product',
+    energy: 'energy',
+    information: 'information',
 };
 
 function escapeLabel(label: string): string {
     return label.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
-function exportStateLine(state: { id: string; label: string; placement?: string }, keyword: string): string {
+function exportStateLine(
+    state: { id: string; label: string; placement?: string },
+    keyword: string,
+): string {
     const label = state.label || state.id;
     let line = `${keyword} ${state.id} "${escapeLabel(label)}"`;
     if (state.placement !== undefined) {
@@ -106,7 +109,7 @@ export function exportText(model: ProcessModel): string {
         }
 
         // Cross-system connections (flows with systemId undefined)
-        const crossFlows = model.flows.filter(f => f.systemId === undefined);
+        const crossFlows = model.flows.filter((f) => f.systemId === undefined);
         if (crossFlows.length > 0) {
             for (const flow of crossFlows) {
                 const flowType = flow.flowType || 'flow';

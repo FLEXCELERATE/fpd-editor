@@ -45,7 +45,7 @@ function identificationXml(
 }
 
 function emptyChildrenXml(indent: string, ...names: string[]): string {
-    return names.map(name => `${indent}<${fpbTag(name)}/>`).join('\n');
+    return names.map((name) => `${indent}<${fpbTag(name)}/>`).join('\n');
 }
 
 function flowsElementXml(
@@ -146,19 +146,23 @@ export function exportXml(model: ProcessModel): string {
     for (const state of model.states) {
         const stateType = STATE_TYPE_MAP[state.stateType] || 'product';
         lines.push(`      <${fpbTag('state')} stateType="${stateType}">`);
-        lines.push(identificationXml(
-            '        ',
-            state.identification.uniqueIdent,
-            state.label || null,
-            state.identification.shortName,
-        ));
+        lines.push(
+            identificationXml(
+                '        ',
+                state.identification.uniqueIdent,
+                state.label || null,
+                state.identification.shortName,
+            ),
+        );
         lines.push(emptyChildrenXml('        ', 'characteristics', 'assignments'));
-        lines.push(flowsElementXml(
-            '        ',
-            state.id,
-            sourceFlows[state.id] || [],
-            targetFlows[state.id] || [],
-        ));
+        lines.push(
+            flowsElementXml(
+                '        ',
+                state.id,
+                sourceFlows[state.id] || [],
+                targetFlows[state.id] || [],
+            ),
+        );
         lines.push(`      </${fpbTag('state')}>`);
     }
     lines.push(`    </${fpbTag('states')}>`);
@@ -167,19 +171,18 @@ export function exportXml(model: ProcessModel): string {
     lines.push(`    <${fpbTag('processOperators')}>`);
     for (const po of model.processOperators) {
         lines.push(`      <${fpbTag('processOperator')}>`);
-        lines.push(identificationXml(
-            '        ',
-            po.identification.uniqueIdent,
-            po.label || null,
-            po.identification.shortName,
-        ));
+        lines.push(
+            identificationXml(
+                '        ',
+                po.identification.uniqueIdent,
+                po.label || null,
+                po.identification.shortName,
+            ),
+        );
         lines.push(emptyChildrenXml('        ', 'characteristics', 'assignments'));
-        lines.push(flowsElementXml(
-            '        ',
-            po.id,
-            sourceFlows[po.id] || [],
-            targetFlows[po.id] || [],
-        ));
+        lines.push(
+            flowsElementXml('        ', po.id, sourceFlows[po.id] || [], targetFlows[po.id] || []),
+        );
         lines.push(usagesElementXml('        ', poUsages[po.id] || []));
         lines.push(`      </${fpbTag('processOperator')}>`);
     }
@@ -189,12 +192,14 @@ export function exportXml(model: ProcessModel): string {
     lines.push(`    <${fpbTag('technicalResources')}>`);
     for (const tr of model.technicalResources) {
         lines.push(`      <${fpbTag('technicalResource')}>`);
-        lines.push(identificationXml(
-            '        ',
-            tr.identification.uniqueIdent,
-            tr.label || null,
-            tr.identification.shortName,
-        ));
+        lines.push(
+            identificationXml(
+                '        ',
+                tr.identification.uniqueIdent,
+                tr.label || null,
+                tr.identification.shortName,
+            ),
+        );
         lines.push(emptyChildrenXml('        ', 'characteristics', 'assignments'));
         lines.push(usagesElementXml('        ', trUsages[tr.id] || []));
         lines.push(`      </${fpbTag('technicalResource')}>`);

@@ -28,12 +28,7 @@ export function determineSide(fromEl: LayoutElement, toEl: LayoutElement): strin
     return dx >= 0 ? 'right' : 'left';
 }
 
-export function portPosition(
-    el: LayoutElement,
-    side: string,
-    index: number,
-    count: number,
-): Point {
+export function portPosition(el: LayoutElement, side: string, index: number, count: number): Point {
     const { x, y, width: w, height: h } = el;
     if (side === 'top') {
         const sp = w / (count + 1);
@@ -52,12 +47,7 @@ export function portPosition(
     return [x + w, y + sp * (index + 1)];
 }
 
-export function orthogonalWaypoints(
-    src: Point,
-    tgt: Point,
-    sSide: string,
-    tSide: string,
-): Point[] {
+export function orthogonalWaypoints(src: Point, tgt: Point, sSide: string, tSide: string): Point[] {
     const isVSrc = sSide === 'top' || sSide === 'bottom';
     const isVTgt = tSide === 'top' || tSide === 'bottom';
 
@@ -259,6 +249,6 @@ export function autoFontSize(
     const longest = lines.reduce((a, b) => (a.length >= b.length ? a : b), '');
     const needed = longest.length * defaultSize * 0.6;
     if (needed <= maxWidthPx) return defaultSize;
-    const scaled = longest.length > 0 ? (maxWidthPx / longest.length) / 0.6 : defaultSize;
+    const scaled = longest.length > 0 ? maxWidthPx / longest.length / 0.6 : defaultSize;
     return Math.max(minSize, scaled);
 }

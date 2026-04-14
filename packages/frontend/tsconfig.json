@@ -1,9 +1,9 @@
 {
-  "extends": "@fpd-editor/tsconfig/react.json",
-  "compilerOptions": {
-    "useDefineForClassFields": true
-  },
-  "include": ["src"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.spec.ts", "src/**/*.spec.tsx"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+    "extends": "@fpd-editor/tsconfig/react.json",
+    "compilerOptions": {
+        "useDefineForClassFields": true
+    },
+    "include": ["src"],
+    "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.spec.ts", "src/**/*.spec.tsx"],
+    "references": [{ "path": "./tsconfig.node.json" }]
 }
