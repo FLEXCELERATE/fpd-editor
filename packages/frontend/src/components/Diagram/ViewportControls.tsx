@@ -1,5 +1,7 @@
 /** Viewport controls for zoom operations and zoom level display. */
 
+import { memo } from 'react';
+
 interface ViewportControlsProps {
   /** Current zoom level (e.g., 1.0 for 100%) */
   zoom: number;
@@ -11,7 +13,7 @@ interface ViewportControlsProps {
   onZoomToFit: () => void;
 }
 
-export function ViewportControls({
+export const ViewportControls = memo(function ViewportControls({
   zoom,
   onZoomIn,
   onZoomOut,
@@ -51,4 +53,4 @@ export function ViewportControls({
       </button>
     </div>
   );
-}
+});
