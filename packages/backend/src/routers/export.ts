@@ -1,8 +1,8 @@
 /** Export endpoints: SVG, XML, PDF, text. */
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { FpdService } from '@fpd-editor/core';
 import { sourceSchema } from '../schemas.js';
+import '../types.js';
 
 /** Helper that validates the source field and delegates to a handler. */
 function withSourceValidation(
@@ -23,7 +23,7 @@ function withSourceValidation(
 }
 
 export async function exportRouter(app: FastifyInstance) {
-    const service: FpdService = (app as unknown as { fpdService: FpdService }).fpdService;
+    const service = app.fpdService;
 
     app.post('/export/source/svg', withSourceValidation((source, reply) => {
         const svg = service.exportSvg(source);

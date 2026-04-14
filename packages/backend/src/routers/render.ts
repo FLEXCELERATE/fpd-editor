@@ -1,11 +1,11 @@
 /** Render endpoint: return SVG from FPD source. */
 
 import { FastifyInstance } from 'fastify';
-import { FpdService } from '@fpd-editor/core';
 import { sourceSchema } from '../schemas.js';
+import '../types.js';
 
 export async function renderRouter(app: FastifyInstance) {
-    const service: FpdService = (app as unknown as { fpdService: FpdService }).fpdService;
+    const service = app.fpdService;
 
     app.post('/render/svg', async (request, reply) => {
         const parsed = sourceSchema.safeParse(request.body);

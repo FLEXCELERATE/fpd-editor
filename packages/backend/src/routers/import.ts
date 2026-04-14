@@ -1,11 +1,11 @@
 /** Import endpoint: accept FPD text or VDI 3682 XML. */
 
 import { FastifyInstance } from 'fastify';
-import { FpdService } from '@fpd-editor/core';
 import { importSchema } from '../schemas.js';
+import '../types.js';
 
 export async function importRouter(app: FastifyInstance) {
-    const service: FpdService = (app as unknown as { fpdService: FpdService }).fpdService;
+    const service = app.fpdService;
 
     app.post('/import', async (request, reply) => {
         const parsed = importSchema.safeParse(request.body);
