@@ -44,3 +44,12 @@ jobs:
 
       - name: Test
         run: pnpm turbo test
+
+      - name: Coverage report
+        run: pnpm -r --filter='./packages/*' exec vitest run --coverage 2>&1 | grep -E '(All files|✓|FAIL)' || true
+
+      - name: Verify VSIX packaging
+        run: |
+          cd packages/vscode-extension
+          pnpm run package
+          pnpm exec vsce package --no-dependencies --skip-license
