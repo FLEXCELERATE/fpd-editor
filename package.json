@@ -12,9 +12,9 @@
         "lint": "turbo run lint",
         "dev": "turbo run dev",
         "clean": "turbo run clean",
-        "format": "prettier --write . --ignore-path .gitignore",
+        "format": "prettier --write . --ignore-path .gitignore --ignore-path .prettierignore",
         "test:e2e": "playwright test",
-        "format:check": "prettier --check . --ignore-path .gitignore",
+        "format:check": "prettier --check . --ignore-path .gitignore --ignore-path .prettierignore",
         "changeset": "changeset",
         "version-packages": "changeset version",
         "release": "turbo run build && changeset publish",
@@ -32,7 +32,9 @@
     },
     "pnpm": {
         "overrides": {
-            "picomatch@>=4.0.0 <4.0.4": ">=4.0.4"
+            "picomatch@>=4.0.0 <4.0.4": ">=4.0.4",
+            "brace-expansion@<1.1.13": ">=1.1.13",
+            "brace-expansion@>=4.0.0 <5.0.5": ">=5.0.5"
         }
     },
     "lint-staged": {
