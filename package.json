@@ -1,24 +1,31 @@
 {
-  "name": "fpd-editor",
-  "private": true,
-  "type": "module",
-  "packageManager": "pnpm@10.32.1",
-  "scripts": {
-    "build": "turbo run build",
-    "test": "turbo run test",
-    "lint": "turbo run lint",
-    "dev": "turbo run dev",
-    "clean": "turbo run clean",
-    "format": "prettier --write . --ignore-path .gitignore",
-    "format:check": "prettier --check . --ignore-path .gitignore",
-    "changeset": "changeset",
-    "version-packages": "changeset version",
-    "release": "turbo run build && changeset publish"
-  },
-  "devDependencies": {
-    "@changesets/changelog-github": "^0.6.0",
-    "@changesets/cli": "^2.30.0",
-    "prettier": "^3.5.0",
-    "turbo": "^2.5.0"
-  }
+    "name": "fpd-editor",
+    "private": true,
+    "type": "module",
+    "packageManager": "pnpm@10.32.1",
+    "scripts": {
+        "build": "turbo run build",
+        "test": "turbo run test",
+        "lint": "turbo run lint",
+        "dev": "turbo run dev",
+        "clean": "turbo run clean",
+        "format": "prettier --write . --ignore-path .gitignore",
+        "format:check": "prettier --check . --ignore-path .gitignore",
+        "changeset": "changeset",
+        "version-packages": "changeset version",
+        "release": "turbo run build && changeset publish",
+        "prepare": "husky"
+    },
+    "devDependencies": {
+        "@changesets/changelog-github": "^0.6.0",
+        "@changesets/cli": "^2.30.0",
+        "husky": "^9.0.0",
+        "lint-staged": "^15.0.0",
+        "prettier": "^3.5.0",
+        "turbo": "^2.5.0"
+    },
+    "lint-staged": {
+        "*.{ts,tsx,js,jsx}": "prettier --write",
+        "*.{json,md,css}": "prettier --write"
+    }
 }
