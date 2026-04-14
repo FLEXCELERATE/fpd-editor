@@ -51,6 +51,9 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
     devDependencies:
+      '@fpd-editor/eslint-config':
+        specifier: workspace:*
+        version: link:../../tooling/eslint-config
       '@fpd-editor/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/tsconfig
@@ -60,6 +63,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.4
         version: 4.1.4(vitest@4.1.2(@types/node@20.19.37)(jsdom@25.0.1)(vite@6.4.1(@types/node@20.19.37)(tsx@4.21.0)(yaml@2.8.3)))
+      eslint:
+        specifier: ^8.57.1
+        version: 8.57.1
       tsx:
         specifier: ^4.19.0
         version: 4.21.0
@@ -76,12 +82,18 @@ importers:
         specifier: ^1.17.1
         version: 1.17.1
     devDependencies:
+      '@fpd-editor/eslint-config':
+        specifier: workspace:*
+        version: link:../../tooling/eslint-config
       '@fpd-editor/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/tsconfig
       '@vitest/coverage-v8':
         specifier: ^3.2.4
         version: 3.2.4(vitest@3.2.4(@types/node@20.19.37)(jsdom@25.0.1)(tsx@4.21.0)(yaml@2.8.3))
+      eslint:
+        specifier: ^8.57.1
+        version: 8.57.1
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -110,6 +122,9 @@ importers:
         specifier: ^2.7.0
         version: 2.7.0(jspdf@4.2.1)
     devDependencies:
+      '@fpd-editor/eslint-config':
+        specifier: workspace:*
+        version: link:../../tooling/eslint-config
       '@fpd-editor/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/tsconfig
@@ -131,6 +146,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^3.2.4
         version: 3.2.4(vitest@3.2.4(@types/node@20.19.37)(jsdom@25.0.1)(tsx@4.21.0)(yaml@2.8.3))
+      eslint:
+        specifier: ^8.57.1
+        version: 8.57.1
       jsdom:
         specifier: ^25.0.0
         version: 25.0.1
