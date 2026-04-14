@@ -98,6 +98,9 @@ importers:
         specifier: ^2.7.0
         version: 2.7.0(jspdf@4.2.1)
     devDependencies:
+      '@fpd-editor/tsconfig':
+        specifier: workspace:*
+        version: link:../../tooling/tsconfig
       '@testing-library/jest-dom':
         specifier: ^6.6.0
         version: 6.9.1
@@ -132,6 +135,9 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
+      '@fpd-editor/tsconfig':
+        specifier: workspace:*
+        version: link:../../tooling/tsconfig
       '@types/node':
         specifier: ^20.x
         version: 20.19.37

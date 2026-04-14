@@ -26,6 +26,7 @@
     "vite": "^6.0.0",
     "vitest": "^3.0.0",
     "@testing-library/react": "^16.1.0",
+    "@fpd-editor/tsconfig": "workspace:*",
     "@testing-library/jest-dom": "^6.6.0",
     "jsdom": "^25.0.0"
   }
