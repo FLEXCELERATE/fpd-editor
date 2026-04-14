@@ -270,10 +270,14 @@ export class PreviewPanel {
     }
 
     /** Navigate source editor to a specific line. */
-    private goToLine(line: number): void {
+    private goToLine(line: unknown): void {
         const editor = this.sourceEditor ?? vscode.window.activeTextEditor;
         if (!editor) { return; }
-        const lineIndex = Math.max(0, line - 1);
+
+        const lineNum = typeof line === 'number' ? line : parseInt(String(line), 10);
+        if (!Number.isFinite(lineNum)) { return; }
+
+        const lineIndex = Math.max(0, Math.min(lineNum - 1, editor.document.lineCount - 1));
         const range = editor.document.lineAt(lineIndex).range;
         editor.selection = new vscode.Selection(range.start, range.start);
         editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
