@@ -31,6 +31,7 @@ jobs:
               run: pnpm turbo build
 
             - name: Create release PR or publish
+              id: changesets
               uses: changesets/action@v1
               with:
                   title: 'chore: version packages'
@@ -38,3 +39,38 @@ jobs:
                   publish: pnpm release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            # --- VS Code Extension: build & publish VSIX after version bump ---
+            - name: Build VSIX
+              if: steps.changesets.outputs.published == 'true'
+              run: |
+                  cd packages/vscode-extension
+                  pnpm run package
+                  pnpm exec vsce package --no-dependencies --skip-license
+                  echo "vsix_path=$(ls *.vsix)" >> "$GITHUB_OUTPUT"
+              id: vsix
+
+            - name: Upload VSIX as release asset
+              if: steps.vsix.outputs.vsix_path
+              uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: fpd-vscode-extension@${{ fromJSON(steps.changesets.outputs.publishedPackages)[0].version || '0.0.0' }}
+                  files: packages/vscode-extension/${{ steps.vsix.outputs.vsix_path }}
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Publish to VS Code Marketplace
+              if: steps.vsix.outputs.vsix_path && env.VSCE_PAT != ''
+              run: |
+                  cd packages/vscode-extension
+                  pnpm exec vsce publish --no-dependencies --skip-license
+              env:
+                  VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+            - name: Publish to Open VSX Registry
+              if: steps.vsix.outputs.vsix_path && env.OVSX_PAT != ''
+              run: |
+                  cd packages/vscode-extension
+                  npx ovsx publish ${{ steps.vsix.outputs.vsix_path }} -p $OVSX_PAT
+              env:
+                  OVSX_PAT: ${{ secrets.OVSX_PAT }}
