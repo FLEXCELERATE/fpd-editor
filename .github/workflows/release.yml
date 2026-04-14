@@ -36,25 +36,28 @@ jobs:
               with:
                   title: 'chore: version packages'
                   commit: 'chore: version packages'
-                  publish: pnpm release
+                  publish: pnpm changeset tag
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             # --- VS Code Extension: build & publish VSIX after version bump ---
             - name: Build VSIX
-              if: steps.changesets.outputs.published == 'true'
+              if: steps.changesets.outputs.hasChangesets == 'false'
+              id: vsix
               run: |
                   cd packages/vscode-extension
                   pnpm run package
                   pnpm exec vsce package --no-dependencies --skip-license
                   echo "vsix_path=$(ls *.vsix)" >> "$GITHUB_OUTPUT"
-              id: vsix
+                  echo "version=$(node -p 'require(\"./package.json\").version')" >> "$GITHUB_OUTPUT"
 
-            - name: Upload VSIX as release asset
+            - name: Create GitHub Release
               if: steps.vsix.outputs.vsix_path
               uses: softprops/action-gh-release@v2
               with:
-                  tag_name: fpd-vscode-extension@${{ fromJSON(steps.changesets.outputs.publishedPackages)[0].version || '0.0.0' }}
+                  tag_name: v${{ steps.vsix.outputs.version }}
+                  name: v${{ steps.vsix.outputs.version }}
+                  generate_release_notes: true
                   files: packages/vscode-extension/${{ steps.vsix.outputs.vsix_path }}
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
