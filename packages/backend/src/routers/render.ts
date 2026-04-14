@@ -17,8 +17,8 @@ export async function renderRouter(app: FastifyInstance) {
             const svg = service.renderSvg(parsed.data.source);
             return reply.type('image/svg+xml').send(svg);
         } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Processing error';
-            return reply.status(422).send({ error: msg });
+            request.log.error(err);
+            return reply.status(422).send({ error: 'Processing error' });
         }
     });
 }

@@ -21,8 +21,8 @@ export async function importRouter(app: FastifyInstance) {
                 source: result.source,
             };
         } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Processing error';
-            return reply.status(422).send({ error: msg });
+            request.log.error(err);
+            return reply.status(422).send({ error: 'Processing error' });
         }
     });
 }

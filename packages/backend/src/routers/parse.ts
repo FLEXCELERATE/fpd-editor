@@ -17,8 +17,8 @@ export async function parseRouter(app: FastifyInstance) {
             const result = service.parse(parsed.data.source);
             return { model: result.model, diagram: result.diagram };
         } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Processing error';
-            return reply.status(422).send({ error: msg });
+            app.log.error(err);
+            return reply.status(422).send({ error: 'Processing error' });
         }
     });
 }

@@ -16,8 +16,8 @@ function withSourceValidation(
         try {
             return await handler(parsed.data.source, reply);
         } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Processing error';
-            return reply.status(422).send({ error: msg });
+            request.log.error(err);
+            return reply.status(422).send({ error: 'Processing error' });
         }
     };
 }
