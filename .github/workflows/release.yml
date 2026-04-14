@@ -44,12 +44,13 @@ jobs:
             - name: Build VSIX
               if: steps.changesets.outputs.hasChangesets == 'false'
               id: vsix
+              working-directory: packages/vscode-extension
               run: |
-                  cd packages/vscode-extension
                   pnpm run package
                   pnpm exec vsce package --no-dependencies --skip-license
                   echo "vsix_path=$(ls *.vsix)" >> "$GITHUB_OUTPUT"
-                  echo "version=$(node -p 'require(\"./package.json\").version')" >> "$GITHUB_OUTPUT"
+                  VERSION=$(node -e "console.log(require('./package.json').version)")
+                  echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
             - name: Create GitHub Release
               if: steps.vsix.outputs.vsix_path
@@ -63,17 +64,15 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Publish to VS Code Marketplace
-              if: steps.vsix.outputs.vsix_path && env.VSCE_PAT != ''
-              run: |
-                  cd packages/vscode-extension
-                  pnpm exec vsce publish --no-dependencies --skip-license
+              if: steps.vsix.outputs.vsix_path
+              working-directory: packages/vscode-extension
+              run: pnpm exec vsce publish --no-dependencies --skip-license
               env:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
             - name: Publish to Open VSX Registry
               if: steps.vsix.outputs.vsix_path && env.OVSX_PAT != ''
-              run: |
-                  cd packages/vscode-extension
-                  npx ovsx publish ${{ steps.vsix.outputs.vsix_path }} -p $OVSX_PAT
+              working-directory: packages/vscode-extension
+              run: npx ovsx publish ${{ steps.vsix.outputs.vsix_path }} -p $OVSX_PAT
               env:
                   OVSX_PAT: ${{ secrets.OVSX_PAT }}
