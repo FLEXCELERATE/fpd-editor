@@ -12,335 +12,373 @@ import { renderHook, act } from '@testing-library/react';
 import { useHistoryManager } from './useHistoryManager';
 
 describe('useHistoryManager', () => {
-  const INITIAL_STATE = 'initial';
+    const INITIAL_STATE = 'initial';
 
-  describe('initialization', () => {
-    it('should initialize with provided initial state', () => {
-      const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
+    describe('initialization', () => {
+        it('should initialize with provided initial state', () => {
+            const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
 
-      expect(result.current.currentState).toBe(INITIAL_STATE);
-      expect(result.current.canUndo).toBe(false);
-      expect(result.current.canRedo).toBe(false);
-    });
-
-    it('should use default maxHistory of 50', () => {
-      const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
-
-      // Push 51 states — past array capped at 50, so initial gets dropped
-      act(() => {
-        for (let i = 1; i <= 51; i++) {
-          result.current.pushState(`state-${i}`);
-        }
-      });
-
-      // Should be at state-51
-      expect(result.current.currentState).toBe('state-51');
-
-      // Should be able to undo 50 times (states 50, 49, ..., 1)
-      // Note: initial state was evicted since past.length is capped at 50
-      for (let i = 50; i >= 2; i--) {
-        act(() => {
-          result.current.undo();
+            expect(result.current.currentState).toBe(INITIAL_STATE);
+            expect(result.current.canUndo).toBe(false);
+            expect(result.current.canRedo).toBe(false);
         });
-        expect(result.current.currentState).toBe(`state-${i}`);
-      }
 
-      act(() => {
-        result.current.undo();
-      });
-      expect(result.current.currentState).toBe('state-1');
+        it('should use default maxHistory of 50', () => {
+            const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
 
-      // Should not be able to undo further (initial was evicted)
-      expect(result.current.canUndo).toBe(false);
+            // Push 51 states — past array capped at 50, so initial gets dropped
+            act(() => {
+                for (let i = 1; i <= 51; i++) {
+                    result.current.pushState(`state-${i}`);
+                }
+            });
+
+            // Should be at state-51
+            expect(result.current.currentState).toBe('state-51');
+
+            // Should be able to undo 50 times (states 50, 49, ..., 1)
+            // Note: initial state was evicted since past.length is capped at 50
+            for (let i = 50; i >= 2; i--) {
+                act(() => {
+                    result.current.undo();
+                });
+                expect(result.current.currentState).toBe(`state-${i}`);
+            }
+
+            act(() => {
+                result.current.undo();
+            });
+            expect(result.current.currentState).toBe('state-1');
+
+            // Should not be able to undo further (initial was evicted)
+            expect(result.current.canUndo).toBe(false);
+        });
+
+        it('should accept custom maxHistory option', () => {
+            const { result } = renderHook(() =>
+                useHistoryManager(INITIAL_STATE, { maxHistory: 3 }),
+            );
+
+            // Push 4 states
+            act(() => {
+                result.current.pushState('state-1');
+                result.current.pushState('state-2');
+                result.current.pushState('state-3');
+                result.current.pushState('state-4');
+            });
+
+            // Should be at state-4
+            expect(result.current.currentState).toBe('state-4');
+
+            // Should only be able to undo 3 times (to state-3, state-2, state-1)
+            act(() => {
+                result.current.undo(); // -> state-3
+                result.current.undo(); // -> state-2
+                result.current.undo(); // -> state-1
+            });
+
+            expect(result.current.currentState).toBe('state-1');
+
+            // Should not be able to undo to initial state (it was dropped)
+            expect(result.current.canUndo).toBe(false);
+        });
     });
 
-    it('should accept custom maxHistory option', () => {
-      const { result } = renderHook(() =>
-        useHistoryManager(INITIAL_STATE, { maxHistory: 3 })
-      );
+    describe('pushState', () => {
+        it('should push new state and enable undo', () => {
+            const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
 
-      // Push 4 states
-      act(() => {
-        result.current.pushState('state-1');
-        result.current.pushState('state-2');
-        result.current.pushState('state-3');
-        result.current.pushState('state-4');
-      });
+            act(() => {
+                result.current.pushState('new-state');
+            });
 
-      // Should be at state-4
-      expect(result.current.currentState).toBe('state-4');
+            expect(result.current.currentState).toBe('new-state');
+            expect(result.current.canUndo).toBe(true);
+            expect(result.current.canRedo).toBe(false);
+        });
 
-      // Should only be able to undo 3 times (to state-3, state-2, state-1)
-      act(() => {
-        result.current.undo(); // -> state-3
-        result.current.undo(); // -> state-2
-        result.current.undo(); // -> state-1
-      });
+        it('should not push duplicate state', () => {
+            const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
 
-      expect(result.current.currentState).toBe('state-1');
+            act(() => {
+                result.current.pushState(INITIAL_STATE);
+            });
 
-      // Should not be able to undo to initial state (it was dropped)
-      expect(result.current.canUndo).toBe(false);
-    });
-  });
+            // Should not create history entry for same state
+            expect(result.current.currentState).toBe(INITIAL_STATE);
+            expect(result.current.canUndo).toBe(false);
+        });
 
-  describe('pushState', () => {
-    it('should push new state and enable undo', () => {
-      const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
+        it('should clear future history when pushing new state', () => {
+            const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
 
-      act(() => {
-        result.current.pushState('new-state');
-      });
+            // Create history
+            act(() => {
+                result.current.pushState('state-1');
+                result.current.pushState('state-2');
+            });
 
-      expect(result.current.currentState).toBe('new-state');
-      expect(result.current.canUndo).toBe(true);
-      expect(result.current.canRedo).toBe(false);
-    });
+            // Undo to create future history
+            act(() => {
+                result.current.undo();
+            });
 
-    it('should not push duplicate state', () => {
-      const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
+            expect(result.current.canRedo).toBe(true);
 
-      act(() => {
-        result.current.pushState(INITIAL_STATE);
-      });
+            // Push new state - should clear future
+            act(() => {
+                result.current.pushState('state-3');
+            });
 
-      // Should not create history entry for same state
-      expect(result.current.currentState).toBe(INITIAL_STATE);
-      expect(result.current.canUndo).toBe(false);
+            expect(result.current.currentState).toBe('state-3');
+            expect(result.current.canRedo).toBe(false);
+        });
     });
 
-    it('should clear future history when pushing new state', () => {
-      const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
+    describe('undo', () => {
+        it('should restore previous state', () => {
+            const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
 
-      // Create history
-      act(() => {
-        result.current.pushState('state-1');
-        result.current.pushState('state-2');
-      });
+            act(() => {
+                result.current.pushState('state-1');
+                result.current.undo();
+            });
 
-      // Undo to create future history
-      act(() => {
-        result.current.undo();
-      });
+            expect(result.current.currentState).toBe(INITIAL_STATE);
+            expect(result.current.canUndo).toBe(false);
+            expect(result.current.canRedo).toBe(true);
+        });
 
-      expect(result.current.canRedo).toBe(true);
+        it('should handle multiple undos', () => {
+            const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
 
-      // Push new state - should clear future
-      act(() => {
-        result.current.pushState('state-3');
-      });
+            act(() => {
+                result.current.pushState('state-1');
+                result.current.pushState('state-2');
+                result.current.pushState('state-3');
+            });
 
-      expect(result.current.currentState).toBe('state-3');
-      expect(result.current.canRedo).toBe(false);
-    });
-  });
+            act(() => {
+                result.current.undo();
+            });
+            expect(result.current.currentState).toBe('state-2');
 
-  describe('undo', () => {
-    it('should restore previous state', () => {
-      const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
+            act(() => {
+                result.current.undo();
+            });
+            expect(result.current.currentState).toBe('state-1');
 
-      act(() => {
-        result.current.pushState('state-1');
-        result.current.undo();
-      });
+            act(() => {
+                result.current.undo();
+            });
+            expect(result.current.currentState).toBe(INITIAL_STATE);
+            expect(result.current.canUndo).toBe(false);
+        });
 
-      expect(result.current.currentState).toBe(INITIAL_STATE);
-      expect(result.current.canUndo).toBe(false);
-      expect(result.current.canRedo).toBe(true);
-    });
+        it('should do nothing when no history', () => {
+            const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
 
-    it('should handle multiple undos', () => {
-      const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
+            act(() => {
+                result.current.undo();
+            });
 
-      act(() => {
-        result.current.pushState('state-1');
-        result.current.pushState('state-2');
-        result.current.pushState('state-3');
-      });
-
-      act(() => {
-        result.current.undo();
-      });
-      expect(result.current.currentState).toBe('state-2');
-
-      act(() => {
-        result.current.undo();
-      });
-      expect(result.current.currentState).toBe('state-1');
-
-      act(() => {
-        result.current.undo();
-      });
-      expect(result.current.currentState).toBe(INITIAL_STATE);
-      expect(result.current.canUndo).toBe(false);
+            expect(result.current.currentState).toBe(INITIAL_STATE);
+            expect(result.current.canUndo).toBe(false);
+        });
     });
 
-    it('should do nothing when no history', () => {
-      const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
+    describe('redo', () => {
+        it('should restore next state after undo', () => {
+            const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
 
-      act(() => {
-        result.current.undo();
-      });
+            act(() => {
+                result.current.pushState('state-1');
+                result.current.undo();
+                result.current.redo();
+            });
 
-      expect(result.current.currentState).toBe(INITIAL_STATE);
-      expect(result.current.canUndo).toBe(false);
-    });
-  });
+            expect(result.current.currentState).toBe('state-1');
+            expect(result.current.canRedo).toBe(false);
+            expect(result.current.canUndo).toBe(true);
+        });
 
-  describe('redo', () => {
-    it('should restore next state after undo', () => {
-      const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
+        it('should handle multiple redos', () => {
+            const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
 
-      act(() => {
-        result.current.pushState('state-1');
-        result.current.undo();
-        result.current.redo();
-      });
+            act(() => {
+                result.current.pushState('state-1');
+                result.current.pushState('state-2');
+                result.current.pushState('state-3');
+                result.current.undo();
+                result.current.undo();
+                result.current.undo();
+            });
 
-      expect(result.current.currentState).toBe('state-1');
-      expect(result.current.canRedo).toBe(false);
-      expect(result.current.canUndo).toBe(true);
-    });
+            expect(result.current.currentState).toBe(INITIAL_STATE);
 
-    it('should handle multiple redos', () => {
-      const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
+            act(() => {
+                result.current.redo();
+            });
+            expect(result.current.currentState).toBe('state-1');
 
-      act(() => {
-        result.current.pushState('state-1');
-        result.current.pushState('state-2');
-        result.current.pushState('state-3');
-        result.current.undo();
-        result.current.undo();
-        result.current.undo();
-      });
+            act(() => {
+                result.current.redo();
+            });
+            expect(result.current.currentState).toBe('state-2');
 
-      expect(result.current.currentState).toBe(INITIAL_STATE);
+            act(() => {
+                result.current.redo();
+            });
+            expect(result.current.currentState).toBe('state-3');
+            expect(result.current.canRedo).toBe(false);
+        });
 
-      act(() => {
-        result.current.redo();
-      });
-      expect(result.current.currentState).toBe('state-1');
+        it('should do nothing when no future history', () => {
+            const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
 
-      act(() => {
-        result.current.redo();
-      });
-      expect(result.current.currentState).toBe('state-2');
+            act(() => {
+                result.current.pushState('state-1');
+                result.current.redo();
+            });
 
-      act(() => {
-        result.current.redo();
-      });
-      expect(result.current.currentState).toBe('state-3');
-      expect(result.current.canRedo).toBe(false);
-    });
-
-    it('should do nothing when no future history', () => {
-      const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
-
-      act(() => {
-        result.current.pushState('state-1');
-        result.current.redo();
-      });
-
-      expect(result.current.currentState).toBe('state-1');
-      expect(result.current.canRedo).toBe(false);
-    });
-  });
-
-  describe('clear', () => {
-    it('should reset to initial state and clear history', () => {
-      const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
-
-      act(() => {
-        result.current.pushState('state-1');
-        result.current.pushState('state-2');
-        result.current.undo();
-      });
-
-      // Should have both past and future
-      expect(result.current.canUndo).toBe(true);
-      expect(result.current.canRedo).toBe(true);
-
-      act(() => {
-        result.current.clear();
-      });
-
-      expect(result.current.currentState).toBe(INITIAL_STATE);
-      expect(result.current.canUndo).toBe(false);
-      expect(result.current.canRedo).toBe(false);
-    });
-  });
-
-  describe('complex scenarios', () => {
-    it('should handle undo/redo chain', () => {
-      const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
-
-      // Build history
-      act(() => {
-        result.current.pushState('state-1');
-        result.current.pushState('state-2');
-        result.current.pushState('state-3');
-      });
-
-      // Undo twice
-      act(() => {
-        result.current.undo();
-        result.current.undo();
-      });
-      expect(result.current.currentState).toBe('state-1');
-
-      // Redo once
-      act(() => {
-        result.current.redo();
-      });
-      expect(result.current.currentState).toBe('state-2');
-
-      // Undo once
-      act(() => {
-        result.current.undo();
-      });
-      expect(result.current.currentState).toBe('state-1');
-
-      // Push new state (should clear future)
-      act(() => {
-        result.current.pushState('state-4');
-      });
-      expect(result.current.currentState).toBe('state-4');
-      expect(result.current.canRedo).toBe(false);
-
-      // Undo should go to state-1, not state-2
-      act(() => {
-        result.current.undo();
-      });
-      expect(result.current.currentState).toBe('state-1');
+            expect(result.current.currentState).toBe('state-1');
+            expect(result.current.canRedo).toBe(false);
+        });
     });
 
-    it('should maintain correct canUndo/canRedo flags', () => {
-      const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
+    describe('clear', () => {
+        it('should reset to initial state and clear history', () => {
+            const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
 
-      // Initial: no undo, no redo
-      expect(result.current.canUndo).toBe(false);
-      expect(result.current.canRedo).toBe(false);
+            act(() => {
+                result.current.pushState('state-1');
+                result.current.pushState('state-2');
+                result.current.undo();
+            });
 
-      // After push: can undo, no redo
-      act(() => {
-        result.current.pushState('state-1');
-      });
-      expect(result.current.canUndo).toBe(true);
-      expect(result.current.canRedo).toBe(false);
+            // Should have both past and future
+            expect(result.current.canUndo).toBe(true);
+            expect(result.current.canRedo).toBe(true);
 
-      // After undo: no undo (back at initial), can redo
-      act(() => {
-        result.current.undo();
-      });
-      expect(result.current.canUndo).toBe(false);
-      expect(result.current.canRedo).toBe(true);
+            act(() => {
+                result.current.clear();
+            });
 
-      // After redo: can undo, no redo (at latest)
-      act(() => {
-        result.current.redo();
-      });
-      expect(result.current.canUndo).toBe(true);
-      expect(result.current.canRedo).toBe(false);
+            expect(result.current.currentState).toBe(INITIAL_STATE);
+            expect(result.current.canUndo).toBe(false);
+            expect(result.current.canRedo).toBe(false);
+        });
     });
-  });
+
+    describe('complex scenarios', () => {
+        it('should handle undo/redo chain', () => {
+            const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
+
+            // Build history
+            act(() => {
+                result.current.pushState('state-1');
+                result.current.pushState('state-2');
+                result.current.pushState('state-3');
+            });
+
+            // Undo twice
+            act(() => {
+                result.current.undo();
+                result.current.undo();
+            });
+            expect(result.current.currentState).toBe('state-1');
+
+            // Redo once
+            act(() => {
+                result.current.redo();
+            });
+            expect(result.current.currentState).toBe('state-2');
+
+            // Undo once
+            act(() => {
+                result.current.undo();
+            });
+            expect(result.current.currentState).toBe('state-1');
+
+            // Push new state (should clear future)
+            act(() => {
+                result.current.pushState('state-4');
+            });
+            expect(result.current.currentState).toBe('state-4');
+            expect(result.current.canRedo).toBe(false);
+
+            // Undo should go to state-1, not state-2
+            act(() => {
+                result.current.undo();
+            });
+            expect(result.current.currentState).toBe('state-1');
+        });
+
+        it('should maintain correct canUndo/canRedo flags', () => {
+            const { result } = renderHook(() => useHistoryManager(INITIAL_STATE));
+
+            // Initial: no undo, no redo
+            expect(result.current.canUndo).toBe(false);
+            expect(result.current.canRedo).toBe(false);
+
+            // After push: can undo, no redo
+            act(() => {
+                result.current.pushState('state-1');
+            });
+            expect(result.current.canUndo).toBe(true);
+            expect(result.current.canRedo).toBe(false);
+
+            // After undo: no undo (back at initial), can redo
+            act(() => {
+                result.current.undo();
+            });
+            expect(result.current.canUndo).toBe(false);
+            expect(result.current.canRedo).toBe(true);
+
+            // After redo: can undo, no redo (at latest)
+            act(() => {
+                result.current.redo();
+            });
+            expect(result.current.canUndo).toBe(true);
+            expect(result.current.canRedo).toBe(false);
+        });
+
+        it('should treat identical string values as duplicates (=== comparison)', () => {
+            const { result } = renderHook(() => useHistoryManager('hello'));
+
+            // Push the same value — should be a no-op
+            act(() => {
+                result.current.pushState('hello');
+            });
+            expect(result.current.canUndo).toBe(false);
+
+            // Push a different value, then push the new current again
+            act(() => {
+                result.current.pushState('world');
+            });
+            expect(result.current.canUndo).toBe(true);
+
+            act(() => {
+                result.current.pushState('world');
+            });
+            // Pushing 'world' again should not create a new history entry
+            act(() => {
+                result.current.undo();
+            });
+            expect(result.current.currentState).toBe('hello');
+            expect(result.current.canUndo).toBe(false);
+        });
+
+        it('should distinguish different string instances with same content by value', () => {
+            const { result } = renderHook(() => useHistoryManager('abc'));
+
+            // Push a new string with the same characters — string === compares by value
+            const anotherAbc = ['a', 'b', 'c'].join('');
+            act(() => {
+                result.current.pushState(anotherAbc);
+            });
+            // Should be treated as duplicate since string === is value-based
+            expect(result.current.canUndo).toBe(false);
+        });
+    });
 });

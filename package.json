@@ -3,6 +3,9 @@
     "private": true,
     "type": "module",
     "packageManager": "pnpm@10.32.1",
+    "engines": {
+        "node": ">=20.0.0"
+    },
     "scripts": {
         "build": "turbo run build",
         "test": "turbo run test",
@@ -10,6 +13,7 @@
         "dev": "turbo run dev",
         "clean": "turbo run clean",
         "format": "prettier --write . --ignore-path .gitignore",
+        "test:e2e": "playwright test",
         "format:check": "prettier --check . --ignore-path .gitignore",
         "changeset": "changeset",
         "version-packages": "changeset version",
@@ -19,6 +23,8 @@
     "devDependencies": {
         "@changesets/changelog-github": "^0.6.0",
         "@changesets/cli": "^2.30.0",
+        "@playwright/test": "^1.59.1",
+        "@vitest/coverage-v8": "^4.1.4",
         "husky": "^9.0.0",
         "lint-staged": "^15.0.0",
         "prettier": "^3.5.0",

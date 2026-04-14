@@ -1,7 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { validateConnections } from '../validator';
 import { createProcessModel } from '../../models/processModel';
-import type { State, ProcessOperator, TechnicalResource, Flow, Usage, SystemLimit } from '../../models/fpdModel';
+import type {
+    State,
+    ProcessOperator,
+    TechnicalResource,
+    Flow,
+    Usage,
+    SystemLimit,
+} from '../../models/fpdModel';
 
 function makeState(id: string, systemId?: string): State {
     return {
@@ -76,7 +83,7 @@ describe('validateConnections', () => {
         model.flows.push(makeFlow('f1', 's1', 's2', 'sys1'));
         const errors = validateConnections(model);
         expect(errors.length).toBeGreaterThan(0);
-        expect(errors.some(e => e.includes('State -> State'))).toBe(true);
+        expect(errors.some((e) => e.includes('State -> State'))).toBe(true);
     });
 
     it('accepts State -> State cross-system (outside system block)', () => {
@@ -98,7 +105,7 @@ describe('validateConnections', () => {
         model.flows.push(makeFlow('f1', 'po1', 'tr1'));
         const errors = validateConnections(model);
         expect(errors.length).toBeGreaterThan(0);
-        expect(errors.some(e => e.includes('invalid connection'))).toBe(true);
+        expect(errors.some((e) => e.includes('invalid connection'))).toBe(true);
     });
 
     it('reports duplicate flow', () => {
@@ -108,7 +115,7 @@ describe('validateConnections', () => {
         model.flows.push(makeFlow('f1', 's1', 'po1'));
         model.flows.push(makeFlow('f2', 's1', 'po1'));
         const errors = validateConnections(model);
-        expect(errors.some(e => e.includes('duplicate connection'))).toBe(true);
+        expect(errors.some((e) => e.includes('duplicate connection'))).toBe(true);
     });
 
     it('accepts usage between ProcessOperator and TechnicalResource', () => {
@@ -127,7 +134,7 @@ describe('validateConnections', () => {
         model.usages.push(makeUsage('u1', 's1', 'tr1'));
         const errors = validateConnections(model);
         expect(errors.length).toBeGreaterThan(0);
-        expect(errors.some(e => e.includes('is not a ProcessOperator'))).toBe(true);
+        expect(errors.some((e) => e.includes('is not a ProcessOperator'))).toBe(true);
     });
 
     it('rejects cross-system usage', () => {
@@ -138,7 +145,7 @@ describe('validateConnections', () => {
         model.technicalResources.push(makeTR('tr1', 'sys2'));
         model.usages.push(makeUsage('u1', 'po1', 'tr1'));
         const errors = validateConnections(model);
-        expect(errors.some(e => e.includes('cross-system reference'))).toBe(true);
+        expect(errors.some((e) => e.includes('cross-system reference'))).toBe(true);
     });
 
     it('reports duplicate usage', () => {
@@ -148,6 +155,55 @@ describe('validateConnections', () => {
         model.usages.push(makeUsage('u1', 'po1', 'tr1'));
         model.usages.push(makeUsage('u2', 'po1', 'tr1'));
         const errors = validateConnections(model);
-        expect(errors.some(e => e.includes('duplicate usage'))).toBe(true);
+        expect(errors.some((e) => e.includes('duplicate usage'))).toBe(true);
+    });
+
+    it('rejects usage where processOperatorRef points to a State', () => {
+        const model = createProcessModel();
+        model.states.push(makeState('s1'));
+        model.technicalResources.push(makeTR('tr1'));
+        // s1 is a State, not a ProcessOperator
+        model.usages.push(makeUsage('u1', 's1', 'tr1'));
+        const errors = validateConnections(model);
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.some((e) => e.includes('is not a ProcessOperator'))).toBe(true);
+    });
+
+    it('rejects usage where technicalResourceRef points to a ProcessOperator', () => {
+        const model = createProcessModel();
+        model.processOperators.push(makePO('po1'));
+        model.processOperators.push(makePO('po2'));
+        // po2 is a PO, not a TechnicalResource
+        model.usages.push(makeUsage('u1', 'po1', 'po2'));
+        const errors = validateConnections(model);
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.some((e) => e.includes('is not a TechnicalResource'))).toBe(true);
+    });
+
+    it('reports error when flow references a non-existent source', () => {
+        const model = createProcessModel();
+        model.processOperators.push(makePO('po1'));
+        model.flows.push(makeFlow('f1', 'ghost', 'po1'));
+        const errors = validateConnections(model);
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.some((e) => e.includes('ghost'))).toBe(true);
+    });
+
+    it('reports error when flow references a non-existent target', () => {
+        const model = createProcessModel();
+        model.states.push(makeState('s1'));
+        model.flows.push(makeFlow('f1', 's1', 'ghost'));
+        const errors = validateConnections(model);
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.some((e) => e.includes('ghost'))).toBe(true);
+    });
+
+    it('reports error when usage references a non-existent PO', () => {
+        const model = createProcessModel();
+        model.technicalResources.push(makeTR('tr1'));
+        model.usages.push(makeUsage('u1', 'ghost_po', 'tr1'));
+        const errors = validateConnections(model);
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.some((e) => e.includes('ghost_po'))).toBe(true);
     });
 });

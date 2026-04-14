@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { computeLayout, createLayoutConfig, DiagramLayout, LayoutElement, LayoutConnection } from '../layout';
+import {
+    computeLayout,
+    createLayoutConfig,
+    DiagramLayout,
+    LayoutElement,
+    LayoutConnection,
+} from '../layout';
 import { createProcessModel, ProcessModel } from '../../models/processModel';
 import { State, ProcessOperator, TechnicalResource, Flow, Usage } from '../../models/fpdModel';
 
@@ -7,7 +13,11 @@ import { State, ProcessOperator, TechnicalResource, Flow, Usage } from '../../mo
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeState(id: string, stateType: 'product' | 'energy' | 'information' = 'product', opts: Partial<State> = {}): State {
+function makeState(
+    id: string,
+    stateType: 'product' | 'energy' | 'information' = 'product',
+    opts: Partial<State> = {},
+): State {
     return {
         id,
         stateType,
@@ -61,13 +71,17 @@ function buildModel(setup: (m: ProcessModel) => void): ProcessModel {
 }
 
 function findElement(layout: DiagramLayout, id: string): LayoutElement {
-    const el = layout.elements.find(e => e.id === id);
+    const el = layout.elements.find((e) => e.id === id);
     if (!el) throw new Error(`Element '${id}' not found in layout`);
     return el;
 }
 
-function findConnection(layout: DiagramLayout, sourceId: string, targetId: string): LayoutConnection {
-    const conn = layout.connections.find(c => c.sourceId === sourceId && c.targetId === targetId);
+function findConnection(
+    layout: DiagramLayout,
+    sourceId: string,
+    targetId: string,
+): LayoutConnection {
+    const conn = layout.connections.find((c) => c.sourceId === sourceId && c.targetId === targetId);
     if (!conn) throw new Error(`Connection ${sourceId} -> ${targetId} not found`);
     return conn;
 }
@@ -101,7 +115,7 @@ describe('computeLayout', () => {
         });
 
         it('returns a single PO element when model has only one PO', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.processOperators.push(makePO('po1'));
             });
             const layout = computeLayout(model);
@@ -114,7 +128,7 @@ describe('computeLayout', () => {
         });
 
         it('returns a single state element when model has only one state', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s1'));
             });
             const layout = computeLayout(model);
@@ -132,7 +146,7 @@ describe('computeLayout', () => {
 
     describe('linear chain (input -> PO -> output)', () => {
         function linearModel(): ProcessModel {
-            return buildModel(m => {
+            return buildModel((m) => {
                 m.states.push(makeState('input'));
                 m.states.push(makeState('output'));
                 m.processOperators.push(makePO('po1'));
@@ -144,12 +158,12 @@ describe('computeLayout', () => {
         it('places all three elements', () => {
             const layout = computeLayout(linearModel());
             expect(layout.elements).toHaveLength(3);
-            expect(layout.elements.map(e => e.id).sort()).toEqual(['input', 'output', 'po1']);
+            expect(layout.elements.map((e) => e.id).sort()).toEqual(['input', 'output', 'po1']);
         });
 
         it('creates flow connections for all flows in the model', () => {
             const layout = computeLayout(linearModel());
-            const flowConns = layout.connections.filter(c => !c.isUsage);
+            const flowConns = layout.connections.filter((c) => !c.isUsage);
             expect(flowConns.length).toBeGreaterThanOrEqual(2);
 
             const c1 = findConnection(layout, 'input', 'po1');
@@ -197,7 +211,7 @@ describe('computeLayout', () => {
 
     describe('topological sort of process operators', () => {
         it('orders POs vertically by dependency (upstream PO has lower Y)', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s1'));
                 m.states.push(makeState('s2'));
                 m.states.push(makeState('s3'));
@@ -219,7 +233,7 @@ describe('computeLayout', () => {
         });
 
         it('handles three chained POs in correct vertical order', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s1'));
                 m.states.push(makeState('s2'));
                 m.states.push(makeState('s3'));
@@ -246,7 +260,7 @@ describe('computeLayout', () => {
 
         it('handles cycle in PO dependencies without crashing', () => {
             // po1 -> s1 -> po2 -> s2 -> po1 (cycle)
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s1'));
                 m.states.push(makeState('s2'));
                 m.processOperators.push(makePO('po1'));
@@ -261,7 +275,7 @@ describe('computeLayout', () => {
             const layout = computeLayout(model);
             expect(layout.elements.length).toBeGreaterThanOrEqual(2);
             // Both POs should be present
-            expect(layout.elements.filter(e => e.type === 'processOperator')).toHaveLength(2);
+            expect(layout.elements.filter((e) => e.type === 'processOperator')).toHaveLength(2);
         });
     });
 
@@ -271,7 +285,7 @@ describe('computeLayout', () => {
 
     describe('boundary state placement', () => {
         it('respects explicit @boundary-top placement', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s1', 'product', { placement: 'boundary-top' }));
                 m.processOperators.push(makePO('po1'));
                 m.flows.push(makeFlow('s1', 'po1'));
@@ -284,7 +298,7 @@ describe('computeLayout', () => {
         });
 
         it('respects explicit @boundary-bottom placement', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s1', 'product', { placement: 'boundary-bottom' }));
                 m.processOperators.push(makePO('po1'));
                 m.flows.push(makeFlow('po1', 's1'));
@@ -297,7 +311,7 @@ describe('computeLayout', () => {
         });
 
         it('respects explicit @boundary-left placement', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s1', 'energy', { placement: 'boundary-left' }));
                 m.processOperators.push(makePO('po1'));
                 m.flows.push(makeFlow('s1', 'po1'));
@@ -310,7 +324,7 @@ describe('computeLayout', () => {
         });
 
         it('respects explicit @boundary-right placement', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s1', 'energy', { placement: 'boundary-right' }));
                 m.processOperators.push(makePO('po1'));
                 m.flows.push(makeFlow('po1', 's1'));
@@ -323,7 +337,7 @@ describe('computeLayout', () => {
         });
 
         it('auto-detects energy/info inputs as boundary-left', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('e1', 'energy'));
                 m.processOperators.push(makePO('po1'));
                 m.flows.push(makeFlow('e1', 'po1'));
@@ -337,7 +351,7 @@ describe('computeLayout', () => {
         });
 
         it('auto-detects energy/info outputs as boundary-right', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('e1', 'energy'));
                 m.processOperators.push(makePO('po1'));
                 m.flows.push(makeFlow('po1', 'e1'));
@@ -351,7 +365,7 @@ describe('computeLayout', () => {
         });
 
         it('auto-classifies product source as boundary-top for single PO', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('p1', 'product'));
                 m.processOperators.push(makePO('po1'));
                 m.flows.push(makeFlow('p1', 'po1'));
@@ -370,7 +384,7 @@ describe('computeLayout', () => {
 
     describe('internal states between POs', () => {
         it('places internal state between the two POs it connects', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s_in'));
                 m.states.push(makeState('s_mid'));
                 m.states.push(makeState('s_out'));
@@ -393,7 +407,7 @@ describe('computeLayout', () => {
         });
 
         it('respects explicit @internal placement', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s1', 'product', { placement: 'internal' }));
                 m.processOperators.push(makePO('po1'));
                 m.processOperators.push(makePO('po2'));
@@ -418,7 +432,7 @@ describe('computeLayout', () => {
     describe('backward (feedback) internal states', () => {
         it('places feedback state left of POs', () => {
             // po1 -> s_fwd -> po2, po2 -> s_back -> po1 (feedback)
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s_in'));
                 m.states.push(makeState('s_fwd'));
                 m.states.push(makeState('s_back'));
@@ -443,7 +457,7 @@ describe('computeLayout', () => {
         });
 
         it('sets routing hints for feedback connections', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s_in'));
                 m.states.push(makeState('s_fwd'));
                 m.states.push(makeState('s_back'));
@@ -478,7 +492,7 @@ describe('computeLayout', () => {
 
     describe('technical resources', () => {
         it('places technical resource to the right of the PO', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.processOperators.push(makePO('po1'));
                 m.technicalResources.push(makeTR('tr1'));
                 m.usages.push(makeUsage('po1', 'tr1'));
@@ -493,7 +507,7 @@ describe('computeLayout', () => {
         });
 
         it('creates usage connection', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.processOperators.push(makePO('po1'));
                 m.technicalResources.push(makeTR('tr1'));
                 m.usages.push(makeUsage('po1', 'tr1'));
@@ -505,7 +519,7 @@ describe('computeLayout', () => {
         });
 
         it('aligns TR vertically with its connected PO', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.processOperators.push(makePO('po1'));
                 m.technicalResources.push(makeTR('tr1'));
                 m.usages.push(makeUsage('po1', 'tr1'));
@@ -526,7 +540,7 @@ describe('computeLayout', () => {
 
     describe('disconnected elements', () => {
         it('places disconnected states below connected elements', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s1'));
                 m.states.push(makeState('s_disc'));
                 m.processOperators.push(makePO('po1'));
@@ -542,7 +556,7 @@ describe('computeLayout', () => {
         });
 
         it('places disconnected POs below connected elements', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s1'));
                 m.processOperators.push(makePO('po1'));
                 m.processOperators.push(makePO('po_disc'));
@@ -564,7 +578,7 @@ describe('computeLayout', () => {
 
     describe('multi-system layout', () => {
         it('creates separate system limits for each system', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.systemLimits.push({
                     id: 'sys1',
                     identification: { uniqueIdent: 'sys1' },
@@ -591,7 +605,7 @@ describe('computeLayout', () => {
         });
 
         it('does not overlap system limits', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.systemLimits.push({
                     id: 'sys1',
                     identification: { uniqueIdent: 'sys1' },
@@ -624,7 +638,7 @@ describe('computeLayout', () => {
         });
 
         it('marks cross-system flows correctly', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.systemLimits.push({
                     id: 'sys1',
                     identification: { uniqueIdent: 'sys1' },
@@ -646,12 +660,12 @@ describe('computeLayout', () => {
                 // Cross-system flow (no systemId)
                 m.states.push(makeState('s_out', 'product', { systemId: 'sys1' }));
                 m.flows.push(makeFlow('po1', 's_out', { systemId: 'sys1' }));
-                m.flows.push(makeFlow('s_out', 's2'));  // cross-system
+                m.flows.push(makeFlow('s_out', 's2')); // cross-system
             });
 
             const layout = computeLayout(model);
             const crossConn = layout.connections.find(
-                c => c.sourceId === 's_out' && c.targetId === 's2',
+                (c) => c.sourceId === 's_out' && c.targetId === 's2',
             );
             expect(crossConn).toBeDefined();
             expect(crossConn!.isCrossSystem).toBe(true);
@@ -664,7 +678,7 @@ describe('computeLayout', () => {
 
     describe('custom layout config', () => {
         it('uses custom padding', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.processOperators.push(makePO('po1'));
             });
 
@@ -685,7 +699,7 @@ describe('computeLayout', () => {
             // PO ordering is forced by the topological sort seeing po1 < po2
             // alphabetically when both have in-degree 0.
             function makeTwoPOModel(): ProcessModel {
-                return buildModel(m => {
+                return buildModel((m) => {
                     m.states.push(makeState('a_in'));
                     m.states.push(makeState('a_out'));
                     m.states.push(makeState('b_in'));
@@ -720,7 +734,7 @@ describe('computeLayout', () => {
 
     describe('element dimensions', () => {
         it('assigns correct dimensions to process operators', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.processOperators.push(makePO('po1'));
             });
             const layout = computeLayout(model);
@@ -730,7 +744,7 @@ describe('computeLayout', () => {
         });
 
         it('assigns correct dimensions to states', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s1'));
                 m.processOperators.push(makePO('po1'));
                 m.flows.push(makeFlow('s1', 'po1'));
@@ -742,7 +756,7 @@ describe('computeLayout', () => {
         });
 
         it('assigns correct dimensions to technical resources', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.processOperators.push(makePO('po1'));
                 m.technicalResources.push(makeTR('tr1'));
                 m.usages.push(makeUsage('po1', 'tr1'));
@@ -760,7 +774,7 @@ describe('computeLayout', () => {
 
     describe('connection routing hints', () => {
         it('sets sourceSide=bottom for boundary-top source states', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s_top', 'product'));
                 m.processOperators.push(makePO('po1'));
                 m.flows.push(makeFlow('s_top', 'po1'));
@@ -772,7 +786,7 @@ describe('computeLayout', () => {
         });
 
         it('sets targetSide=top for boundary-bottom target states', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s_bot', 'product'));
                 m.processOperators.push(makePO('po1'));
                 m.flows.push(makeFlow('po1', 's_bot'));
@@ -790,7 +804,7 @@ describe('computeLayout', () => {
 
     describe('alternative and parallel flows', () => {
         it('preserves flowType on connections', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s1'));
                 m.states.push(makeState('s2'));
                 m.states.push(makeState('s3'));
@@ -815,7 +829,7 @@ describe('computeLayout', () => {
 
     describe('line number preservation', () => {
         it('preserves lineNumber on elements', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.processOperators.push(makePO('po1', { lineNumber: 5 }));
                 m.states.push(makeState('s1', 'product', { lineNumber: 3 }));
                 m.flows.push(makeFlow('s1', 'po1'));
@@ -827,7 +841,7 @@ describe('computeLayout', () => {
         });
 
         it('preserves lineNumber on connections', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s1'));
                 m.processOperators.push(makePO('po1'));
                 m.flows.push(makeFlow('s1', 'po1', { lineNumber: 10 }));
@@ -845,7 +859,7 @@ describe('computeLayout', () => {
 
     describe('deduplication', () => {
         it('does not produce duplicate element IDs', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s1'));
                 m.states.push(makeState('s2'));
                 m.processOperators.push(makePO('po1'));
@@ -854,7 +868,7 @@ describe('computeLayout', () => {
             });
 
             const layout = computeLayout(model);
-            const ids = layout.elements.map(e => e.id);
+            const ids = layout.elements.map((e) => e.id);
             const uniqueIds = new Set(ids);
             expect(ids.length).toBe(uniqueIds.size);
         });
@@ -866,7 +880,7 @@ describe('computeLayout', () => {
 
     describe('complex scenario', () => {
         it('handles a realistic FPD with multiple POs, states, TRs, and a system', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.systemLimits.push({
                     id: 'sys1',
                     identification: { uniqueIdent: 'sys1' },
@@ -894,7 +908,9 @@ describe('computeLayout', () => {
                 m.flows.push(makeFlow('semi', 'assemble', { systemId: 'sys1' }));
                 m.flows.push(makeFlow('assemble', 'finished', { systemId: 'sys1' }));
                 m.flows.push(makeFlow('energy_in', 'cut', { systemId: 'sys1' }));
-                m.flows.push(makeFlow('cut', 'waste', { systemId: 'sys1', flowType: 'alternativeFlow' }));
+                m.flows.push(
+                    makeFlow('cut', 'waste', { systemId: 'sys1', flowType: 'alternativeFlow' }),
+                );
 
                 // Usages
                 m.usages.push(makeUsage('cut', 'laser', { systemId: 'sys1' }));
@@ -949,7 +965,7 @@ describe('computeLayout', () => {
 
     describe('centered distribution', () => {
         it('centers multiple boundary-top states around the PO center', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('p1', 'product'));
                 m.states.push(makeState('p2', 'product'));
                 m.processOperators.push(makePO('po1'));
@@ -975,7 +991,7 @@ describe('computeLayout', () => {
 
     describe('coordinate validity', () => {
         it('all element coordinates are finite numbers', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s1'));
                 m.states.push(makeState('s2'));
                 m.processOperators.push(makePO('po1'));
@@ -997,7 +1013,7 @@ describe('computeLayout', () => {
         });
 
         it('system limit dimensions are finite and positive', () => {
-            const model = buildModel(m => {
+            const model = buildModel((m) => {
                 m.states.push(makeState('s1'));
                 m.processOperators.push(makePO('po1'));
                 m.flows.push(makeFlow('s1', 'po1'));
@@ -1011,6 +1027,93 @@ describe('computeLayout', () => {
                 expect(Number.isFinite(sl.height)).toBe(true);
                 expect(sl.width).toBeGreaterThan(0);
                 expect(sl.height).toBeGreaterThan(0);
+            }
+        });
+    });
+
+    // -----------------------------------------------------------------------
+    // 19. Stress test with many elements
+    // -----------------------------------------------------------------------
+
+    describe('stress test', () => {
+        it('handles 50+ elements without overlapping same-type elements', () => {
+            const model = buildModel((m) => {
+                // Create a chain: s0 -> po0 -> s1 -> po1 -> ... -> s24 -> po24 -> s25
+                for (let i = 0; i < 25; i++) {
+                    m.states.push(makeState(`s${i}`));
+                    m.processOperators.push(makePO(`po${i}`));
+                    m.technicalResources.push(makeTR(`tr${i}`));
+                    m.flows.push(makeFlow(`s${i}`, `po${i}`));
+                    m.flows.push(makeFlow(`po${i}`, `s${i + 1}`));
+                    m.usages.push(makeUsage(`po${i}`, `tr${i}`));
+                }
+                m.states.push(makeState('s25'));
+            });
+
+            const layout = computeLayout(model);
+
+            // All 76 elements present: 26 states + 25 POs + 25 TRs
+            expect(layout.elements).toHaveLength(76);
+
+            // No same-type elements should overlap
+            for (let i = 0; i < layout.elements.length; i++) {
+                for (let j = i + 1; j < layout.elements.length; j++) {
+                    const a = layout.elements[i];
+                    const b = layout.elements[j];
+                    if (a.type !== b.type) continue;
+
+                    const overlap =
+                        a.x < b.x + b.width &&
+                        a.x + a.width > b.x &&
+                        a.y < b.y + b.height &&
+                        a.y + a.height > b.y;
+                    expect(overlap, `${a.id} overlaps ${b.id}`).toBe(false);
+                }
+            }
+
+            // All coordinates must be finite
+            for (const el of layout.elements) {
+                expect(Number.isFinite(el.x), `${el.id}.x`).toBe(true);
+                expect(Number.isFinite(el.y), `${el.id}.y`).toBe(true);
+            }
+        });
+    });
+
+    // -----------------------------------------------------------------------
+    // 20. Layout stability (deterministic)
+    // -----------------------------------------------------------------------
+
+    describe('layout stability', () => {
+        it('produces identical output for the same input', () => {
+            const model = buildModel((m) => {
+                m.states.push(makeState('s1'));
+                m.states.push(makeState('s2'));
+                m.states.push(makeState('e1', 'energy'));
+                m.processOperators.push(makePO('po1'));
+                m.processOperators.push(makePO('po2'));
+                m.technicalResources.push(makeTR('tr1'));
+                m.flows.push(makeFlow('s1', 'po1'));
+                m.flows.push(makeFlow('po1', 's2'));
+                m.flows.push(makeFlow('s2', 'po2'));
+                m.flows.push(makeFlow('e1', 'po1'));
+                m.usages.push(makeUsage('po1', 'tr1'));
+            });
+
+            const layout1 = computeLayout(model);
+            const layout2 = computeLayout(model);
+
+            // Same number of elements and connections
+            expect(layout1.elements).toHaveLength(layout2.elements.length);
+            expect(layout1.connections).toHaveLength(layout2.connections.length);
+
+            // Every element should have identical coordinates
+            for (const el1 of layout1.elements) {
+                const el2 = layout2.elements.find((e) => e.id === el1.id)!;
+                expect(el2).toBeDefined();
+                expect(el1.x).toBe(el2.x);
+                expect(el1.y).toBe(el2.y);
+                expect(el1.width).toBe(el2.width);
+                expect(el1.height).toBe(el2.height);
             }
         });
     });
