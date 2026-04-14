@@ -27,11 +27,14 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Audit dependencies
+        run: pnpm audit --audit-level=high
+
       - name: Build all packages
         run: pnpm turbo build
 
       - name: Type check
-        run: pnpm turbo build --dry-run > /dev/null && pnpm -r --filter='./packages/*' exec tsc --noEmit
+        run: pnpm -r --filter='./packages/*' exec tsc --noEmit
 
       - name: Lint
         run: pnpm turbo lint
