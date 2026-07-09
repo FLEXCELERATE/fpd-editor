@@ -1,6 +1,7 @@
 /** Monaco Editor wrapper with FPD custom language support. */
 
 import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import './monacoLoader';
 import Editor, { BeforeMount, OnMount } from '@monaco-editor/react';
 import type { editor as monacoEditor, IDisposable } from 'monaco-editor';
 import { FPD_LANGUAGE_ID, fpdLanguageDefinition, fpdLanguageConfiguration } from './fpdLanguage';
@@ -54,12 +55,16 @@ const FpdEditor = forwardRef<FpdEditorRef, FpdEditorProps>(
         const monacoRef = useRef<typeof import('monaco-editor') | null>(null);
         const cursorDisposableRef = useRef<IDisposable | null>(null);
 
-        // Keep latest undo/redo callbacks in refs so the Monaco commands registered
-        // once at mount always invoke the current handlers.
+        // Keep latest callbacks in refs so Monaco listeners/commands registered
+        // once at mount always invoke the current handlers. Without this, the
+        // cursor listener would forever call the mount-time closure (which closes
+        // over an empty line→element map, breaking editor→diagram selection).
         const onUndoRef = useRef(onUndo);
         onUndoRef.current = onUndo;
         const onRedoRef = useRef(onRedo);
         onRedoRef.current = onRedo;
+        const onCursorPositionChangeRef = useRef(onCursorPositionChange);
+        onCursorPositionChangeRef.current = onCursorPositionChange;
 
         useImperativeHandle(ref, () => ({
             scrollToLine: (lineNumber: number) => {
@@ -116,7 +121,7 @@ const FpdEditor = forwardRef<FpdEditorRef, FpdEditorProps>(
 
             // Track cursor position changes
             cursorDisposableRef.current = editor.onDidChangeCursorPosition((e) => {
-                onCursorPositionChange?.(e.position.lineNumber);
+                onCursorPositionChangeRef.current?.(e.position.lineNumber);
             });
         };
 

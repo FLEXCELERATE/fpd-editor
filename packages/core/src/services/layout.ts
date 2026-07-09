@@ -772,6 +772,56 @@ function _createConnections(
 
 // ---------- Single-system layout (orchestrator) ----------
 
+/**
+ * Layout for a system that contains only technical resources (no states and
+ * no process operators): stack the resources vertically and wrap them in a
+ * system limit box so the system still renders.
+ */
+function _computeResourceOnlyLayout(
+    technicalResources: TechnicalResource[],
+    flows: Flow[],
+    usages: Usage[],
+    config: LayoutConfig,
+    offsetX: number,
+    offsetY: number,
+): [LayoutElement[], LayoutConnection[], BoundsRect | null] {
+    const startX = offsetX + config.padding;
+    const startY = offsetY + config.padding;
+    const slp = config.systemLimitPadding;
+
+    const elements: LayoutElement[] = [];
+    for (let i = 0; i < technicalResources.length; i++) {
+        const tr = technicalResources[i];
+        elements.push({
+            id: tr.id,
+            type: 'technicalResource',
+            label: tr.label,
+            x: startX + slp,
+            y: startY + slp + i * (RESOURCE_H + config.hGap),
+            width: RESOURCE_W,
+            height: RESOURCE_H,
+            lineNumber: tr.lineNumber,
+        });
+    }
+
+    const systemLimit: BoundsRect = {
+        x: startX,
+        y: startY,
+        width: RESOURCE_W + 2 * slp,
+        height: technicalResources.length * (RESOURCE_H + config.hGap) - config.hGap + 2 * slp,
+    };
+
+    const connections = _createConnections(
+        flows,
+        usages,
+        new Set<string>(),
+        new Set<string>(),
+        new Set<string>(),
+    );
+
+    return [elements, connections, systemLimit];
+}
+
 function _computeSingleSystemLayout(
     states: State[],
     processOperators: ProcessOperator[],
@@ -783,7 +833,17 @@ function _computeSingleSystemLayout(
     offsetY: number = 0,
 ): [LayoutElement[], LayoutConnection[], BoundsRect | null] {
     if (states.length === 0 && processOperators.length === 0) {
-        return [[], [], null];
+        if (technicalResources.length === 0) {
+            return [[], [], null];
+        }
+        return _computeResourceOnlyLayout(
+            technicalResources,
+            flows,
+            usages,
+            config,
+            offsetX,
+            offsetY,
+        );
     }
 
     // Phase 0–3: Build graph, topological sort, classify states

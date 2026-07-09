@@ -2,6 +2,7 @@
 
 import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { FpdService } from '@fpd-editor/core';
 import './types.js';
@@ -58,6 +59,10 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     await app.register(cors, {
         origin: corsOrigin.length === 1 ? corsOrigin[0] : corsOrigin,
     });
+
+    // Security response headers. contentSecurityPolicy is kept default-strict;
+    // this is a JSON/SVG API, not an HTML app, so nothing needs relaxing.
+    await app.register(helmet);
 
     // Rate limiting (health check is exempt so load-balancer probes are never
     // throttled).

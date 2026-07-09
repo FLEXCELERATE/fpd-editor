@@ -35,6 +35,12 @@ export class Lexer {
     private column = 1;
     private tokens: Token[] = [];
 
+    /**
+     * Diagnostics collected while tokenizing. The lexer never throws; callers
+     * (the parser) drain these into `model.errors` after `tokenize()`.
+     */
+    readonly errors: string[] = [];
+
     constructor(source: string) {
         this.source = source;
     }
@@ -204,6 +210,10 @@ export class Lexer {
         if (this.pos < this.source.length && this.source[this.pos] === '"') {
             this.pos++;
             this.column++;
+        } else {
+            // End of line or end of input reached without a closing quote.
+            // Record the problem but still emit the token (graceful recovery).
+            this.errors.push(`Line ${startLine}: Unterminated string`);
         }
         this.tokens.push({ type: TokenType.STRING, value, line: startLine, column: startCol });
     }

@@ -165,6 +165,34 @@ describe('Lexer', () => {
         expect(abc).toBeDefined();
     });
 
+    it('records an error for a string unterminated at end of line', () => {
+        const lexer = new Lexer('product p1 "oops\nproduct p2');
+        lexer.tokenize();
+        expect(lexer.errors).toContain('Line 1: Unterminated string');
+    });
+
+    it('records an error for a string unterminated at end of input', () => {
+        const lexer = new Lexer('title "no closing quote');
+        const tokens = lexer.tokenize();
+        expect(lexer.errors).toContain('Line 1: Unterminated string');
+        // The string token is still emitted (graceful recovery)
+        const str = tokens.find((t) => t.type === TokenType.STRING);
+        expect(str).toBeDefined();
+        expect(str!.value).toBe('no closing quote');
+    });
+
+    it('reports the correct line for unterminated strings after line breaks', () => {
+        const lexer = new Lexer('@startfpd\nproduct p1 "ok"\nproduct p2 "bad\n@endfpd');
+        lexer.tokenize();
+        expect(lexer.errors).toEqual(['Line 3: Unterminated string']);
+    });
+
+    it('records no errors for properly terminated strings', () => {
+        const lexer = new Lexer('title "all good"\nproduct p1 "fine"');
+        lexer.tokenize();
+        expect(lexer.errors).toHaveLength(0);
+    });
+
     it('tokenizes a complete FPD as correct token sequence', () => {
         const source = [
             '@startfpd',

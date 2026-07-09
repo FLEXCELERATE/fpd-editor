@@ -97,6 +97,7 @@ export const DiagramRenderer = forwardRef<DiagramRendererRef, DiagramRendererPro
         {
             svgContent,
             viewport,
+            selectedElementId,
             onElementClick,
             onContentBounds,
             onWheel,
@@ -176,6 +177,26 @@ export const DiagramRenderer = forwardRef<DiagramRendererRef, DiagramRendererPro
                 }
             }
         }, [svgContent, onContentBounds]);
+
+        // Highlight the element selected via the editor cursor using the
+        // highlight-glow filter shipped in the backend SVG's <defs>.
+        // Re-runs after svgContent changes because injection replaces the nodes.
+        useEffect(() => {
+            const g = contentGroupRef.current;
+            if (!g) return;
+
+            for (const el of Array.from(g.querySelectorAll('[data-selected]'))) {
+                el.removeAttribute('filter');
+                el.removeAttribute('data-selected');
+            }
+
+            if (!selectedElementId) return;
+            const target = g.querySelector(`[data-element-id="${CSS.escape(selectedElementId)}"]`);
+            if (target) {
+                target.setAttribute('filter', 'url(#highlight-glow)');
+                target.setAttribute('data-selected', 'true');
+            }
+        }, [selectedElementId, svgContent]);
 
         /** Convert screen coordinates to SVG coordinates. */
         const screenToSvg = useCallback(

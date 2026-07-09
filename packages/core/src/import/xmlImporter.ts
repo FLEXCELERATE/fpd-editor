@@ -90,13 +90,31 @@ function parseAttrs(attrString: string): Record<string, string> {
     return attrs;
 }
 
+const NAMED_XML_ENTITIES: Record<string, string> = {
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&apos;': "'",
+    '&amp;': '&',
+};
+
+/**
+ * Decode XML character entities in a single pass so that `&amp;` is never
+ * decoded before other entities (e.g. `&amp;lt;` must yield the literal
+ * `&lt;`, not `<`). Supports the five named XML entities plus decimal
+ * (`&#10;`) and hexadecimal (`&#x2026;`) character references.
+ */
 function decodeXmlEntities(s: string): string {
-    return s
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .replace(/&apos;/g, "'");
+    return s.replace(/&(?:lt|gt|quot|apos|amp|#x[0-9a-fA-F]+|#[0-9]+);/g, (entity) => {
+        const named = NAMED_XML_ENTITIES[entity];
+        if (named !== undefined) {
+            return named;
+        }
+        const isHex = entity.startsWith('&#x');
+        const codePoint = parseInt(entity.slice(isHex ? 3 : 2, -1), isHex ? 16 : 10);
+        // Leave references to invalid code points untouched.
+        return codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : entity;
+    });
 }
 
 /**
@@ -218,6 +236,7 @@ function parseElement(s: string, start: number): { element: XmlElement; endPos: 
                 text = text
                     .replace(/<[a-zA-Z_][\w:.-]*[\s\S]*?(?:\/>|<\/[a-zA-Z_][\w:.-]*>)/g, '')
                     .trim();
+                text = decodeXmlEntities(text);
 
                 return {
                     element: { tag, fullTag, attrs, children, text },

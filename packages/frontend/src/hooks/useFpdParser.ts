@@ -1,78 +1,68 @@
-/** Hook that sends FPD source text to the backend parser with debouncing. */
+/** Hook that parses FPD source text via the in-browser core engine, debounced. */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { FpdService, renderSvg as renderDiagramSvg } from '@fpd-editor/core';
 import type { ProcessModel } from '../types/fpd';
-import { parseSource, renderSvg } from '../services/api';
 
 interface UseFpdParserOptions {
-    /** Debounce delay in milliseconds. Defaults to 500. */
+    /** Debounce delay in milliseconds. Defaults to 150. */
     debounceMs?: number;
 }
 
 interface UseFpdParserResult {
     model: ProcessModel | null;
     svgContent: string | null;
+    /** Newline-joined parse errors, or null. */
     error: string | null;
+    /** Newline-joined validation warnings, or null. */
+    warnings: string | null;
     loading: boolean;
 }
 
+const service = new FpdService();
+
+/**
+ * Parsing runs synchronously in the browser (no backend round-trip), so there
+ * are no request races to guard against. The short debounce only avoids
+ * re-running layout on every keystroke for large documents.
+ */
 export function useFpdParser(source: string, options?: UseFpdParserOptions): UseFpdParserResult {
-    const debounceMs = options?.debounceMs ?? 500;
+    const debounceMs = options?.debounceMs ?? 150;
     const [model, setModel] = useState<ProcessModel | null>(null);
     const [svgContent, setSvgContent] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [warnings, setWarnings] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
-    const abortRef = useRef<AbortController | null>(null);
-
-    const parse = useCallback(async (text: string) => {
-        // Cancel any in-flight request
-        abortRef.current?.abort();
-        const controller = new AbortController();
-        abortRef.current = controller;
-
-        setLoading(true);
-        setError(null);
-
-        try {
-            const [response, svg] = await Promise.all([parseSource(text), renderSvg(text)]);
-
-            // Ignore if this request was aborted
-            if (controller.signal.aborted) return;
-
-            setModel(response.model);
-            setSvgContent(svg);
-            setError(response.model.errors.length > 0 ? response.model.errors.join('\n') : null);
-        } catch (err) {
-            if (controller.signal.aborted) return;
-            setError(err instanceof Error ? err.message : 'Parse request failed');
-        } finally {
-            if (!controller.signal.aborted) {
-                setLoading(false);
-            }
-        }
-    }, []);
 
     useEffect(() => {
         if (!source.trim()) {
             setModel(null);
             setSvgContent(null);
             setError(null);
+            setWarnings(null);
+            setLoading(false);
             return;
         }
 
+        setLoading(true);
         const timer = setTimeout(() => {
-            parse(source);
+            try {
+                const { model: parsedModel, diagram } = service.parse(source);
+                setModel(parsedModel as ProcessModel);
+                setSvgContent(renderDiagramSvg(diagram));
+                setError(parsedModel.errors.length > 0 ? parsedModel.errors.join('\n') : null);
+                setWarnings(
+                    parsedModel.warnings.length > 0 ? parsedModel.warnings.join('\n') : null,
+                );
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'Parse failed');
+            } finally {
+                setLoading(false);
+            }
         }, debounceMs);
 
         return () => clearTimeout(timer);
-    }, [source, debounceMs, parse]);
+    }, [source, debounceMs]);
 
-    // Cleanup on unmount
-    useEffect(() => {
-        return () => {
-            abortRef.current?.abort();
-        };
-    }, []);
-
-    return { model, svgContent, error, loading };
+    return { model, svgContent, error, warnings, loading };
 }

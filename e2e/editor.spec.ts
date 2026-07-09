@@ -204,3 +204,52 @@ test('zoom controls are visible and interactive', async ({ page }) => {
     const zoomPercent = parseInt(zoomText?.match(/(\d+)%/)?.[1] ?? '100');
     expect(zoomPercent).toBeLessThanOrEqual(100);
 });
+
+// ---- 8. Persistence ----
+
+test('document survives a page reload', async ({ page }) => {
+    await setEditorContent(page, FPD_SOURCE);
+    await waitForDiagram(page);
+    // Wait out the autosave debounce before reloading.
+    await page.waitForTimeout(1000);
+
+    await page.reload({ waitUntil: 'networkidle' });
+    await waitForEditor(page);
+    await waitForDiagram(page);
+
+    await expect(page.locator('.monaco-editor')).toContainText('E2E Test');
+});
+
+// ---- 9. Share link ----
+
+test('share button produces a link that opens the same document', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await setEditorContent(page, FPD_SOURCE);
+    await waitForDiagram(page);
+
+    await page.locator('button[aria-label="Copy share link"]').click();
+    const shareUrl = await page.evaluate(() => navigator.clipboard.readText());
+    expect(shareUrl).toContain('#fpd=');
+
+    // A fresh page (empty storage) opening the link must show the document.
+    const other = await context.newPage();
+    await other.evaluate(() => window.localStorage.clear()).catch(() => {});
+    await other.goto(shareUrl, { waitUntil: 'networkidle' });
+    await waitForEditor(other);
+    await expect(other.locator('.monaco-editor')).toContainText('E2E Test');
+    await other.close();
+});
+
+// ---- 10. Validation warnings ----
+
+test('semantic validation problems show a warning panel', async ({ page }) => {
+    // Flow referencing an undeclared element is a validation warning.
+    await setEditorContent(
+        page,
+        '@startfpd\nproduct p1 "Raw"\nprocess_operator po1 "Cut"\np1 --> po1\np1 --> ghost\n@endfpd',
+    );
+
+    await expect(page.locator('.error-panel--warning, .error-panel').first()).toBeVisible({
+        timeout: 15_000,
+    });
+});

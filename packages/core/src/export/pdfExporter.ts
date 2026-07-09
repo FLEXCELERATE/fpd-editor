@@ -5,7 +5,7 @@
  * so the PDF output matches the preview exactly.
  */
 
-import { PDFDocument, PDFPage, rgb, RGB, LineCapStyle } from 'pdf-lib';
+import { PDFDocument, PDFFont, PDFPage, rgb, RGB, LineCapStyle, StandardFonts } from 'pdf-lib';
 
 import { LayoutElement, SystemLimitRect, DiagramLayout } from '../services/layout';
 import {
@@ -54,6 +54,34 @@ function hexToRgb(hex: string): RGB {
 const COLORS: Record<string, RGB> = Object.fromEntries(
     Object.entries(HEX_COLORS).map(([key, hex]) => [key, hexToRgb(hex)]),
 );
+
+// ---------------------------------------------------------------------------
+// Text sanitizing
+// ---------------------------------------------------------------------------
+
+/**
+ * Characters that `drawText` handles itself (line breaks and whitespace
+ * control characters) and that therefore never reach the font encoder.
+ */
+const TEXT_CONTROL_CHARS = new Set(['\n', '\f', '\r', '\u000B', '\t', '\b']);
+
+/**
+ * Build a sanitizer that replaces every character the given font cannot
+ * encode with '?'. The standard fonts only support WinAnsi encoding, so
+ * without this any non-WinAnsi character (e.g. CJK labels) would make
+ * `drawText` throw and reject the whole export.
+ */
+function makeTextSanitizer(font: PDFFont): (text: string) => string {
+    const supported = new Set(font.getCharacterSet());
+    return (text: string): string => {
+        let out = '';
+        for (const ch of text) {
+            const codePoint = ch.codePointAt(0) as number;
+            out += supported.has(codePoint) || TEXT_CONTROL_CHARS.has(ch) ? ch : '?';
+        }
+        return out;
+    };
+}
 
 // ---------------------------------------------------------------------------
 // Page size helpers
@@ -475,7 +503,13 @@ export async function exportPdf(diagram: DiagramLayout, options?: PdfOptions): P
     pdfDoc.setCreator('FPD Editor');
     if (author) pdfDoc.setAuthor(author);
 
+    // Standard fonts only support WinAnsi encoding; sanitize every string we
+    // draw so non-WinAnsi characters become '?' instead of crashing the export.
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const sanitize = makeTextSanitizer(font);
+
     const page = pdfDoc.addPage([pageWidth, pageHeight]);
+    page.setFont(font);
 
     // White background
     page.drawRectangle({
@@ -488,7 +522,8 @@ export async function exportPdf(diagram: DiagramLayout, options?: PdfOptions): P
 
     // System limits
     for (const sl of systemLimits) {
-        drawSystemLimit(page, sl, bounds, pageHeight, scale, offsetX, offsetY);
+        const safeSl = sl.label === undefined ? sl : { ...sl, label: sanitize(sl.label) };
+        drawSystemLimit(page, safeSl, bounds, pageHeight, scale, offsetX, offsetY);
     }
 
     // Connections
@@ -496,14 +531,15 @@ export async function exportPdf(diagram: DiagramLayout, options?: PdfOptions): P
         drawConnection(page, r, bounds, pageHeight, scale, offsetX, offsetY);
     }
 
-    // Elements
+    // Elements (ids and labels sanitized; positions are left untouched)
     for (const el of elements) {
+        const safeEl = { ...el, id: sanitize(el.id), label: sanitize(el.label) };
         if (el.type === 'state') {
-            drawState(page, el, bounds, pageHeight, scale, offsetX, offsetY);
+            drawState(page, safeEl, bounds, pageHeight, scale, offsetX, offsetY);
         } else if (el.type === 'processOperator') {
-            drawProcessOperator(page, el, bounds, pageHeight, scale, offsetX, offsetY);
+            drawProcessOperator(page, safeEl, bounds, pageHeight, scale, offsetX, offsetY);
         } else if (el.type === 'technicalResource') {
-            drawTechnicalResource(page, el, bounds, pageHeight, scale, offsetX, offsetY);
+            drawTechnicalResource(page, safeEl, bounds, pageHeight, scale, offsetX, offsetY);
         }
     }
 

@@ -66,15 +66,16 @@ pnpm turbo build
 ### Development
 
 ```bash
-# Start backend + frontend in parallel
-pnpm turbo dev
-
-# Or individually:
-cd packages/backend && pnpm dev     # Fastify API on http://localhost:8741
+# Web UI (parsing/rendering runs fully in the browser via @fpd-editor/core)
 cd packages/frontend && pnpm dev    # Vite dev server on http://localhost:5173
+
+# Optional: standalone REST API (not required by the web UI)
+cd packages/backend && pnpm dev     # Fastify API on http://localhost:8741
 ```
 
-The frontend proxies API requests to the backend at port 8741.
+The web app uses `@fpd-editor/core` directly in the browser — no backend
+round-trips, and documents never leave your machine. The Fastify backend
+remains available as a standalone REST API for programmatic use.
 
 ### Testing & Linting
 
