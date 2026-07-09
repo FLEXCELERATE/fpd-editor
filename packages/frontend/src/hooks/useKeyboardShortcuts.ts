@@ -22,14 +22,15 @@ export function useKeyboardShortcuts({
             const key = e.key.toLowerCase();
             const modifierKey = e.ctrlKey || e.metaKey; // Support both Ctrl (Windows/Linux) and Cmd (Mac)
 
-            // Skip zoom shortcuts when Monaco editor has focus
+            // When the Monaco editor is focused it owns undo/redo and zoom is left
+            // to the browser; those shortcuts are handled inside the editor instead.
             const activeEl = document.activeElement;
             const isEditorFocused = activeEl?.closest('.monaco-editor') != null;
 
-            if (modifierKey && key === 'z' && !e.shiftKey) {
+            if (modifierKey && !isEditorFocused && key === 'z' && !e.shiftKey) {
                 e.preventDefault();
                 onUndo();
-            } else if (modifierKey && e.shiftKey && key === 'z') {
+            } else if (modifierKey && !isEditorFocused && e.shiftKey && key === 'z') {
                 e.preventDefault();
                 onRedo();
             } else if (modifierKey && !isEditorFocused && (key === '=' || key === '+')) {

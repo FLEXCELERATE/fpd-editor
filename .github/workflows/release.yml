@@ -41,8 +41,12 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             # --- VS Code Extension: build & publish VSIX after version bump ---
+            # Only when the changesets action actually created new release tags this
+            # run. `hasChangesets == 'false'` is true on *every* ordinary push with no
+            # pending changesets, which re-published the unchanged version and failed
+            # against the existing tag / Marketplace version.
             - name: Build VSIX
-              if: steps.changesets.outputs.hasChangesets == 'false'
+              if: steps.changesets.outputs.published == 'true'
               id: vsix
               working-directory: packages/vscode-extension
               run: |

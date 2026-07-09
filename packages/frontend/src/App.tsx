@@ -131,11 +131,16 @@ export default function App() {
         handleWheel,
         handleMouseDown: handleDiagramMouseDown,
         handleTouchStart,
+        setBounds,
     } = useViewport();
 
-    const handleContentBounds = useCallback((bounds: DiagramBounds) => {
-        contentBoundsRef.current = bounds;
-    }, []);
+    const handleContentBounds = useCallback(
+        (bounds: DiagramBounds) => {
+            contentBoundsRef.current = bounds;
+            setBounds(bounds);
+        },
+        [setBounds],
+    );
 
     const handleZoomToFit = useCallback(() => {
         const container = diagramContainerRef.current;
@@ -220,6 +225,8 @@ export default function App() {
                                 onChange={historyManager.pushState}
                                 parseError={error}
                                 onCursorPositionChange={handleCursorPositionChange}
+                                onUndo={handleUndo}
+                                onRedo={handleRedo}
                             />
                         </ErrorBoundary>
                     </div>

@@ -64,32 +64,38 @@ describe('useViewport', () => {
     });
 
     describe('zoomToFit', () => {
-        it('should compute correct viewport for known bounds and container', () => {
+        it('should enlarge the viewBox to add padding around the diagram and center it', () => {
             const { result } = renderHook(() => useViewport());
 
             act(() => {
                 result.current.zoomToFit({ x: 0, y: 0, width: 800, height: 600 }, 800, 600);
             });
 
-            // With padding of 30 on each side, padded dims = 860x660
-            // scaleX = 800/860 ≈ 0.930, scaleY = 600/660 ≈ 0.909
-            // zoom = min(0.930, 0.909, 1.0) ≈ 0.909
+            // In the renderer's convention viewBoxW = bounds.width / zoom. With 30
+            // units of padding on each side we want viewBox ≈ bounds + 60:
+            //   zoomW = 800 / 860 ≈ 0.930, zoomH = 600 / 660 ≈ 0.909
+            //   zoom = min(0.930, 0.909, 1.0) ≈ 0.909
             const { viewport } = result.current;
-            expect(viewport.zoom).toBeGreaterThan(0.1);
-            expect(viewport.zoom).toBeLessThanOrEqual(1.0);
+            expect(viewport.zoom).toBeCloseTo(600 / 660, 5);
+
+            // Diagram is centered within the padded viewBox → negative offsets.
+            const viewBoxW = 800 / viewport.zoom;
+            const viewBoxH = 600 / viewport.zoom;
+            expect(viewport.x).toBeCloseTo((800 - viewBoxW) / 2, 5);
+            expect(viewport.y).toBeCloseTo((600 - viewBoxH) / 2, 5);
         });
 
-        it('should cap zoom at 100% for small diagrams', () => {
+        it('should never zoom in past 100% (no cropping) when fitting', () => {
             const { result } = renderHook(() => useViewport());
 
-            // Small diagram in a large container
+            // Small diagram in a large container: preserveAspectRatio handles the
+            // up-scaling, so fit still adds padding and stays at/under 100%.
             act(() => {
                 result.current.zoomToFit({ x: 0, y: 0, width: 100, height: 100 }, 1000, 1000);
             });
 
-            // scaleX = 1000/160 = 6.25, scaleY = 1000/160 = 6.25
-            // zoom = min(6.25, 6.25, 1.0) = 1.0
-            expect(result.current.viewport.zoom).toBe(1.0);
+            expect(result.current.viewport.zoom).toBeLessThanOrEqual(1.0);
+            expect(result.current.viewport.zoom).toBeCloseTo(100 / 160, 5);
         });
 
         it('should reset to initial viewport for zero-size bounds', () => {

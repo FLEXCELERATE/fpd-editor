@@ -39,6 +39,9 @@ interface FpdEditorProps {
     parseError?: string | null;
     /** Called when cursor position changes, with the current line number. */
     onCursorPositionChange?: (lineNumber: number) => void;
+    /** Undo/redo routed to the application history (single source of truth). */
+    onUndo?: () => void;
+    onRedo?: () => void;
 }
 
 export interface FpdEditorRef {
@@ -46,10 +49,17 @@ export interface FpdEditorRef {
 }
 
 const FpdEditor = forwardRef<FpdEditorRef, FpdEditorProps>(
-    ({ value, onChange, parseError, onCursorPositionChange }, ref) => {
+    ({ value, onChange, parseError, onCursorPositionChange, onUndo, onRedo }, ref) => {
         const editorRef = useRef<monacoEditor.IStandaloneCodeEditor | null>(null);
         const monacoRef = useRef<typeof import('monaco-editor') | null>(null);
         const cursorDisposableRef = useRef<IDisposable | null>(null);
+
+        // Keep latest undo/redo callbacks in refs so the Monaco commands registered
+        // once at mount always invoke the current handlers.
+        const onUndoRef = useRef(onUndo);
+        onUndoRef.current = onUndo;
+        const onRedoRef = useRef(onRedo);
+        onRedoRef.current = onRedo;
 
         useImperativeHandle(ref, () => ({
             scrollToLine: (lineNumber: number) => {
@@ -89,6 +99,20 @@ const FpdEditor = forwardRef<FpdEditorRef, FpdEditorProps>(
             editorRef.current = editor;
             monacoRef.current = monaco;
             editor.focus();
+
+            // Route undo/redo to the application history instead of Monaco's own
+            // (buffer-local) undo stack. Two competing stacks otherwise fight:
+            // Monaco's internal undo would mutate the buffer and push that as a new
+            // history entry, making undo appear dead and destroying the redo stack.
+            editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyZ, () => {
+                onUndoRef.current?.();
+            });
+            const redo = () => onRedoRef.current?.();
+            editor.addCommand(
+                monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyZ,
+                redo,
+            );
+            editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyY, redo);
 
             // Track cursor position changes
             cursorDisposableRef.current = editor.onDidChangeCursorPosition((e) => {

@@ -15,7 +15,7 @@ const ZOOM_STEP = 0.1;
 /** Zoom sensitivity for scroll wheel (smaller = less sensitive) */
 const WHEEL_ZOOM_SENSITIVITY = 0.001;
 
-/** Padding ratio for zoom-to-fit (fraction of container size) */
+/** Padding (in SVG units) added around the diagram for zoom-to-fit */
 const ZOOM_TO_FIT_PADDING = 30;
 
 /** Maximum zoom for zoom-to-fit to avoid over-magnification */
@@ -40,8 +40,59 @@ interface UseViewportResult {
     handleMouseDown: (e: React.MouseEvent<SVGSVGElement>) => void;
     /** Handler for touch start (pan + pinch) — attach to SVG container */
     handleTouchStart: (e: React.TouchEvent<SVGSVGElement>) => void;
+    /**
+     * Provide the current diagram bounds (the backend SVG viewBox). Required for
+     * pan/zoom to translate screen pixels into diagram coordinates correctly.
+     */
+    setBounds: (bounds: DiagramBounds | null) => void;
     /** Whether the user is currently panning */
     isPanning: boolean;
+}
+
+/**
+ * Map a screen point to diagram (SVG viewBox) coordinates, mirroring how the
+ * renderer draws the SVG: viewBox = (bounds.x + vp.x, bounds.y + vp.y,
+ * bounds.width / zoom, bounds.height / zoom) with preserveAspectRatio
+ * "xMidYMid meet" (uniform scale, centered / letterboxed).
+ */
+function screenToSvg(
+    clientX: number,
+    clientY: number,
+    rect: { left: number; top: number; width: number; height: number },
+    bounds: DiagramBounds,
+    vp: Viewport,
+): { x: number; y: number; scale: number } {
+    const viewBoxW = bounds.width / vp.zoom;
+    const viewBoxH = bounds.height / vp.zoom;
+    const scale = Math.min(rect.width / viewBoxW, rect.height / viewBoxH);
+    const offsetX = (rect.width - viewBoxW * scale) / 2;
+    const offsetY = (rect.height - viewBoxH * scale) / 2;
+    return {
+        x: bounds.x + vp.x + (clientX - rect.left - offsetX) / scale,
+        y: bounds.y + vp.y + (clientY - rect.top - offsetY) / scale,
+        scale,
+    };
+}
+
+/** Compute the pan offset (vp.x, vp.y) that puts the given diagram point under a screen point. */
+function panToAnchor(
+    svgX: number,
+    svgY: number,
+    clientX: number,
+    clientY: number,
+    rect: { left: number; top: number; width: number; height: number },
+    bounds: DiagramBounds,
+    zoom: number,
+): { x: number; y: number } {
+    const viewBoxW = bounds.width / zoom;
+    const viewBoxH = bounds.height / zoom;
+    const scale = Math.min(rect.width / viewBoxW, rect.height / viewBoxH);
+    const offsetX = (rect.width - viewBoxW * scale) / 2;
+    const offsetY = (rect.height - viewBoxH * scale) / 2;
+    return {
+        x: svgX - bounds.x - (clientX - rect.left - offsetX) / scale,
+        y: svgY - bounds.y - (clientY - rect.top - offsetY) / scale,
+    };
 }
 
 /** Initial viewport state: centered at origin with 100% zoom */
@@ -90,6 +141,11 @@ export function useViewport(): UseViewportResult {
     const [isPanning, setIsPanning] = useState(false);
     const viewportRef = useRef(viewport);
     viewportRef.current = viewport;
+    const boundsRef = useRef<DiagramBounds | null>(null);
+
+    const setBounds = useCallback((bounds: DiagramBounds | null) => {
+        boundsRef.current = bounds;
+    }, []);
 
     const zoomIn = useCallback(() => {
         setViewport((prev) => ({
@@ -121,18 +177,21 @@ export function useViewport(): UseViewportResult {
                 return;
             }
 
-            const paddedWidth = bounds.width + ZOOM_TO_FIT_PADDING * 2;
-            const paddedHeight = bounds.height + ZOOM_TO_FIT_PADDING * 2;
+            // In the renderer's convention the viewBox size is bounds/zoom, and
+            // preserveAspectRatio="meet" already scales that viewBox to fit the
+            // container. So "fit" means enlarging the viewBox just enough to add a
+            // uniform padding margin around the diagram; the container aspect ratio
+            // is handled by the SVG itself. zoom < 1 → viewBox larger than bounds →
+            // padding; capped at 1 so we never crop.
+            const zoomW = bounds.width / (bounds.width + ZOOM_TO_FIT_PADDING * 2);
+            const zoomH = bounds.height / (bounds.height + ZOOM_TO_FIT_PADDING * 2);
+            const zoom = clampZoom(Math.min(zoomW, zoomH, ZOOM_TO_FIT_MAX));
 
-            const scaleX = containerWidth / paddedWidth;
-            const scaleY = containerHeight / paddedHeight;
-            const zoom = clampZoom(Math.min(scaleX, scaleY, ZOOM_TO_FIT_MAX));
-
-            // Center the diagram content in the viewport
-            const viewWidth = containerWidth / zoom;
-            const viewHeight = containerHeight / zoom;
-            const x = bounds.x + bounds.width / 2 - viewWidth / 2;
-            const y = bounds.y + bounds.height / 2 - viewHeight / 2;
+            // Center the diagram within the padded viewBox.
+            const viewBoxW = bounds.width / zoom;
+            const viewBoxH = bounds.height / zoom;
+            const x = (bounds.width - viewBoxW) / 2;
+            const y = (bounds.height - viewBoxH) / 2;
 
             setViewport({ x, y, zoom });
         },
@@ -150,30 +209,27 @@ export function useViewport(): UseViewportResult {
         const rect = svg.getBoundingClientRect();
         if (rect.width === 0 || rect.height === 0) return;
 
-        // Cursor position relative to SVG element (0..1)
-        const cursorFractionX = (e.clientX - rect.left) / rect.width;
-        const cursorFractionY = (e.clientY - rect.top) / rect.height;
+        const bounds = boundsRef.current;
+        if (!bounds) return;
 
         setViewport((prev) => {
             const zoomDelta = -e.deltaY * WHEEL_ZOOM_SENSITIVITY;
             const newZoom = clampZoom(prev.zoom * (1 + zoomDelta));
-            // Current view dimensions in diagram coordinates
-            const viewWidth = rect.width / prev.zoom;
-            const viewHeight = rect.height / prev.zoom;
+            if (newZoom === prev.zoom) return prev;
 
-            // Point under cursor in diagram coordinates
-            const cursorDiagramX = prev.x + cursorFractionX * viewWidth;
-            const cursorDiagramY = prev.y + cursorFractionY * viewHeight;
-
-            // New view dimensions
-            const newViewWidth = rect.width / newZoom;
-            const newViewHeight = rect.height / newZoom;
-
-            // Adjust pan so cursor point stays fixed
-            const newX = cursorDiagramX - cursorFractionX * newViewWidth;
-            const newY = cursorDiagramY - cursorFractionY * newViewHeight;
-
-            return { x: newX, y: newY, zoom: newZoom };
+            // Diagram point currently under the cursor…
+            const anchor = screenToSvg(e.clientX, e.clientY, rect, bounds, prev);
+            // …must stay under the cursor after the zoom change.
+            const { x, y } = panToAnchor(
+                anchor.x,
+                anchor.y,
+                e.clientX,
+                e.clientY,
+                rect,
+                bounds,
+                newZoom,
+            );
+            return { x, y, zoom: newZoom };
         });
     }, []);
 
@@ -188,14 +244,24 @@ export function useViewport(): UseViewportResult {
         const startX = e.clientX;
         const startY = e.clientY;
         const startViewport = viewportRef.current;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const bounds = boundsRef.current;
+        // SVG units per screen pixel under the current viewBox + preserveAspectRatio.
+        const unitsPerPx = bounds
+            ? 1 /
+              Math.min(
+                  (rect.width * startViewport.zoom) / bounds.width,
+                  (rect.height * startViewport.zoom) / bounds.height,
+              )
+            : 1 / startViewport.zoom;
 
         const onMouseMove = (moveEvent: MouseEvent) => {
             const dx = moveEvent.clientX - startX;
             const dy = moveEvent.clientY - startY;
 
             // Convert pixel delta to diagram coordinate delta
-            const diagramDx = dx / startViewport.zoom;
-            const diagramDy = dy / startViewport.zoom;
+            const diagramDx = dx * unitsPerPx;
+            const diagramDy = dy * unitsPerPx;
 
             setViewport({
                 x: startViewport.x - diagramDx,
@@ -221,6 +287,15 @@ export function useViewport(): UseViewportResult {
             const startX = touch.clientX;
             const startY = touch.clientY;
             const startViewport = viewportRef.current;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const bounds = boundsRef.current;
+            const unitsPerPx = bounds
+                ? 1 /
+                  Math.min(
+                      (rect.width * startViewport.zoom) / bounds.width,
+                      (rect.height * startViewport.zoom) / bounds.height,
+                  )
+                : 1 / startViewport.zoom;
 
             const onTouchMove = (moveEvent: TouchEvent) => {
                 if (moveEvent.touches.length !== 1) return;
@@ -230,8 +305,8 @@ export function useViewport(): UseViewportResult {
                 const dx = t.clientX - startX;
                 const dy = t.clientY - startY;
 
-                const diagramDx = dx / startViewport.zoom;
-                const diagramDy = dy / startViewport.zoom;
+                const diagramDx = dx * unitsPerPx;
+                const diagramDy = dy * unitsPerPx;
 
                 setViewport({
                     x: startViewport.x - diagramDx,
@@ -268,26 +343,24 @@ export function useViewport(): UseViewportResult {
                 const prev = currentViewport;
                 const newZoom = clampZoom(prev.zoom * scaleFactor);
 
-                // Midpoint position as fraction of SVG element
-                const midFractionX = (newMidpoint.x - rect.left) / rect.width;
-                const midFractionY = (newMidpoint.y - rect.top) / rect.height;
-
-                // Current view size
-                const viewWidth = rect.width / prev.zoom;
-                const viewHeight = rect.height / prev.zoom;
-
-                // Point under midpoint in diagram coords
-                const midDiagramX = prev.x + midFractionX * viewWidth;
-                const midDiagramY = prev.y + midFractionY * viewHeight;
-
-                // New view size
-                const newViewWidth = rect.width / newZoom;
-                const newViewHeight = rect.height / newZoom;
-
-                const newX = midDiagramX - midFractionX * newViewWidth;
-                const newY = midDiagramY - midFractionY * newViewHeight;
-
-                const updated = { x: newX, y: newY, zoom: newZoom };
+                const bounds = boundsRef.current;
+                let updated: Viewport;
+                if (bounds) {
+                    // Keep the diagram point under the pinch midpoint fixed.
+                    const anchor = screenToSvg(newMidpoint.x, newMidpoint.y, rect, bounds, prev);
+                    const panned = panToAnchor(
+                        anchor.x,
+                        anchor.y,
+                        newMidpoint.x,
+                        newMidpoint.y,
+                        rect,
+                        bounds,
+                        newZoom,
+                    );
+                    updated = { x: panned.x, y: panned.y, zoom: newZoom };
+                } else {
+                    updated = { x: prev.x, y: prev.y, zoom: newZoom };
+                }
                 currentViewport = updated;
                 setViewport(updated);
 
@@ -316,6 +389,7 @@ export function useViewport(): UseViewportResult {
         handleWheel,
         handleMouseDown,
         handleTouchStart,
+        setBounds,
         isPanning,
     };
 }

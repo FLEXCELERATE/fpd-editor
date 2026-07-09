@@ -241,4 +241,25 @@ describe('importXml error handling', () => {
         expect(result.model.states).toHaveLength(0);
         expect(result.model.processOperators).toHaveLength(0);
     });
+
+    it('rejects pathologically deep nesting quickly instead of hanging', () => {
+        // Without the depth guard this ~12 KB payload pins the event loop for
+        // seconds (the recursive parser is super-linear in nesting depth).
+        const depth = 3000;
+        const payload = '<a>'.repeat(depth) + 'x' + '</a>'.repeat(depth);
+        const start = performance.now();
+        expect(() => importXml(payload)).toThrow(/nesting too deep/);
+        expect(performance.now() - start).toBeLessThan(1000);
+    });
+
+    it('accepts documents nested within the depth limit', () => {
+        const depth = 30; // well under MAX_XML_DEPTH, deeper than any real FPD
+        const xml =
+            "<?xml version='1.0'?>" +
+            '<fpb:project xmlns:fpb="http://www.vdivde.de/3682">' +
+            '<a>'.repeat(depth) +
+            '</a>'.repeat(depth) +
+            '</fpb:project>';
+        expect(() => importXml(xml)).not.toThrow();
+    });
 });

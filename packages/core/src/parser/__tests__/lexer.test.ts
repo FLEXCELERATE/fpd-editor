@@ -99,6 +99,26 @@ describe('Lexer', () => {
         expect(annToken!.value).toBe('@internal');
     });
 
+    it.each(['@boundary-top', '@boundary-bottom', '@boundary-left', '@boundary-right'])(
+        'tokenizes directional annotation %s as a single token',
+        (annotation) => {
+            const tokens = new Lexer(annotation).tokenize();
+            const annTokens = tokens.filter((t) => t.type === TokenType.ANNOTATION);
+            expect(annTokens).toHaveLength(1);
+            expect(annTokens[0].value).toBe(annotation);
+        },
+    );
+
+    it('tokenizes a directional boundary annotation in context without spurious tokens', () => {
+        const tokens = new Lexer('product p1 "X" @boundary-left').tokenize();
+        const annToken = tokens.find((t) => t.type === TokenType.ANNOTATION);
+        expect(annToken?.value).toBe('@boundary-left');
+        // No leftover identifier like "left" should be produced.
+        expect(tokens.some((t) => t.type === TokenType.IDENTIFIER && t.value === 'left')).toBe(
+            false,
+        );
+    });
+
     it('tokenizes system blocks with { }', () => {
         const tokens = new Lexer('{ }').tokenize();
         expect(tokens.find((t) => t.type === TokenType.LBRACE)).toBeDefined();

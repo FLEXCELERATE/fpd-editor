@@ -254,16 +254,16 @@ function renderRoutedConnection(routed: RoutedConnection): string {
     const flowType = conn.flowType || 'flow';
     if (flowType === 'alternativeFlow') {
         return (
-            `<path ${dataAttrs} d="${d}" fill="none" stroke="${COLORS['flow']}" ` +
-            `stroke-width="${STROKE_WIDTH}" ` +
-            `marker-end="url(#arrow-flow)"/>\n`
+            `<path ${dataAttrs} d="${d}" fill="none" stroke="${COLORS['alternativeFlow']}" ` +
+            `stroke-width="${STROKE_WIDTH}" stroke-dasharray="8,4" ` +
+            `marker-end="url(#arrow-alternative)"/>\n`
         );
     }
     if (flowType === 'parallelFlow') {
         return (
-            `<path ${dataAttrs} d="${d}" fill="none" stroke="${COLORS['flow']}" ` +
-            `stroke-width="${STROKE_WIDTH}" ` +
-            `marker-end="url(#arrow-flow)"/>\n`
+            `<path ${dataAttrs} d="${d}" fill="none" stroke="${COLORS['parallelFlow']}" ` +
+            `stroke-width="${STROKE_WIDTH}" stroke-dasharray="2,3" ` +
+            `marker-end="url(#arrow-parallel)"/>\n`
         );
     }
 

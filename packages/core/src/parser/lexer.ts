@@ -5,7 +5,7 @@ import {
     CONNECTION_OPERATORS_SORTED,
     END_DELIMITER,
     KEYWORDS,
-    PLACEMENT_ANNOTATIONS,
+    PLACEMENT_ANNOTATIONS_SORTED,
     START_DELIMITER,
     TokenType,
 } from './syntax';
@@ -168,8 +168,9 @@ export class Lexer {
             }
         }
 
-        // Check placement annotations
-        for (const annotation of PLACEMENT_ANNOTATIONS) {
+        // Check placement annotations (longest first so e.g. `@boundary-top`
+        // wins over `@boundary`).
+        for (const annotation of PLACEMENT_ANNOTATIONS_SORTED) {
             if (this.source.substring(this.pos, this.pos + annotation.length) === annotation) {
                 const endPos = this.pos + annotation.length;
                 if (endPos >= this.source.length || !this.isAlphaNumeric(this.source[endPos])) {

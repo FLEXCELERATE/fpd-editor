@@ -1079,8 +1079,26 @@ export function computeLayout(model: ProcessModel, config?: LayoutConfig): Diagr
 
     const systemGap = config.hGap * 3;
 
-    // Cross-system flows (State -> State between different systems)
-    const crossSystemFlows = model.flows.filter((f) => f.systemId === undefined);
+    // Element-to-system lookup covering every element type. Used to decide which
+    // flows genuinely cross a system boundary.
+    const elementSystemMap: Record<string, string | undefined> = {};
+    for (const e of model.states) {
+        elementSystemMap[e.id] = e.systemId;
+    }
+    for (const e of model.processOperators) {
+        elementSystemMap[e.id] = e.systemId;
+    }
+    for (const e of model.technicalResources) {
+        elementSystemMap[e.id] = e.systemId;
+    }
+
+    // A flow is cross-system only when its endpoints belong to different systems.
+    // (Previously this used `systemId === undefined`, which wrongly treated every
+    // top-level flow as cross-system when the model had no `system` blocks at all,
+    // causing each flow to be rendered twice.)
+    const crossSystemFlows = model.flows.filter(
+        (f) => elementSystemMap[f.sourceRef] !== elementSystemMap[f.targetRef],
+    );
 
     // State-to-system lookup
     const stateSystemMap: Record<string, string> = {};

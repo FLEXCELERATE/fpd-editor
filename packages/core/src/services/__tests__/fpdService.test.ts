@@ -91,6 +91,29 @@ describe('FpdService', () => {
             const svg = service.renderSvg(MINIMAL_SOURCE);
             expect(svg).toContain('<svg');
         });
+
+        it('renders alternative and parallel flows with distinct styling', () => {
+            const source = [
+                '@startfpd',
+                'product a "A"',
+                'process_operator po "PO"',
+                'product b "B"',
+                'product c "C"',
+                'a --> po',
+                'po -.-> b',
+                'po ==> c',
+                '@endfpd',
+            ].join('\n');
+
+            const svg = service.renderSvg(source);
+
+            // Alternative flow uses its own colour + marker.
+            expect(svg).toContain('#f5a623');
+            expect(svg).toContain('url(#arrow-alternative)');
+            // Parallel flow uses its own colour + marker.
+            expect(svg).toContain('#4a90d9');
+            expect(svg).toContain('url(#arrow-parallel)');
+        });
     });
 
     // -----------------------------------------------------------------

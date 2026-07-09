@@ -407,6 +407,12 @@ function drawConnection(
     } else if (conn.isUsage) {
         color = COLORS['usage'];
         dash = [6, 4];
+    } else if (conn.flowType === 'alternativeFlow') {
+        color = COLORS['alternativeFlow'];
+        dash = [8, 4];
+    } else if (conn.flowType === 'parallelFlow') {
+        color = COLORS['parallelFlow'];
+        dash = [2, 3];
     }
 
     drawPolyline(page, pdfPts, color, thickness, dash);

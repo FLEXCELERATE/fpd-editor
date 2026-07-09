@@ -125,6 +125,9 @@ export const DiagramRenderer = forwardRef<DiagramRendererRef, DiagramRendererPro
         onWheelRef.current = onWheel;
 
         // Attach native wheel listener with { passive: false } so preventDefault() works.
+        // Keyed on `svgContent` because the <svg> element only exists once there is a
+        // diagram to render — on the first (empty) render svgRef.current is null, so an
+        // empty-deps effect would attach nothing and never re-run.
         useEffect(() => {
             const svg = svgRef.current;
             if (!svg) return;
@@ -135,7 +138,7 @@ export const DiagramRenderer = forwardRef<DiagramRendererRef, DiagramRendererPro
 
             svg.addEventListener('wheel', handler, { passive: false });
             return () => svg.removeEventListener('wheel', handler);
-        }, []);
+        }, [svgContent]);
 
         // Inject backend SVG content into the <g> element via DOMParser.
         useEffect(() => {

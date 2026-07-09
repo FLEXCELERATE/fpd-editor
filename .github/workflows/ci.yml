@@ -6,6 +6,10 @@ on:
     pull_request:
         branches: [main]
 
+# CI only reads the repository; scope the token to least privilege.
+permissions:
+    contents: read
+
 jobs:
     ci:
         runs-on: ubuntu-latest

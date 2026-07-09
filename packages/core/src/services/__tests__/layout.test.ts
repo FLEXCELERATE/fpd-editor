@@ -670,6 +670,28 @@ describe('computeLayout', () => {
             expect(crossConn).toBeDefined();
             expect(crossConn!.isCrossSystem).toBe(true);
         });
+
+        it('does not duplicate flows or mark them cross-system when the model has no systems', () => {
+            const model = buildModel((m) => {
+                m.states.push(makeState('a', 'product'));
+                m.processOperators.push(makePO('po'));
+                m.states.push(makeState('b', 'product'));
+                m.flows.push(makeFlow('a', 'po'));
+                m.flows.push(makeFlow('po', 'b'));
+            });
+
+            const layout = computeLayout(model);
+
+            // Each flow appears exactly once...
+            expect(
+                layout.connections.filter((c) => c.sourceId === 'a' && c.targetId === 'po'),
+            ).toHaveLength(1);
+            expect(
+                layout.connections.filter((c) => c.sourceId === 'po' && c.targetId === 'b'),
+            ).toHaveLength(1);
+            // ...and none are flagged as cross-system.
+            expect(layout.connections.some((c) => c.isCrossSystem)).toBe(false);
+        });
     });
 
     // -----------------------------------------------------------------------
