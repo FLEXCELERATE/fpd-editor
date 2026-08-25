@@ -14,6 +14,51 @@ import { exportText } from '../export/textExporter';
 // Minimal XML helper (no external deps, no DOMParser)
 // ---------------------------------------------------------------------------
 
+/**
+ * Safety limits for the hand-rolled parser.
+ *
+ * The recursive `parseElement` routine is worse than linear on deeply nested
+ * input (each level re-scans for its matching close tag), so a small but
+ * pathologically nested document could otherwise pin the event loop for a long
+ * time. Real VDI 3682 files nest only a handful of levels deep and contain far
+ * fewer than this many tags, so these ceilings are generous for valid input
+ * while rejecting denial-of-service payloads up front.
+ */
+const MAX_XML_DEPTH = 64;
+const MAX_XML_TAGS = 100_000;
+
+/**
+ * Cheap linear pre-scan that rejects documents whose nesting depth or tag count
+ * exceeds the safety limits, before the (super-linear) recursive parser runs.
+ *
+ * This is a guard, not a validator: it deliberately over-approximates by
+ * counting tag-like tokens with a single regex. Miscounting on exotic input
+ * only affects the guard, never the parsed result, and cannot make a
+ * shallow/normal document trip the limits.
+ */
+function assertXmlWithinLimits(s: string): void {
+    const tagRe = /<(\/?)([a-zA-Z_][\w:.-]*)[^>]*?(\/?)>/g;
+    let depth = 0;
+    let tagCount = 0;
+    let m: RegExpExecArray | null;
+    while ((m = tagRe.exec(s)) !== null) {
+        tagCount++;
+        if (tagCount > MAX_XML_TAGS) {
+            throw new Error(`too many elements (limit ${MAX_XML_TAGS})`);
+        }
+        const isClose = m[1] === '/';
+        const selfClosing = m[3] === '/';
+        if (isClose) {
+            if (depth > 0) depth--;
+        } else if (!selfClosing) {
+            depth++;
+            if (depth > MAX_XML_DEPTH) {
+                throw new Error(`nesting too deep (limit ${MAX_XML_DEPTH})`);
+            }
+        }
+    }
+}
+
 interface XmlElement {
     tag: string; // local name (namespace prefix stripped)
     fullTag: string; // original tag including prefix
@@ -45,13 +90,31 @@ function parseAttrs(attrString: string): Record<string, string> {
     return attrs;
 }
 
+const NAMED_XML_ENTITIES: Record<string, string> = {
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&apos;': "'",
+    '&amp;': '&',
+};
+
+/**
+ * Decode XML character entities in a single pass so that `&amp;` is never
+ * decoded before other entities (e.g. `&amp;lt;` must yield the literal
+ * `&lt;`, not `<`). Supports the five named XML entities plus decimal
+ * (`&#10;`) and hexadecimal (`&#x2026;`) character references.
+ */
 function decodeXmlEntities(s: string): string {
-    return s
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .replace(/&apos;/g, "'");
+    return s.replace(/&(?:lt|gt|quot|apos|amp|#x[0-9a-fA-F]+|#[0-9]+);/g, (entity) => {
+        const named = NAMED_XML_ENTITIES[entity];
+        if (named !== undefined) {
+            return named;
+        }
+        const isHex = entity.startsWith('&#x');
+        const codePoint = parseInt(entity.slice(isHex ? 3 : 2, -1), isHex ? 16 : 10);
+        // Leave references to invalid code points untouched.
+        return codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : entity;
+    });
 }
 
 /**
@@ -68,6 +131,9 @@ function parseXml(xml: string): XmlElement {
     let s = xml.replace(/<\?xml[^?]*\?>/g, '');
     s = s.replace(/<!--[\s\S]*?-->/g, '');
     s = s.trim();
+
+    // Reject pathologically nested / oversized input before the recursive parse.
+    assertXmlWithinLimits(s);
 
     const elements = parseChildren(s);
     if (elements.length === 0) {
@@ -170,6 +236,7 @@ function parseElement(s: string, start: number): { element: XmlElement; endPos: 
                 text = text
                     .replace(/<[a-zA-Z_][\w:.-]*[\s\S]*?(?:\/>|<\/[a-zA-Z_][\w:.-]*>)/g, '')
                     .trim();
+                text = decodeXmlEntities(text);
 
                 return {
                     element: { tag, fullTag, attrs, children, text },

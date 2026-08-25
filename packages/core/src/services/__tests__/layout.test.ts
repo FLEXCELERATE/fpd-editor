@@ -535,6 +535,99 @@ describe('computeLayout', () => {
     });
 
     // -----------------------------------------------------------------------
+    // 7b. Technical-resource-only models and systems
+    // -----------------------------------------------------------------------
+
+    describe('technical-resource-only models and systems', () => {
+        it('lays out a model containing only a technical resource', () => {
+            const model = buildModel((m) => {
+                m.technicalResources.push(makeTR('tr1', { label: 'Robot' }));
+            });
+
+            const layout = computeLayout(model);
+            expect(layout.elements).toHaveLength(1);
+            const tr1 = findElement(layout, 'tr1');
+            expect(tr1.type).toBe('technicalResource');
+            expect(tr1.label).toBe('Robot');
+        });
+
+        it('lays out a system that contains only technical resources', () => {
+            const model = buildModel((m) => {
+                m.systemLimits.push({
+                    id: 'sys1',
+                    identification: { uniqueIdent: 'sys1' },
+                    label: 'S',
+                });
+                m.technicalResources.push(makeTR('tr1', { label: 'Robot', systemId: 'sys1' }));
+            });
+
+            const layout = computeLayout(model);
+            const tr1 = findElement(layout, 'tr1');
+            expect(tr1.type).toBe('technicalResource');
+
+            // A system limit box is created around the resource
+            expect(layout.systemLimits).toHaveLength(1);
+            const sl = layout.systemLimits[0];
+            expect(sl.label).toBe('S');
+            expect(tr1.x).toBeGreaterThanOrEqual(sl.x);
+            expect(tr1.y).toBeGreaterThanOrEqual(sl.y);
+            expect(tr1.x + tr1.width).toBeLessThanOrEqual(sl.x + sl.width);
+            expect(tr1.y + tr1.height).toBeLessThanOrEqual(sl.y + sl.height);
+        });
+
+        it('stacks multiple resources in a TR-only system without overlap', () => {
+            const model = buildModel((m) => {
+                m.systemLimits.push({
+                    id: 'sys1',
+                    identification: { uniqueIdent: 'sys1' },
+                    label: 'S',
+                });
+                m.technicalResources.push(makeTR('tr1', { systemId: 'sys1' }));
+                m.technicalResources.push(makeTR('tr2', { systemId: 'sys1' }));
+            });
+
+            const layout = computeLayout(model);
+            const tr1 = findElement(layout, 'tr1');
+            const tr2 = findElement(layout, 'tr2');
+            const noOverlap = tr1.y + tr1.height <= tr2.y || tr2.y + tr2.height <= tr1.y;
+            expect(noOverlap).toBe(true);
+        });
+
+        it('renders a TR-only system next to a normal system', () => {
+            const model = buildModel((m) => {
+                m.systemLimits.push({
+                    id: 'sys1',
+                    identification: { uniqueIdent: 'sys1' },
+                    label: 'Process',
+                });
+                m.systemLimits.push({
+                    id: 'sys2',
+                    identification: { uniqueIdent: 'sys2' },
+                    label: 'Resources',
+                });
+                m.states.push(makeState('s1', 'product', { systemId: 'sys1' }));
+                m.processOperators.push(makePO('po1', { systemId: 'sys1' }));
+                m.flows.push(makeFlow('s1', 'po1', { systemId: 'sys1' }));
+                m.technicalResources.push(makeTR('tr1', { systemId: 'sys2' }));
+            });
+
+            const layout = computeLayout(model);
+            expect(layout.systemLimits).toHaveLength(2);
+            expect(findElement(layout, 'tr1').type).toBe('technicalResource');
+            expect(findElement(layout, 'po1').type).toBe('processOperator');
+
+            // The two system limit boxes must not overlap
+            const [sl1, sl2] = layout.systemLimits;
+            const noOverlap =
+                sl1.x + sl1.width <= sl2.x ||
+                sl2.x + sl2.width <= sl1.x ||
+                sl1.y + sl1.height <= sl2.y ||
+                sl2.y + sl2.height <= sl1.y;
+            expect(noOverlap).toBe(true);
+        });
+    });
+
+    // -----------------------------------------------------------------------
     // 8. Disconnected elements
     // -----------------------------------------------------------------------
 
@@ -669,6 +762,28 @@ describe('computeLayout', () => {
             );
             expect(crossConn).toBeDefined();
             expect(crossConn!.isCrossSystem).toBe(true);
+        });
+
+        it('does not duplicate flows or mark them cross-system when the model has no systems', () => {
+            const model = buildModel((m) => {
+                m.states.push(makeState('a', 'product'));
+                m.processOperators.push(makePO('po'));
+                m.states.push(makeState('b', 'product'));
+                m.flows.push(makeFlow('a', 'po'));
+                m.flows.push(makeFlow('po', 'b'));
+            });
+
+            const layout = computeLayout(model);
+
+            // Each flow appears exactly once...
+            expect(
+                layout.connections.filter((c) => c.sourceId === 'a' && c.targetId === 'po'),
+            ).toHaveLength(1);
+            expect(
+                layout.connections.filter((c) => c.sourceId === 'po' && c.targetId === 'b'),
+            ).toHaveLength(1);
+            // ...and none are flagged as cross-system.
+            expect(layout.connections.some((c) => c.isCrossSystem)).toBe(false);
         });
     });
 

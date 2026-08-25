@@ -97,6 +97,7 @@ export const DiagramRenderer = forwardRef<DiagramRendererRef, DiagramRendererPro
         {
             svgContent,
             viewport,
+            selectedElementId,
             onElementClick,
             onContentBounds,
             onWheel,
@@ -125,6 +126,9 @@ export const DiagramRenderer = forwardRef<DiagramRendererRef, DiagramRendererPro
         onWheelRef.current = onWheel;
 
         // Attach native wheel listener with { passive: false } so preventDefault() works.
+        // Keyed on `svgContent` because the <svg> element only exists once there is a
+        // diagram to render — on the first (empty) render svgRef.current is null, so an
+        // empty-deps effect would attach nothing and never re-run.
         useEffect(() => {
             const svg = svgRef.current;
             if (!svg) return;
@@ -135,7 +139,7 @@ export const DiagramRenderer = forwardRef<DiagramRendererRef, DiagramRendererPro
 
             svg.addEventListener('wheel', handler, { passive: false });
             return () => svg.removeEventListener('wheel', handler);
-        }, []);
+        }, [svgContent]);
 
         // Inject backend SVG content into the <g> element via DOMParser.
         useEffect(() => {
@@ -173,6 +177,26 @@ export const DiagramRenderer = forwardRef<DiagramRendererRef, DiagramRendererPro
                 }
             }
         }, [svgContent, onContentBounds]);
+
+        // Highlight the element selected via the editor cursor using the
+        // highlight-glow filter shipped in the backend SVG's <defs>.
+        // Re-runs after svgContent changes because injection replaces the nodes.
+        useEffect(() => {
+            const g = contentGroupRef.current;
+            if (!g) return;
+
+            for (const el of Array.from(g.querySelectorAll('[data-selected]'))) {
+                el.removeAttribute('filter');
+                el.removeAttribute('data-selected');
+            }
+
+            if (!selectedElementId) return;
+            const target = g.querySelector(`[data-element-id="${CSS.escape(selectedElementId)}"]`);
+            if (target) {
+                target.setAttribute('filter', 'url(#highlight-glow)');
+                target.setAttribute('data-selected', 'true');
+            }
+        }, [selectedElementId, svgContent]);
 
         /** Convert screen coordinates to SVG coordinates. */
         const screenToSvg = useCallback(

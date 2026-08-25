@@ -47,6 +47,15 @@ export const PLACEMENT_ANNOTATIONS: ReadonlySet<string> = new Set([
     '@internal',
 ]);
 
+/**
+ * Sorted by length descending for greedy matching. Without this, `@boundary`
+ * would match before `@boundary-top` (the trailing `-` passes the word-boundary
+ * check), breaking every directional boundary annotation.
+ */
+export const PLACEMENT_ANNOTATIONS_SORTED: readonly string[] = [...PLACEMENT_ANNOTATIONS].sort(
+    (a, b) => b.length - a.length,
+);
+
 /** Connection operators mapped to token types */
 export const CONNECTION_OPERATORS: ReadonlyMap<string, TokenType> = new Map([
     ['-->', TokenType.FLOW],

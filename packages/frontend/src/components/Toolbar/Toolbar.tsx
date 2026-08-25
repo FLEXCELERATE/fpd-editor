@@ -1,8 +1,11 @@
-/** Main toolbar with title, status, export, and import controls. */
+/** Main toolbar with title, status, export, import, and share controls. */
 
+import { useCallback } from 'react';
 import { ExportMenu } from './ExportMenu';
 import { ImportButton } from './ImportButton';
 import { useEditorContext } from '../../context/EditorContext';
+import { buildShareUrl } from '../../services/documentStorage';
+import { showToast } from '../Toast/Toast';
 import type { ProcessModel } from '../../types/fpd';
 
 interface ToolbarProps {
@@ -24,7 +27,17 @@ export function Toolbar({
     getSvgElement,
     processTitle,
 }: ToolbarProps) {
-    const { loading, error } = useEditorContext();
+    const { source, loading, error } = useEditorContext();
+
+    const handleShare = useCallback(async () => {
+        try {
+            await navigator.clipboard.writeText(buildShareUrl(source));
+            showToast('Share link copied to clipboard', 'success');
+        } catch {
+            showToast('Could not copy the share link', 'error');
+        }
+    }, [source]);
+
     return (
         <nav className="toolbar" aria-label="FPD Editor toolbar">
             <span className="toolbar__title">FPD Editor</span>
@@ -49,6 +62,14 @@ export function Toolbar({
                 </button>
                 <ImportButton onImport={onImport} />
                 <ExportMenu getSvgElement={getSvgElement} processTitle={processTitle} />
+                <button
+                    className="toolbar__button"
+                    onClick={handleShare}
+                    title="Copy a link that opens this document"
+                    aria-label="Copy share link"
+                >
+                    🔗 Share
+                </button>
             </div>
             <div className="toolbar__spacer" />
             {loading && (

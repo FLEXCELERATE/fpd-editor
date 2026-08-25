@@ -1,6 +1,7 @@
 /** Monaco Editor wrapper with FPD custom language support. */
 
 import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import './monacoLoader';
 import Editor, { BeforeMount, OnMount } from '@monaco-editor/react';
 import type { editor as monacoEditor, IDisposable } from 'monaco-editor';
 import { FPD_LANGUAGE_ID, fpdLanguageDefinition, fpdLanguageConfiguration } from './fpdLanguage';
@@ -39,6 +40,9 @@ interface FpdEditorProps {
     parseError?: string | null;
     /** Called when cursor position changes, with the current line number. */
     onCursorPositionChange?: (lineNumber: number) => void;
+    /** Undo/redo routed to the application history (single source of truth). */
+    onUndo?: () => void;
+    onRedo?: () => void;
 }
 
 export interface FpdEditorRef {
@@ -46,10 +50,21 @@ export interface FpdEditorRef {
 }
 
 const FpdEditor = forwardRef<FpdEditorRef, FpdEditorProps>(
-    ({ value, onChange, parseError, onCursorPositionChange }, ref) => {
+    ({ value, onChange, parseError, onCursorPositionChange, onUndo, onRedo }, ref) => {
         const editorRef = useRef<monacoEditor.IStandaloneCodeEditor | null>(null);
         const monacoRef = useRef<typeof import('monaco-editor') | null>(null);
         const cursorDisposableRef = useRef<IDisposable | null>(null);
+
+        // Keep latest callbacks in refs so Monaco listeners/commands registered
+        // once at mount always invoke the current handlers. Without this, the
+        // cursor listener would forever call the mount-time closure (which closes
+        // over an empty line→element map, breaking editor→diagram selection).
+        const onUndoRef = useRef(onUndo);
+        onUndoRef.current = onUndo;
+        const onRedoRef = useRef(onRedo);
+        onRedoRef.current = onRedo;
+        const onCursorPositionChangeRef = useRef(onCursorPositionChange);
+        onCursorPositionChangeRef.current = onCursorPositionChange;
 
         useImperativeHandle(ref, () => ({
             scrollToLine: (lineNumber: number) => {
@@ -90,9 +105,23 @@ const FpdEditor = forwardRef<FpdEditorRef, FpdEditorProps>(
             monacoRef.current = monaco;
             editor.focus();
 
+            // Route undo/redo to the application history instead of Monaco's own
+            // (buffer-local) undo stack. Two competing stacks otherwise fight:
+            // Monaco's internal undo would mutate the buffer and push that as a new
+            // history entry, making undo appear dead and destroying the redo stack.
+            editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyZ, () => {
+                onUndoRef.current?.();
+            });
+            const redo = () => onRedoRef.current?.();
+            editor.addCommand(
+                monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyZ,
+                redo,
+            );
+            editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyY, redo);
+
             // Track cursor position changes
             cursorDisposableRef.current = editor.onDidChangeCursorPosition((e) => {
-                onCursorPositionChange?.(e.position.lineNumber);
+                onCursorPositionChangeRef.current?.(e.position.lineNumber);
             });
         };
 

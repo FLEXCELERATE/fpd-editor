@@ -99,6 +99,26 @@ describe('Lexer', () => {
         expect(annToken!.value).toBe('@internal');
     });
 
+    it.each(['@boundary-top', '@boundary-bottom', '@boundary-left', '@boundary-right'])(
+        'tokenizes directional annotation %s as a single token',
+        (annotation) => {
+            const tokens = new Lexer(annotation).tokenize();
+            const annTokens = tokens.filter((t) => t.type === TokenType.ANNOTATION);
+            expect(annTokens).toHaveLength(1);
+            expect(annTokens[0].value).toBe(annotation);
+        },
+    );
+
+    it('tokenizes a directional boundary annotation in context without spurious tokens', () => {
+        const tokens = new Lexer('product p1 "X" @boundary-left').tokenize();
+        const annToken = tokens.find((t) => t.type === TokenType.ANNOTATION);
+        expect(annToken?.value).toBe('@boundary-left');
+        // No leftover identifier like "left" should be produced.
+        expect(tokens.some((t) => t.type === TokenType.IDENTIFIER && t.value === 'left')).toBe(
+            false,
+        );
+    });
+
     it('tokenizes system blocks with { }', () => {
         const tokens = new Lexer('{ }').tokenize();
         expect(tokens.find((t) => t.type === TokenType.LBRACE)).toBeDefined();
@@ -143,6 +163,34 @@ describe('Lexer', () => {
         // The lexer should still continue and tokenize subsequent content
         const abc = tokens.find((t) => t.value === 'abc');
         expect(abc).toBeDefined();
+    });
+
+    it('records an error for a string unterminated at end of line', () => {
+        const lexer = new Lexer('product p1 "oops\nproduct p2');
+        lexer.tokenize();
+        expect(lexer.errors).toContain('Line 1: Unterminated string');
+    });
+
+    it('records an error for a string unterminated at end of input', () => {
+        const lexer = new Lexer('title "no closing quote');
+        const tokens = lexer.tokenize();
+        expect(lexer.errors).toContain('Line 1: Unterminated string');
+        // The string token is still emitted (graceful recovery)
+        const str = tokens.find((t) => t.type === TokenType.STRING);
+        expect(str).toBeDefined();
+        expect(str!.value).toBe('no closing quote');
+    });
+
+    it('reports the correct line for unterminated strings after line breaks', () => {
+        const lexer = new Lexer('@startfpd\nproduct p1 "ok"\nproduct p2 "bad\n@endfpd');
+        lexer.tokenize();
+        expect(lexer.errors).toEqual(['Line 3: Unterminated string']);
+    });
+
+    it('records no errors for properly terminated strings', () => {
+        const lexer = new Lexer('title "all good"\nproduct p1 "fine"');
+        lexer.tokenize();
+        expect(lexer.errors).toHaveLength(0);
     });
 
     it('tokenizes a complete FPD as correct token sequence', () => {

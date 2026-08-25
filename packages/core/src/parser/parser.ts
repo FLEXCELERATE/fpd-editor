@@ -60,7 +60,9 @@ export class FpdParser {
     }
 
     parse(): ProcessModel {
-        this.tokens = new Lexer(this.source).tokenize();
+        const lexer = new Lexer(this.source);
+        this.tokens = lexer.tokenize();
+        this.model.errors.push(...lexer.errors);
         this.pos = 0;
 
         this.skipTrivial();
@@ -137,6 +139,12 @@ export class FpdParser {
 
     private parseSystemBlock(): void {
         const systemToken = this.current();
+        const outerSystemId = this.currentSystemId;
+        if (outerSystemId !== null) {
+            this.model.errors.push(
+                `Line ${systemToken.line}: Nested system blocks are not supported`,
+            );
+        }
         this.advance(); // consume 'system'
 
         if (!this.check(TokenType.STRING)) {
@@ -184,7 +192,9 @@ export class FpdParser {
             );
         }
 
-        this.currentSystemId = null;
+        // Restore the enclosing system id (null at top level) so elements
+        // following a nested block still belong to the outer system.
+        this.currentSystemId = outerSystemId;
     }
 
     // -- Element declarations --

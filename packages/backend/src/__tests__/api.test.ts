@@ -206,6 +206,19 @@ describe('POST /api/import', () => {
         expect(res.json()).toHaveProperty('error');
     });
 
+    it('rejects a deeply nested XML DoS payload quickly without hanging', async () => {
+        const depth = 3000;
+        const content = '<a>'.repeat(depth) + 'x' + '</a>'.repeat(depth);
+        const start = performance.now();
+        const res = await app.inject({
+            method: 'POST',
+            url: '/api/import',
+            payload: { content, filename: 'bomb.xml' },
+        });
+        expect(res.statusCode).toBe(422);
+        expect(performance.now() - start).toBeLessThan(2000);
+    });
+
     it('returns 400 when content is missing', async () => {
         const res = await app.inject({
             method: 'POST',
