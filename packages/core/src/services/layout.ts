@@ -112,6 +112,8 @@ interface ConnectivityGraph {
 interface StateAffinity {
     category: string;
     affiliatedRank: number;
+    /** PO a boundary-left/right state hangs off; undefined for other categories. */
+    affiliatedPoId: string | undefined;
     sourceRank: number | undefined;
     targetRank: number | undefined;
 }
@@ -277,9 +279,11 @@ function _topologicalSortPos(
                     inDegree[succ] = (inDegree[succ] ?? 1) - 1;
                 }
             }
-            // Each PO gets its own rank so it receives a unique row position.
-            currentRank += 1;
         }
+
+        // One rank per topological wave, not per operator: every PO in `ready`
+        // shares a rank so parallel branches can be laid out side by side.
+        currentRank += 1;
     }
 
     return [poOrder, poRank];
@@ -403,16 +407,23 @@ function _assignStateAffinities(
         const targetPos = graph.stateToTargetPos[state.id] || [];
 
         let affiliatedRank = 0;
+        let affiliatedPoId: string | undefined = undefined;
         let sourceRank: number | undefined = undefined;
         let targetRank: number | undefined = undefined;
 
         if (category === 'boundary-left') {
             if (targetPos.length > 0) {
-                affiliatedRank = Math.min(...targetPos.map((pid) => poRank[pid] ?? 0));
+                // Attach to the earliest consuming PO, not just to its rank: a rank
+                // can hold several POs once parallel branches are laid out.
+                const earliest = _minBy(targetPos, (pid) => poRank[pid] ?? 0);
+                affiliatedPoId = earliest;
+                affiliatedRank = poRank[earliest] ?? 0;
             }
         } else if (category === 'boundary-right') {
             if (sourcePos.length > 0) {
-                affiliatedRank = Math.max(...sourcePos.map((pid) => poRank[pid] ?? 0));
+                const latest = _maxBy(sourcePos, (pid) => poRank[pid] ?? 0);
+                affiliatedPoId = latest;
+                affiliatedRank = poRank[latest] ?? 0;
             }
         } else if (category === 'internal') {
             if (sourcePos.length > 0) {
@@ -427,6 +438,7 @@ function _assignStateAffinities(
         affinities[state.id] = {
             category,
             affiliatedRank,
+            affiliatedPoId,
             sourceRank,
             targetRank,
         };
@@ -436,6 +448,75 @@ function _assignStateAffinities(
 }
 
 // ---------- Helpers ----------
+
+function _minBy<T>(items: T[], score: (item: T) => number): T {
+    let best = items[0];
+    let bestScore = score(best);
+    for (const item of items) {
+        const s = score(item);
+        if (s < bestScore) {
+            best = item;
+            bestScore = s;
+        }
+    }
+    return best;
+}
+
+function _maxBy<T>(items: T[], score: (item: T) => number): T {
+    let best = items[0];
+    let bestScore = score(best);
+    for (const item of items) {
+        const s = score(item);
+        if (s > bestScore) {
+            best = item;
+            bestScore = s;
+        }
+    }
+    return best;
+}
+
+/**
+ * Place `desiredCenters.length` equally sized items as close to their desired
+ * centers as possible without overlapping, keeping their relative order.
+ *
+ * Items are swept in ascending desired order and pushed away from the previous
+ * one when they would collide. With `recenter` the packed run is shifted back
+ * so it stays centered on the mean desired position (the sweep itself only ever
+ * pushes in the positive direction). Returns leading edges in input order.
+ */
+function _packRow(
+    desiredCenters: number[],
+    itemSize: number,
+    gap: number,
+    recenter: boolean = true,
+): number[] {
+    const n = desiredCenters.length;
+    if (n === 0) {
+        return [];
+    }
+
+    const order = desiredCenters
+        .map((_, i) => i)
+        .sort((a, b) => desiredCenters[a] - desiredCenters[b] || a - b);
+
+    const leading = new Array<number>(n);
+    let cursor = Number.NEGATIVE_INFINITY;
+    for (const i of order) {
+        const pos = Math.max(desiredCenters[i] - itemSize / 2, cursor);
+        leading[i] = pos;
+        cursor = pos + itemSize + gap;
+    }
+
+    if (!recenter) {
+        return leading;
+    }
+
+    const meanDesired = desiredCenters.reduce((a, b) => a + b, 0) / n;
+    const runStart = leading[order[0]];
+    const runEnd = leading[order[n - 1]] + itemSize;
+    const shift = meanDesired - (runStart + runEnd) / 2;
+    return leading.map((pos) => pos + shift);
+}
 
 function _distributeCentered(
     count: number,
@@ -460,9 +541,16 @@ function _distributeCentered(
 interface ClassifiedStates {
     boundaryTop: State[];
     boundaryBottom: State[];
-    boundaryLeft: Record<number, State[]>;
-    boundaryRight: Record<number, State[]>;
-    internalsByGap: Record<string, State[]>;
+    /** boundary-left states keyed by the PO they hang off. */
+    boundaryLeft: Record<string, State[]>;
+    /** boundary-right states keyed by the PO they hang off. */
+    boundaryRight: Record<string, State[]>;
+    /**
+     * Forward-edge internal states keyed by the rank of their source PO: every
+     * such state is drawn in the single intermediate band below that rank, so the
+     * band — not the source/target rank pair — is what decides placement.
+     */
+    internalsByBand: Record<number, State[]>;
     backwardInternals: State[];
     disconnectedStates: State[];
     hasIntermediatesBelow: Set<number>;
@@ -474,8 +562,8 @@ function _groupStatesByCategory(
 ): ClassifiedStates {
     const boundaryTop: State[] = [];
     const boundaryBottom: State[] = [];
-    const boundaryLeft: Record<number, State[]> = {};
-    const boundaryRight: Record<number, State[]> = {};
+    const boundaryLeft: Record<string, State[]> = {};
+    const boundaryRight: Record<string, State[]> = {};
     const internalStates: State[] = [];
     const disconnectedStates: State[] = [];
 
@@ -491,17 +579,25 @@ function _groupStatesByCategory(
         } else if (cat === 'boundary-bottom') {
             boundaryBottom.push(state);
         } else if (cat === 'boundary-left') {
-            const rank = aff.affiliatedRank;
-            if (!boundaryLeft[rank]) {
-                boundaryLeft[rank] = [];
+            const key = aff.affiliatedPoId;
+            if (key === undefined) {
+                disconnectedStates.push(state);
+                continue;
             }
-            boundaryLeft[rank].push(state);
+            if (!boundaryLeft[key]) {
+                boundaryLeft[key] = [];
+            }
+            boundaryLeft[key].push(state);
         } else if (cat === 'boundary-right') {
-            const rank = aff.affiliatedRank;
-            if (!boundaryRight[rank]) {
-                boundaryRight[rank] = [];
+            const key = aff.affiliatedPoId;
+            if (key === undefined) {
+                disconnectedStates.push(state);
+                continue;
             }
-            boundaryRight[rank].push(state);
+            if (!boundaryRight[key]) {
+                boundaryRight[key] = [];
+            }
+            boundaryRight[key].push(state);
         } else if (cat === 'internal') {
             internalStates.push(state);
         } else {
@@ -509,35 +605,32 @@ function _groupStatesByCategory(
         }
     }
 
-    const internalsByGap: Record<string, State[]> = {};
+    const internalsByBand: Record<number, State[]> = {};
     const backwardInternals: State[] = [];
     for (const state of internalStates) {
         const aff = affinities[state.id];
         const sRank = aff.sourceRank !== undefined ? aff.sourceRank : aff.affiliatedRank;
         const tRank = aff.targetRank !== undefined ? aff.targetRank : sRank + 1;
         if (sRank < tRank) {
-            const key = `${sRank}-${tRank}`;
-            if (!internalsByGap[key]) {
-                internalsByGap[key] = [];
+            if (!internalsByBand[sRank]) {
+                internalsByBand[sRank] = [];
             }
-            internalsByGap[key].push(state);
+            internalsByBand[sRank].push(state);
         } else {
             backwardInternals.push(state);
         }
     }
 
-    const hasIntermediatesBelow = new Set<number>();
-    for (const key of Object.keys(internalsByGap)) {
-        const sRank = parseInt(key.split('-')[0], 10);
-        hasIntermediatesBelow.add(sRank);
-    }
+    const hasIntermediatesBelow = new Set<number>(
+        Object.keys(internalsByBand).map((rank) => parseInt(rank, 10)),
+    );
 
     return {
         boundaryTop,
         boundaryBottom,
         boundaryLeft,
         boundaryRight,
-        internalsByGap,
+        internalsByBand,
         backwardInternals,
         disconnectedStates,
         hasIntermediatesBelow,
@@ -550,7 +643,7 @@ function _computeSystemLimitAndPlaceBoundaries(
     coreElements: LayoutElement[],
     classified: ClassifiedStates,
     config: LayoutConfig,
-    poRowY: Record<number, number>,
+    sideStateY: Record<string, number>,
     startY: number,
     coreLeftX: number,
 ): { systemLimit: BoundsRect; boundaryElements: LayoutElement[] } | null {
@@ -577,15 +670,12 @@ function _computeSystemLimitAndPlaceBoundaries(
     }
 
     // Horizontal space for left/right boundaries
-    const leftValues = Object.values(boundaryLeft);
-    const rightValues = Object.values(boundaryRight);
-    const maxLeftCount = leftValues.length > 0 ? Math.max(...leftValues.map((v) => v.length)) : 0;
-    const maxRightCount =
-        rightValues.length > 0 ? Math.max(...rightValues.map((v) => v.length)) : 0;
-    if (maxLeftCount > 0) {
+    const hasLeft = Object.values(boundaryLeft).some((v) => v.length > 0);
+    const hasRight = Object.values(boundaryRight).some((v) => v.length > 0);
+    if (hasLeft) {
         slMinX -= STATE_MAX_W / 2 + config.hGap;
     }
-    if (maxRightCount > 0) {
+    if (hasRight) {
         slMaxX += STATE_MAX_W / 2 + config.hGap;
     }
 
@@ -613,19 +703,17 @@ function _computeSystemLimitAndPlaceBoundaries(
     }
 
     // Expand for left/right boundary state positions
-    const allSideBoundaries: [string, State[]][] = [
-        ...Object.entries(boundaryLeft),
-        ...Object.entries(boundaryRight),
+    const allSideStates: State[] = [
+        ...Object.values(boundaryLeft).flat(),
+        ...Object.values(boundaryRight).flat(),
     ];
-    for (const [rankStr, sideStates] of allSideBoundaries) {
-        const rank = parseInt(rankStr, 10);
-        const poY = poRowY[rank] ?? startY;
-        const rowCenterY = poY + PROCESS_H / 2;
-        const ys = _distributeCentered(sideStates.length, STATE_H, config.hGap, rowCenterY);
-        if (ys.length > 0) {
-            slMinY = Math.min(slMinY, ys[0]);
-            slMaxY = Math.max(slMaxY, ys[ys.length - 1] + STATE_H);
+    for (const state of allSideStates) {
+        const y = sideStateY[state.id];
+        if (y === undefined) {
+            continue;
         }
+        slMinY = Math.min(slMinY, y);
+        slMaxY = Math.max(slMaxY, y + STATE_H);
     }
 
     const systemLimit: BoundsRect = {
@@ -675,45 +763,26 @@ function _computeSystemLimitAndPlaceBoundaries(
         );
     }
 
-    for (const [rankStr, leftStates] of Object.entries(boundaryLeft)) {
-        const rank = parseInt(rankStr, 10);
-        const rowCenterY = (poRowY[rank] ?? startY) + PROCESS_H / 2;
-        const ys = _distributeCentered(leftStates.length, STATE_H, config.hGap, rowCenterY);
-        for (let i = 0; i < leftStates.length; i++) {
-            const s = leftStates[i];
-            boundaryElements.push({
-                id: s.id,
-                type: 'state',
-                label: s.label,
-                x: slLeft - STATE_MAX_W / 2,
-                y: ys[i],
-                width: STATE_MAX_W,
-                height: STATE_H,
-                stateType: s.stateType,
-                lineNumber: s.lineNumber,
-            });
+    function pushSideStates(byPo: Record<string, State[]>, x: number) {
+        for (const sideStates of Object.values(byPo)) {
+            for (const s of sideStates) {
+                boundaryElements.push({
+                    id: s.id,
+                    type: 'state',
+                    label: s.label,
+                    x,
+                    y: sideStateY[s.id] ?? startY,
+                    width: STATE_MAX_W,
+                    height: STATE_H,
+                    stateType: s.stateType,
+                    lineNumber: s.lineNumber,
+                });
+            }
         }
     }
 
-    for (const [rankStr, rightStates] of Object.entries(boundaryRight)) {
-        const rank = parseInt(rankStr, 10);
-        const rowCenterY = (poRowY[rank] ?? startY) + PROCESS_H / 2;
-        const ys = _distributeCentered(rightStates.length, STATE_H, config.hGap, rowCenterY);
-        for (let i = 0; i < rightStates.length; i++) {
-            const s = rightStates[i];
-            boundaryElements.push({
-                id: s.id,
-                type: 'state',
-                label: s.label,
-                x: slRight - STATE_MAX_W / 2,
-                y: ys[i],
-                width: STATE_MAX_W,
-                height: STATE_H,
-                stateType: s.stateType,
-                lineNumber: s.lineNumber,
-            });
-        }
-    }
+    pushSideStates(boundaryLeft, slLeft - STATE_MAX_W / 2);
+    pushSideStates(boundaryRight, slRight - STATE_MAX_W / 2);
 
     return { systemLimit, boundaryElements };
 }
@@ -848,13 +917,20 @@ function _computeSingleSystemLayout(
 
     // Phase 0–3: Build graph, topological sort, classify states
     const graph = _buildConnectivityGraph(states, processOperators, flows, usages);
-    const [poOrder, poRank] = _topologicalSortPos(processOperators, states, graph);
+    // POs with no flow and no usage get their own row below the graph further down;
+    // keeping them out of the ranks stops them from being pulled into rank 0 (they
+    // have no predecessors) and sitting among unrelated connected operators.
+    const usagePoIds = new Set(Object.values(graph.trToPo));
+    const _isConnectedPo = (p: ProcessOperator): boolean =>
+        graph.allFlowRefs.has(p.id) || usagePoIds.has(p.id);
+    const rankedPos = processOperators.filter(_isConnectedPo);
+    const [poOrder, poRank] = _topologicalSortPos(rankedPos, states, graph);
     const rankValues = Object.values(poRank);
     const maxRank = rankValues.length > 0 ? Math.max(...rankValues) : -1;
     const affinities = _assignStateAffinities(states, graph, poRank, maxRank);
     const classified = _groupStatesByCategory(states, affinities);
 
-    const { boundaryLeft, internalsByGap, backwardInternals, disconnectedStates } = classified;
+    const { boundaryLeft, internalsByBand, backwardInternals, disconnectedStates } = classified;
     const elements: LayoutElement[] = [];
 
     // Phase 4: Compute coordinates
@@ -863,11 +939,33 @@ function _computeSingleSystemLayout(
     const topBoundaryHeight = classified.boundaryTop.length > 0 ? STATE_H + config.vGap : 0;
     let currentY = startY + topBoundaryHeight;
 
-    // 4a) Compute PO row Y positions
+    // 4a) Group POs into topological ranks, then compute row Y positions.
+    // A rank holds every PO of one topological wave; they are laid out side by
+    // side in 4b, so anything derived per rank has to account for all of them.
+    const posByRank: Record<number, string[]> = {};
+    for (const poId of poOrder) {
+        const rank = poRank[poId] ?? 0;
+        if (!posByRank[rank]) {
+            posByRank[rank] = [];
+        }
+        posByRank[rank].push(poId);
+    }
+
+    /** Total number of side-boundary states hanging off a whole rank. */
+    function _sideCountOfRank(rank: number, byPo: Record<string, State[]>): number {
+        let total = 0;
+        for (const poId of posByRank[rank] ?? []) {
+            total += (byPo[poId] ?? []).length;
+        }
+        return total;
+    }
+
     const poRowY: Record<number, number> = {};
     for (let rank = 0; rank <= maxRank; rank++) {
-        const leftCount = (boundaryLeft[rank] || []).length;
-        const rightCount = (classified.boundaryRight[rank] || []).length;
+        // Side states of every PO in the rank share the system limit edge, so
+        // they stack instead of overlapping: the row must fit their sum.
+        const leftCount = _sideCountOfRank(rank, boundaryLeft);
+        const rightCount = _sideCountOfRank(rank, classified.boundaryRight);
         const maxSideCount = Math.max(leftCount, rightCount);
         const sideHeight =
             maxSideCount > 0 ? maxSideCount * (STATE_H + config.hGap) - config.hGap : 0;
@@ -883,7 +981,27 @@ function _computeSingleSystemLayout(
         }
     }
 
-    // 4b) Position POs
+    // Side-boundary states sit on the left/right system limit edge, so their x is
+    // fixed and only y distinguishes them. Walk the rank's POs in layout order and
+    // give each PO's states a contiguous vertical block, so a rank with several
+    // POs no longer piles all of their side states on one row center.
+    const sideStateY: Record<string, number> = {};
+    for (let rank = 0; rank <= maxRank; rank++) {
+        const group = posByRank[rank] ?? [];
+        const rowCenterY = (poRowY[rank] ?? startY) + PROCESS_H / 2;
+        for (const byPo of [boundaryLeft, classified.boundaryRight]) {
+            const ordered: State[] = [];
+            for (const poId of group) {
+                ordered.push(...(byPo[poId] ?? []));
+            }
+            const ys = _distributeCentered(ordered.length, STATE_H, config.hGap, rowCenterY);
+            for (let i = 0; i < ordered.length; i++) {
+                sideStateY[ordered[i].id] = ys[i];
+            }
+        }
+    }
+
+    // 4b) Position POs: one row per rank, POs of a rank spread horizontally
     let leftSpace = 0;
     if (Object.keys(boundaryLeft).length > 0) {
         leftSpace += STATE_MAX_W + config.hGap;
@@ -892,36 +1010,78 @@ function _computeSingleSystemLayout(
         leftSpace += STATE_MAX_W + config.hGap;
     }
     const coreLeftX = startX + leftSpace;
-    const poCenterX = coreLeftX + PROCESS_W / 2;
 
+    // The core is as wide as its widest rank; every rank is centered in it.
+    let maxRankWidth = PROCESS_W;
+    for (let rank = 0; rank <= maxRank; rank++) {
+        const count = (posByRank[rank] ?? []).length;
+        if (count > 0) {
+            const width = count * PROCESS_W + (count - 1) * config.hGap;
+            maxRankWidth = Math.max(maxRankWidth, width);
+        }
+    }
+    const poCenterX = coreLeftX + maxRankWidth / 2;
+
+    const poById = new Map(rankedPos.map((p) => [p.id, p]));
     const poElements: Record<string, LayoutElement> = {};
-    for (const poId of poOrder) {
-        const po = processOperators.find((p) => p.id === poId)!;
-        const el: LayoutElement = {
-            id: po.id,
-            type: 'processOperator',
-            label: po.label,
-            x: coreLeftX,
-            y: poRowY[poRank[poId] ?? 0] ?? startY,
-            width: PROCESS_W,
-            height: PROCESS_H,
-            lineNumber: po.lineNumber,
-        };
-        elements.push(el);
-        poElements[po.id] = el;
+    for (let rank = 0; rank <= maxRank; rank++) {
+        const group = posByRank[rank] ?? [];
+        const xs = _distributeCentered(group.length, PROCESS_W, config.hGap, poCenterX);
+        for (let i = 0; i < group.length; i++) {
+            const po = poById.get(group[i])!;
+            const el: LayoutElement = {
+                id: po.id,
+                type: 'processOperator',
+                label: po.label,
+                x: xs[i],
+                y: poRowY[rank] ?? startY,
+                width: PROCESS_W,
+                height: PROCESS_H,
+                lineNumber: po.lineNumber,
+            };
+            elements.push(el);
+            poElements[po.id] = el;
+        }
     }
 
-    // 4c) Position forward-edge internal states
-    for (const [key, gapStates] of Object.entries(internalsByGap)) {
-        const parts = key.split('-');
-        const sRank = parseInt(parts[0], 10);
-        const tRank = parseInt(parts[1], 10);
+    /** Horizontal center of a set of POs, or undefined if none are placed. */
+    function _centerOfPos(poIds: string[]): number | undefined {
+        let sum = 0;
+        let count = 0;
+        for (const id of poIds) {
+            const el = poElements[id];
+            if (el) {
+                sum += el.x + el.width / 2;
+                count += 1;
+            }
+        }
+        return count > 0 ? sum / count : undefined;
+    }
+
+    // 4c) Position forward-edge internal states.
+    // All states of a band share one row, so they must be packed together —
+    // packing per source/target rank pair would let states of different pairs
+    // that happen to land in the same band overlap. Horizontally each state wants
+    // to sit between its own source and target POs, wherever in their ranks those
+    // sit, so states of unrelated parallel edges no longer share one center.
+    for (const [bandStr, bandStates] of Object.entries(internalsByBand)) {
+        const sRank = parseInt(bandStr, 10);
         const sourcePOY = poRowY[sRank] ?? startY;
-        const nextRowY = poRowY[Math.min(sRank + 1, tRank)] ?? poRowY[tRank] ?? startY;
+        const nextRowY = poRowY[sRank + 1] ?? startY;
         const midY = (sourcePOY + PROCESS_H + nextRowY) / 2 - STATE_H / 2;
-        const xs = _distributeCentered(gapStates.length, STATE_MAX_W, config.hGap, poCenterX);
-        for (let i = 0; i < gapStates.length; i++) {
-            const s = gapStates[i];
+
+        const desired = bandStates.map((state) => {
+            const srcCenter = _centerOfPos(graph.stateToSourcePos[state.id] ?? []);
+            const tgtCenter = _centerOfPos(graph.stateToTargetPos[state.id] ?? []);
+            if (srcCenter !== undefined && tgtCenter !== undefined) {
+                return (srcCenter + tgtCenter) / 2;
+            }
+            return srcCenter ?? tgtCenter ?? poCenterX;
+        });
+        const xs = _packRow(desired, STATE_MAX_W, config.hGap);
+
+        for (let i = 0; i < bandStates.length; i++) {
+            const s = bandStates[i];
             elements.push({
                 id: s.id,
                 type: 'state',
@@ -936,24 +1096,31 @@ function _computeSingleSystemLayout(
         }
     }
 
-    // 4d) Position backward-edge (feedback) internal states
+    // 4d) Position backward-edge (feedback) internal states.
+    // They all share the single column left of the core, so several feedbacks
+    // spanning the same rank interval would land on the same y — pack them.
     const backwardIds = new Set(backwardInternals.map((s) => s.id));
     if (backwardInternals.length > 0) {
         const feedbackX = coreLeftX - STATE_MAX_W - config.hGap;
-        for (const state of backwardInternals) {
+        const desiredY = backwardInternals.map((state) => {
             const aff = affinities[state.id];
             const sRankVal = aff.sourceRank !== undefined ? aff.sourceRank : 0;
             const tRankVal = aff.targetRank !== undefined ? aff.targetRank : 0;
             const minR = Math.min(sRankVal, tRankVal);
             const maxR = Math.max(sRankVal, tRankVal);
-            const midY =
-                ((poRowY[minR] ?? startY) + PROCESS_H + (poRowY[maxR] ?? startY)) / 2 - STATE_H / 2;
+            return ((poRowY[minR] ?? startY) + PROCESS_H + (poRowY[maxR] ?? startY)) / 2;
+        });
+        // No recentering: only push down where states would collide, so a
+        // feedback state stays in the rank interval it belongs to.
+        const ys = _packRow(desiredY, STATE_H, config.hGap, false);
+        for (let i = 0; i < backwardInternals.length; i++) {
+            const state = backwardInternals[i];
             elements.push({
                 id: state.id,
                 type: 'state',
                 label: state.label,
                 x: feedbackX,
-                y: midY,
+                y: ys[i],
                 width: STATE_MAX_W,
                 height: STATE_H,
                 stateType: state.stateType,
@@ -964,8 +1131,8 @@ function _computeSingleSystemLayout(
 
     // Phase 5: System limit and boundary state placement
     const internalIds = new Set<string>();
-    for (const key of Object.keys(internalsByGap)) {
-        for (const s of internalsByGap[key]) {
+    for (const bandStates of Object.values(internalsByBand)) {
+        for (const s of bandStates) {
             internalIds.add(s.id);
         }
     }
@@ -981,7 +1148,7 @@ function _computeSingleSystemLayout(
         coreElements,
         classified,
         config,
-        poRowY,
+        sideStateY,
         startY,
         coreLeftX,
     );
@@ -1015,7 +1182,7 @@ function _computeSingleSystemLayout(
     }
 
     // Disconnected elements
-    const disconnectedPos = processOperators.filter((p) => !graph.allFlowRefs.has(p.id));
+    const disconnectedPos = processOperators.filter((p) => !_isConnectedPo(p));
     if (disconnectedStates.length > 0 || disconnectedPos.length > 0) {
         const maxElY =
             elements.length > 0 ? Math.max(...elements.map((e) => e.y + e.height)) : startY;

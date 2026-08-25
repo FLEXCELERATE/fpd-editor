@@ -280,6 +280,182 @@ describe('computeLayout', () => {
     });
 
     // -----------------------------------------------------------------------
+    // 3b. Parallel ranks (branches and merges)
+    // -----------------------------------------------------------------------
+
+    describe('parallel branches and merges', () => {
+        /** True when two elements share any interior area. */
+        function overlaps(a: LayoutElement, b: LayoutElement): boolean {
+            const ox = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+            const oy = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+            return ox > 0.5 && oy > 0.5;
+        }
+
+        function expectNoOverlaps(layout: DiagramLayout): void {
+            const els = layout.elements;
+            const collisions: string[] = [];
+            for (let i = 0; i < els.length; i++) {
+                for (let j = i + 1; j < els.length; j++) {
+                    if (overlaps(els[i], els[j])) {
+                        collisions.push(els[i].id + ' <-> ' + els[j].id);
+                    }
+                }
+            }
+            expect(collisions).toEqual([]);
+        }
+
+        /** n source-free POs all feeding a single merging PO. */
+        function makeFanInModel(n: number): ProcessModel {
+            return buildModel((m) => {
+                m.processOperators.push(makePO('po_merge'));
+                for (let i = 0; i < n; i++) {
+                    m.processOperators.push(makePO('po_src' + i));
+                    m.states.push(makeState('s_mid' + i));
+                    m.flows.push(makeFlow('po_src' + i, 's_mid' + i));
+                    m.flows.push(makeFlow('s_mid' + i, 'po_merge'));
+                }
+                m.states.push(makeState('s_out'));
+                m.flows.push(makeFlow('po_merge', 's_out'));
+            });
+        }
+
+        it('puts POs of one topological wave on a shared row', () => {
+            const layout = computeLayout(makeFanInModel(4));
+            const feeders = [0, 1, 2, 3].map((i) => findElement(layout, 'po_src' + i));
+
+            // One row: identical y, four distinct x.
+            expect(new Set(feeders.map((e) => e.y)).size).toBe(1);
+            expect(new Set(feeders.map((e) => e.x)).size).toBe(4);
+        });
+
+        it('places the merging PO below its feeders', () => {
+            const layout = computeLayout(makeFanInModel(4));
+            const merge = findElement(layout, 'po_merge');
+            for (const i of [0, 1, 2, 3]) {
+                expect(findElement(layout, 'po_src' + i).y).toBeLessThan(merge.y);
+            }
+        });
+
+        it('does not overlap POs of a wide rank', () => {
+            expectNoOverlaps(computeLayout(makeFanInModel(8)));
+        });
+
+        it('grows the diagram sideways instead of downwards as a rank widens', () => {
+            const narrow = computeLayout(makeFanInModel(2));
+            const wide = computeLayout(makeFanInModel(8));
+
+            const width = (l: DiagramLayout) =>
+                Math.max(...l.elements.map((e) => e.x + e.width)) -
+                Math.min(...l.elements.map((e) => e.x));
+            const height = (l: DiagramLayout) =>
+                Math.max(...l.elements.map((e) => e.y + e.height)) -
+                Math.min(...l.elements.map((e) => e.y));
+
+            expect(width(wide)).toBeGreaterThan(width(narrow));
+            expect(height(wide)).toBe(height(narrow));
+        });
+
+        it('keeps one rank per step in a strict chain', () => {
+            const steps = ['a', 'b', 'c', 'd'];
+            const model = buildModel((m) => {
+                for (const step of steps) {
+                    m.processOperators.push(makePO('po_' + step));
+                }
+                m.states.push(makeState('s_in'));
+                m.flows.push(makeFlow('s_in', 'po_a'));
+                for (let i = 0; i < steps.length - 1; i++) {
+                    const mid = 's_' + steps[i] + steps[i + 1];
+                    m.states.push(makeState(mid));
+                    m.flows.push(makeFlow('po_' + steps[i], mid));
+                    m.flows.push(makeFlow(mid, 'po_' + steps[i + 1]));
+                }
+            });
+
+            const layout = computeLayout(model);
+            const ys = steps.map((step) => findElement(layout, 'po_' + step).y);
+
+            // Four distinct rows, strictly increasing — the chain must not collapse.
+            expect(new Set(ys).size).toBe(4);
+            for (let i = 1; i < ys.length; i++) {
+                expect(ys[i]).toBeGreaterThan(ys[i - 1]);
+            }
+        });
+
+        it('spreads intermediate states of parallel edges instead of stacking them', () => {
+            const layout = computeLayout(makeFanInModel(4));
+            const mids = [0, 1, 2, 3].map((i) => findElement(layout, 's_mid' + i));
+
+            // Same band, but four distinct x positions and no collisions.
+            expect(new Set(mids.map((e) => e.y)).size).toBe(1);
+            expect(new Set(mids.map((e) => e.x)).size).toBe(4);
+            expectNoOverlaps(layout);
+        });
+
+        it('keeps an intermediate state near the branch it belongs to', () => {
+            const layout = computeLayout(makeFanInModel(4));
+            const center = (e: LayoutElement) => e.x + e.width / 2;
+            const orderBy = (prefix: string) =>
+                [0, 1, 2, 3]
+                    .map((i) => ({ i, x: center(findElement(layout, prefix + i)) }))
+                    .sort((a, b) => a.x - b.x)
+                    .map((e) => e.i);
+
+            // Intermediate states keep the left-to-right order of their sources.
+            expect(orderBy('s_mid')).toEqual(orderBy('po_src'));
+        });
+
+        it('does not stack side-boundary states of different POs in one rank', () => {
+            // Two parallel POs, each with its own pinned boundary-left input.
+            const model = buildModel((m) => {
+                m.processOperators.push(makePO('po_merge'));
+                for (const tag of ['x', 'y']) {
+                    m.processOperators.push(makePO('po_' + tag));
+                    m.states.push(
+                        makeState('s_side_' + tag, 'energy', { placement: 'boundary-left' }),
+                    );
+                    m.states.push(makeState('s_mid_' + tag));
+                    m.flows.push(makeFlow('s_side_' + tag, 'po_' + tag));
+                    m.flows.push(makeFlow('po_' + tag, 's_mid_' + tag));
+                    m.flows.push(makeFlow('s_mid_' + tag, 'po_merge'));
+                }
+            });
+
+            const layout = computeLayout(model);
+            const sideX = findElement(layout, 's_side_x');
+            const sideY = findElement(layout, 's_side_y');
+
+            // Both sit on the same left edge, so they must differ vertically.
+            expect(sideX.x).toBe(sideY.x);
+            expect(sideX.y).not.toBe(sideY.y);
+            expectNoOverlaps(layout);
+        });
+
+        it('does not stack feedback states spanning the same rank interval', () => {
+            // Two separate feedback edges from the second PO back to the first.
+            const model = buildModel((m) => {
+                m.processOperators.push(makePO('po_1'));
+                m.processOperators.push(makePO('po_2'));
+                m.states.push(makeState('s_fwd'));
+                m.flows.push(makeFlow('po_1', 's_fwd'));
+                m.flows.push(makeFlow('s_fwd', 'po_2'));
+                for (const tag of ['a', 'b']) {
+                    m.states.push(makeState('s_back_' + tag));
+                    m.flows.push(makeFlow('po_2', 's_back_' + tag));
+                    m.flows.push(makeFlow('s_back_' + tag, 'po_1'));
+                }
+            });
+
+            const layout = computeLayout(model);
+            const backA = findElement(layout, 's_back_a');
+            const backB = findElement(layout, 's_back_b');
+
+            expect(backA.x).toBe(backB.x);
+            expect(backA.y).not.toBe(backB.y);
+            expectNoOverlaps(layout);
+        });
+    });
+
+    // -----------------------------------------------------------------------
     // 4. Boundary state classification
     // -----------------------------------------------------------------------
 
@@ -809,37 +985,28 @@ describe('computeLayout', () => {
         });
 
         it('uses custom vGap to increase vertical spacing between PO rows', () => {
-            // Two independent POs, each with its own input/output.
-            // No shared intermediate states, so no INTERNAL_V_GAP override.
-            // PO ordering is forced by the topological sort seeing po1 < po2
-            // alphabetically when both have in-degree 0.
-            function makeTwoPOModel(): ProcessModel {
+            // po_a and po_b must land in different ranks, so a state has to link
+            // them. Pinning that state to the boundary keeps it out of the
+            // intermediate band below po_a's rank, which would otherwise space the
+            // rows by INTERNAL_V_GAP instead of vGap.
+            function makeChainModel(): ProcessModel {
                 return buildModel((m) => {
-                    m.states.push(makeState('a_in'));
-                    m.states.push(makeState('a_out'));
-                    m.states.push(makeState('b_in'));
-                    m.states.push(makeState('b_out'));
+                    m.states.push(makeState('s_ab', 'energy', { placement: 'boundary-left' }));
                     m.processOperators.push(makePO('po_a'));
                     m.processOperators.push(makePO('po_b'));
-                    m.flows.push(makeFlow('a_in', 'po_a'));
-                    m.flows.push(makeFlow('po_a', 'a_out'));
-                    m.flows.push(makeFlow('b_in', 'po_b'));
-                    m.flows.push(makeFlow('po_b', 'b_out'));
+                    m.flows.push(makeFlow('po_a', 's_ab'));
+                    m.flows.push(makeFlow('s_ab', 'po_b'));
                 });
             }
 
-            const tight = computeLayout(makeTwoPOModel(), { ...createLayoutConfig(), vGap: 20 });
-            const loose = computeLayout(makeTwoPOModel(), { ...createLayoutConfig(), vGap: 300 });
+            const tight = computeLayout(makeChainModel(), { ...createLayoutConfig(), vGap: 20 });
+            const loose = computeLayout(makeChainModel(), { ...createLayoutConfig(), vGap: 300 });
 
-            const poATight = findElement(tight, 'po_a');
-            const poBTight = findElement(tight, 'po_b');
-            const poALoose = findElement(loose, 'po_a');
-            const poBLoose = findElement(loose, 'po_b');
+            const spacingTight = findElement(tight, 'po_b').y - findElement(tight, 'po_a').y;
+            const spacingLoose = findElement(loose, 'po_b').y - findElement(loose, 'po_a').y;
 
-            const spacingTight = poBTight.y - poATight.y;
-            const spacingLoose = poBLoose.y - poALoose.y;
-
-            expect(spacingLoose).toBeGreaterThan(spacingTight);
+            expect(spacingTight).toBeGreaterThan(0);
+            expect(spacingLoose).toBe(spacingTight + 280);
         });
     });
 
