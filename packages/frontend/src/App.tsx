@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import './App.css';
 import FpdEditor, { FpdEditorRef } from './components/Editor/FpdEditor';
 import { DiagramRenderer, DiagramRendererRef } from './components/Diagram/DiagramRenderer';
@@ -13,6 +13,7 @@ import { useHistoryManager } from './hooks/useHistoryManager';
 import { useViewport } from './hooks/useViewport';
 import { useSplitPane } from './hooks/useSplitPane';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { loadInitialSource, saveSource } from './services/documentStorage';
 import type { ProcessModel } from './types/fpd';
 import type { DiagramBounds } from './types/diagram';
 
@@ -115,12 +116,21 @@ export default function App() {
     const diagramContainerRef = useRef<HTMLDivElement>(null);
     const contentBoundsRef = useRef<DiagramBounds | null>(null);
 
+    // Restore a shared (#fpd=) or locally saved document; fall back to the example.
+    const initialSource = useMemo(() => loadInitialSource(DEFAULT_SOURCE), []);
+
     // Use history manager for application-level undo/redo
-    const historyManager = useHistoryManager(DEFAULT_SOURCE);
+    const historyManager = useHistoryManager(initialSource);
     const source = historyManager.currentState;
 
-    const { model, svgContent, error, loading } = useFpdParser(source);
-    const { lineToElement, setSelectedElementId } = useDiagramSync(model);
+    // Autosave the document so a reload never loses work.
+    useEffect(() => {
+        const timer = setTimeout(() => saveSource(source), 500);
+        return () => clearTimeout(timer);
+    }, [source]);
+
+    const { model, svgContent, error, warnings, loading } = useFpdParser(source);
+    const { lineToElement, selectedElementId, setSelectedElementId } = useDiagramSync(model);
     const {
         viewport,
         setViewport,
@@ -131,11 +141,16 @@ export default function App() {
         handleWheel,
         handleMouseDown: handleDiagramMouseDown,
         handleTouchStart,
+        setBounds,
     } = useViewport();
 
-    const handleContentBounds = useCallback((bounds: DiagramBounds) => {
-        contentBoundsRef.current = bounds;
-    }, []);
+    const handleContentBounds = useCallback(
+        (bounds: DiagramBounds) => {
+            contentBoundsRef.current = bounds;
+            setBounds(bounds);
+        },
+        [setBounds],
+    );
 
     const handleZoomToFit = useCallback(() => {
         const container = diagramContainerRef.current;
@@ -220,6 +235,8 @@ export default function App() {
                                 onChange={historyManager.pushState}
                                 parseError={error}
                                 onCursorPositionChange={handleCursorPositionChange}
+                                onUndo={handleUndo}
+                                onRedo={handleRedo}
                             />
                         </ErrorBoundary>
                     </div>
@@ -239,6 +256,7 @@ export default function App() {
                                     ref={diagramRef}
                                     svgContent={svgContent}
                                     viewport={viewport}
+                                    selectedElementId={selectedElementId}
                                     onElementClick={handleElementClick}
                                     onContentBounds={handleContentBounds}
                                     onWheel={handleWheel}
@@ -263,6 +281,15 @@ export default function App() {
                                     Errors
                                 </div>
                                 <pre className="error-panel__body">{error}</pre>
+                            </div>
+                        )}
+                        {warnings && !loading && (
+                            <div className="error-panel error-panel--warning">
+                                <div className="error-panel__header">
+                                    <span className="error-panel__icon">⚠</span>
+                                    Warnings
+                                </div>
+                                <pre className="error-panel__body">{warnings}</pre>
                             </div>
                         )}
                     </div>

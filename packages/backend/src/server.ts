@@ -2,6 +2,7 @@
 
 import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { FpdService } from '@fpd-editor/core';
 import './types.js';
@@ -16,11 +17,30 @@ const HOST = process.env.HOST || '0.0.0.0';
 /** Maximum request body size (1 MB). */
 const MAX_BODY_SIZE = 1024 * 1024;
 
+/** Hard cap on how long a single request may take (ms). Prevents a pathological
+ *  payload from occupying a worker indefinitely. Configurable via env. */
+const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS) || 30_000;
+
+/**
+ * How Fastify should derive the client IP. Behind a reverse proxy this MUST be
+ * enabled so rate limiting and logs key off the real client rather than the
+ * proxy's socket address. Accepts `true`/`false`, a hop count, or a CIDR/IP list.
+ */
+function resolveTrustProxy(): boolean | number | string {
+    const raw = process.env.TRUST_PROXY;
+    if (raw === undefined || raw === 'false') return false;
+    if (raw === 'true') return true;
+    const asNumber = Number(raw);
+    return Number.isNaN(asNumber) ? raw : asNumber;
+}
+
 /** Create and configure the Fastify instance (plugins, routers, error handler). */
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
     const app = Fastify({
         logger: opts.logger ?? true,
         bodyLimit: MAX_BODY_SIZE,
+        requestTimeout: REQUEST_TIMEOUT_MS,
+        trustProxy: resolveTrustProxy(),
     });
 
     // Shared service instance for all routers
@@ -31,13 +51,25 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     if (!process.env.CORS_ORIGIN && process.env.NODE_ENV === 'production') {
         throw new Error('CORS_ORIGIN must be set in production');
     }
-    const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
-    await app.register(cors, { origin: corsOrigin });
+    // Accept a single origin or a comma-separated allowlist.
+    const corsOrigin = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+        .split(',')
+        .map((o) => o.trim())
+        .filter(Boolean);
+    await app.register(cors, {
+        origin: corsOrigin.length === 1 ? corsOrigin[0] : corsOrigin,
+    });
 
-    // Rate limiting
+    // Security response headers. contentSecurityPolicy is kept default-strict;
+    // this is a JSON/SVG API, not an HTML app, so nothing needs relaxing.
+    await app.register(helmet);
+
+    // Rate limiting (health check is exempt so load-balancer probes are never
+    // throttled).
     await app.register(rateLimit, {
         max: 100,
         timeWindow: '1 minute',
+        allowList: (req) => req.url === '/api/health',
     });
 
     // Global error handler
@@ -78,11 +110,25 @@ async function main() {
 
     // Graceful shutdown
     const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
+    let shuttingDown = false;
     for (const signal of signals) {
         process.on(signal, async () => {
+            if (shuttingDown) return;
+            shuttingDown = true;
             app.log.info(`Received ${signal}, shutting down...`);
-            await app.close();
-            process.exit(0);
+            // Force-exit if a blocked/in-flight request keeps close() from resolving.
+            const forceExit = setTimeout(() => {
+                app.log.error('Shutdown timed out, forcing exit');
+                process.exit(1);
+            }, 10_000);
+            forceExit.unref();
+            try {
+                await app.close();
+                process.exit(0);
+            } catch (err) {
+                app.log.error(err, 'Error during shutdown');
+                process.exit(1);
+            }
         });
     }
 

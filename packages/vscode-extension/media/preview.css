@@ -80,3 +80,40 @@ body {
     font-size: 14px;
     line-height: 1.5;
 }
+
+/* Diagnostics banner (parse errors + validation warnings) shown above the
+   diagram without hiding it. */
+#diagnostics {
+    margin-bottom: 12px;
+    border-radius: 4px;
+    border: 1px solid var(--vscode-inputValidation-warningBorder, #d9a300);
+    background-color: var(--vscode-inputValidation-warningBackground, #fff8e1);
+    padding: 8px 12px;
+}
+
+#diagnostics ul {
+    list-style: none;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+#diagnostics li {
+    padding-left: 18px;
+    position: relative;
+}
+
+#diagnostics li.diag-error {
+    color: var(--error-color);
+}
+
+#diagnostics li.diag-error::before {
+    content: '✖';
+    position: absolute;
+    left: 0;
+}
+
+#diagnostics li.diag-warning::before {
+    content: '⚠';
+    position: absolute;
+    left: 0;
+}

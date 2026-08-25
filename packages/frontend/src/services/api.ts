@@ -1,8 +1,16 @@
-/** API client service for backend communication. */
+/**
+ * FPD service facade for the web app.
+ *
+ * Parsing, rendering, and exporting run directly in the browser via
+ * `@fpd-editor/core` — no backend round-trip. The functions keep their
+ * former async signatures so callers are agnostic about where the work
+ * happens (and could be pointed back at a remote API if ever needed).
+ */
 
+import { FpdService } from '@fpd-editor/core';
 import type { ProcessModel } from '../types/fpd';
 
-const API_BASE = '/api';
+const service = new FpdService();
 
 interface ParseResponse {
     model: ProcessModel;
@@ -15,83 +23,26 @@ interface ImportResponse {
     diagram: unknown;
 }
 
-interface ApiError {
-    error: string;
-}
-
-async function handleError(response: Response): Promise<never> {
-    const body = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error((body as ApiError).error || `Request failed: ${response.status}`);
-}
-
-async function handleResponse<T>(response: Response): Promise<T> {
-    if (!response.ok) await handleError(response);
-    return response.json() as Promise<T>;
-}
-
-async function handleBlobResponse(response: Response): Promise<Blob> {
-    if (!response.ok) await handleError(response);
-    return response.blob();
-}
-
-export async function healthCheck(): Promise<{ status: string }> {
-    const response = await fetch(`${API_BASE}/health`);
-    return handleResponse<{ status: string }>(response);
-}
-
 export async function parseSource(source: string): Promise<ParseResponse> {
-    const response = await fetch(`${API_BASE}/parse`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source }),
-    });
-    return handleResponse<ParseResponse>(response);
+    const { model, diagram } = service.parse(source);
+    return { model: model as ProcessModel, diagram };
 }
 
 export async function renderSvg(source: string): Promise<string> {
-    const response = await fetch(`${API_BASE}/render/svg`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source }),
-    });
-    if (!response.ok) await handleError(response);
-    return response.text();
+    return service.renderSvg(source);
 }
 
 export async function exportXml(source: string): Promise<Blob> {
-    const response = await fetch(`${API_BASE}/export/source/xml`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source }),
-    });
-    return handleBlobResponse(response);
+    return new Blob([service.exportXml(source)], { type: 'application/xml' });
 }
 
 export async function exportText(source: string): Promise<Blob> {
-    const response = await fetch(`${API_BASE}/export/source/text`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source }),
-    });
-    return handleBlobResponse(response);
-}
-
-export async function exportPdf(source: string): Promise<Blob> {
-    const response = await fetch(`${API_BASE}/export/source/pdf`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source }),
-    });
-    return handleBlobResponse(response);
+    return new Blob([service.exportText(source)], { type: 'text/plain' });
 }
 
 export async function importFile(content: string, filename: string): Promise<ImportResponse> {
-    const response = await fetch(`${API_BASE}/import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, filename }),
-    });
-    return handleResponse<ImportResponse>(response);
+    const { model, diagram, source } = service.importFile(content, filename);
+    return { source, model: model as ProcessModel, diagram };
 }
 
 /** Trigger a file download from a Blob. */

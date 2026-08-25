@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as crypto from 'crypto';
 import { StateManager, StateSnapshot } from './stateManager';
 
 /**
@@ -88,7 +89,14 @@ export class PreviewPanel {
     /** Send SVG to webview. */
     private sendSvgToWebview(snapshot: StateSnapshot): void {
         if (snapshot.svg) {
-            this.panel.webview.postMessage({ type: 'svgUpdate', svg: snapshot.svg });
+            // Render the (possibly partial) diagram and, alongside it, any parse
+            // errors / validation warnings so problems are never silently hidden.
+            this.panel.webview.postMessage({
+                type: 'svgUpdate',
+                svg: snapshot.svg,
+                errors: snapshot.errors,
+                warnings: snapshot.warnings,
+            });
         } else if (snapshot.errors.length > 0) {
             this.panel.webview.postMessage({ type: 'error', text: snapshot.errors.join('\n') });
         } else {
@@ -126,12 +134,7 @@ export class PreviewPanel {
      * Minimal webview HTML — just receives SVG via postMessage and displays it.
      */
     private getNonce(): string {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-        let nonce = '';
-        for (let i = 0; i < 32; i++) {
-            nonce += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return nonce;
+        return crypto.randomBytes(24).toString('base64').replace(/[+/=]/g, '');
     }
 
     private getWebviewContent(): string {
@@ -150,6 +153,7 @@ export class PreviewPanel {
     <title>FPD Diagram Preview</title>
 </head>
 <body>
+    <div id="diagnostics" role="alert" style="display:none;"></div>
     <div id="preview">
         <div class="placeholder">Loading diagram...</div>
     </div>
@@ -158,11 +162,34 @@ export class PreviewPanel {
         const vscode = acquireVsCodeApi();
         const preview = document.getElementById('preview');
         const tooltip = document.getElementById('tooltip');
+        const diagnostics = document.getElementById('diagnostics');
 
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // Render a non-destructive banner listing parse errors / validation
+        // warnings above the (still visible) diagram.
+        function renderDiagnostics(errors, warnings) {
+            diagnostics.textContent = '';
+            const items = [];
+            (errors || []).forEach((e) => items.push({ kind: 'error', text: e }));
+            (warnings || []).forEach((w) => items.push({ kind: 'warning', text: w }));
+            if (items.length === 0) {
+                diagnostics.style.display = 'none';
+                return;
+            }
+            const ul = document.createElement('ul');
+            for (const item of items) {
+                const li = document.createElement('li');
+                li.className = 'diag-' + item.kind;
+                li.textContent = item.text;
+                ul.appendChild(li);
+            }
+            diagnostics.appendChild(ul);
+            diagnostics.style.display = 'block';
         }
 
         window.addEventListener('message', (event) => {
@@ -177,9 +204,11 @@ export class PreviewPanel {
                         preview.textContent = '';
                         preview.appendChild(document.importNode(svgEl, true));
                     }
+                    renderDiagnostics(msg.errors, msg.warnings);
                     break;
                 }
                 case 'error': {
+                    renderDiagnostics([], []);
                     preview.textContent = '';
                     const div = document.createElement('div');
                     div.className = 'error';
@@ -193,6 +222,7 @@ export class PreviewPanel {
                     break;
                 }
                 case 'clear':
+                    renderDiagnostics([], []);
                     preview.textContent = '';
                     const placeholder = document.createElement('div');
                     placeholder.className = 'placeholder';

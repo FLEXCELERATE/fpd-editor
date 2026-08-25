@@ -119,6 +119,47 @@ describe('FpdParser', () => {
         expect(model.states[0].systemId).toBe(model.processOperators[0].systemId);
     });
 
+    it('reports an error for nested system blocks', () => {
+        const src = [
+            '@startfpd',
+            'system "Outer" {',
+            '  system "Inner" {',
+            '    product p_inner',
+            '  }',
+            '}',
+            '@endfpd',
+        ].join('\n');
+        const model = parse(src);
+        expect(model.errors).toContain('Line 3: Nested system blocks are not supported');
+    });
+
+    it('restores the outer system id after a nested system block ends', () => {
+        const src = [
+            '@startfpd',
+            'system "Outer" {',
+            '  product p_before',
+            '  system "Inner" {',
+            '    product p_inner',
+            '  }',
+            '  product p_after',
+            '}',
+            'product p_outside',
+            '@endfpd',
+        ].join('\n');
+        const model = parse(src);
+
+        const outerId = model.systemLimits.find((sl) => sl.label === 'Outer')!.id;
+        const pBefore = model.states.find((s) => s.id === 'p_before')!;
+        const pAfter = model.states.find((s) => s.id === 'p_after')!;
+        const pOutside = model.states.find((s) => s.id === 'p_outside')!;
+
+        // Elements following the inner block still belong to the outer system
+        expect(pBefore.systemId).toBe(outerId);
+        expect(pAfter.systemId).toBe(outerId);
+        // Elements after the outer block belong to no system
+        expect(pOutside.systemId).toBeUndefined();
+    });
+
     it('handles elements in system and connections outside', () => {
         const src = [
             '@startfpd',
@@ -216,6 +257,16 @@ describe('FpdParser', () => {
         expect(model.flows.some((f) => f.sourceRef === 'p1' && f.targetRef === 'po1')).toBe(true);
         // And the malformed connection should produce an error
         expect(model.errors.length).toBeGreaterThan(0);
+    });
+
+    it('surfaces lexer errors for unterminated strings in model.errors', () => {
+        const src = ['@startfpd', 'product p1 "oops', 'product p2 "Fine"', '@endfpd'].join('\n');
+        const model = parse(src);
+        expect(model.errors).toContain('Line 2: Unterminated string');
+        // The truncated string is still used as the label (graceful recovery)
+        expect(model.states.map((s) => s.id)).toEqual(['p1', 'p2']);
+        expect(model.states[0].label).toBe('oops');
+        expect(model.states[1].label).toBe('Fine');
     });
 
     it('handles system with missing closing brace gracefully', () => {

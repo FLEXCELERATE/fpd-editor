@@ -6,15 +6,26 @@ vi.mock('vscode', () => ({}));
 // Mock @fpd-editor/core
 const mockRenderSvg = vi.fn();
 const mockParse = vi.fn();
+const mockRenderSvgFromDiagram = vi.fn();
 
 vi.mock('@fpd-editor/core', () => ({
     FpdService: class MockFpdService {
         renderSvg = mockRenderSvg;
         parse = mockParse;
     },
+    renderSvg: (diagram: unknown) => mockRenderSvgFromDiagram(diagram),
 }));
 
 import { StateManager } from './stateManager';
+
+/** Configure parse() + renderSvg() mocks for a successful (possibly partial) render. */
+function mockParseResult(svg: string, errors: string[] = [], warnings: string[] = []): void {
+    mockParse.mockReturnValue({
+        model: { errors, warnings },
+        diagram: { marker: 'diagram' },
+    });
+    mockRenderSvgFromDiagram.mockReturnValue(svg);
+}
 
 function createMockOutputChannel() {
     return {
@@ -34,13 +45,14 @@ describe('StateManager', () => {
 
     describe('loadFromText', () => {
         it('should populate svg and clear errors on valid FPD text', async () => {
-            mockRenderSvg.mockReturnValue('<svg>test</svg>');
+            mockParseResult('<svg>test</svg>');
 
             await manager.loadFromText('process_operator P1 "Test"');
 
             const snapshot = manager.getSnapshot();
             expect(snapshot.svg).toBe('<svg>test</svg>');
             expect(snapshot.errors).toEqual([]);
+            expect(snapshot.warnings).toEqual([]);
         });
 
         it('should set empty svg on empty string input', async () => {
@@ -59,30 +71,57 @@ describe('StateManager', () => {
             expect(snapshot.errors).toEqual([]);
         });
 
-        it('should populate errors when renderSvg throws', async () => {
-            mockRenderSvg.mockImplementation(() => {
-                throw new Error('Parse error: unexpected token');
-            });
+        it('should surface parse errors from the model while still rendering the diagram', async () => {
+            mockParseResult('<svg>partial</svg>', ['Line 2: unexpected token']);
 
             await manager.loadFromText('invalid fpd content');
 
             const snapshot = manager.getSnapshot();
-            expect(snapshot.errors).toEqual(['Parse error: unexpected token']);
+            expect(snapshot.svg).toBe('<svg>partial</svg>');
+            expect(snapshot.errors).toEqual(['Line 2: unexpected token']);
+        });
+
+        it('should surface validation warnings from the model', async () => {
+            mockParseResult('<svg/>', [], ['Flow references unknown element "x"']);
+
+            await manager.loadFromText('some fpd');
+
+            expect(manager.getSnapshot().warnings).toEqual(['Flow references unknown element "x"']);
+        });
+
+        it('should populate errors when rendering unexpectedly throws', async () => {
+            mockParse.mockReturnValue({ model: { errors: [], warnings: [] }, diagram: {} });
+            mockRenderSvgFromDiagram.mockImplementation(() => {
+                throw new Error('Render failed');
+            });
+
+            await manager.loadFromText('input');
+
+            const snapshot = manager.getSnapshot();
+            expect(snapshot.errors).toEqual(['Render failed']);
+            expect(snapshot.svg).toBe('');
         });
 
         it('should handle non-Error thrown values', async () => {
-            mockRenderSvg.mockImplementation(() => {
+            mockParse.mockImplementation(() => {
                 throw 'string error';
             });
 
-            await manager.loadFromText('invalid fpd content');
+            await manager.loadFromText('input');
 
-            const snapshot = manager.getSnapshot();
-            expect(snapshot.errors).toEqual(['string error']);
+            expect(manager.getSnapshot().errors).toEqual(['string error']);
         });
 
-        it('should log render errors to output channel', async () => {
-            mockRenderSvg.mockImplementation(() => {
+        it('should log parse errors to the output channel', async () => {
+            mockParseResult('<svg/>', ['Line 1: bad']);
+
+            await manager.loadFromText('bad input');
+
+            expect(outputChannel.appendLine).toHaveBeenCalledWith('Parse errors:\n  Line 1: bad');
+        });
+
+        it('should log render errors to the output channel', async () => {
+            mockParse.mockImplementation(() => {
                 throw new Error('Render failed');
             });
 
@@ -98,7 +137,7 @@ describe('StateManager', () => {
         });
 
         it('should increment version on each loadFromText call', async () => {
-            mockRenderSvg.mockReturnValue('<svg></svg>');
+            mockParseResult('<svg></svg>');
 
             await manager.loadFromText('first');
             expect(manager.getSnapshot().version).toBe(1);
@@ -116,9 +155,7 @@ describe('StateManager', () => {
         });
 
         it('should increment version even on error', async () => {
-            mockRenderSvg.mockImplementation(() => {
-                throw new Error('fail');
-            });
+            mockParseResult('<svg/>', ['fail']);
 
             await manager.loadFromText('bad');
             expect(manager.getSnapshot().version).toBe(1);
@@ -127,7 +164,7 @@ describe('StateManager', () => {
 
     describe('onStateChanged', () => {
         it('should call listener after loadFromText with valid input', async () => {
-            mockRenderSvg.mockReturnValue('<svg>ok</svg>');
+            mockParseResult('<svg>ok</svg>');
             const listener = vi.fn();
 
             manager.onStateChanged(listener);
@@ -159,10 +196,8 @@ describe('StateManager', () => {
             );
         });
 
-        it('should call listener after loadFromText with error', async () => {
-            mockRenderSvg.mockImplementation(() => {
-                throw new Error('oops');
-            });
+        it('should call listener with model errors', async () => {
+            mockParseResult('<svg/>', ['oops']);
             const listener = vi.fn();
 
             manager.onStateChanged(listener);
@@ -178,7 +213,7 @@ describe('StateManager', () => {
         });
 
         it('should support multiple listeners', async () => {
-            mockRenderSvg.mockReturnValue('<svg></svg>');
+            mockParseResult('<svg></svg>');
             const listener1 = vi.fn();
             const listener2 = vi.fn();
 
@@ -191,7 +226,7 @@ describe('StateManager', () => {
         });
 
         it('should unsubscribe when dispose function is called', async () => {
-            mockRenderSvg.mockReturnValue('<svg></svg>');
+            mockParseResult('<svg></svg>');
             const listener = vi.fn();
 
             const unsubscribe = manager.onStateChanged(listener);
@@ -206,9 +241,7 @@ describe('StateManager', () => {
 
     describe('getSnapshot', () => {
         it('should return a copy of errors array (not a reference)', async () => {
-            mockRenderSvg.mockImplementation(() => {
-                throw new Error('err');
-            });
+            mockParseResult('<svg/>', ['err']);
 
             await manager.loadFromText('bad');
             const snapshot1 = manager.getSnapshot();
@@ -229,7 +262,7 @@ describe('StateManager', () => {
 
     describe('concurrent loadFromText', () => {
         it('should increment version for each concurrent call', async () => {
-            mockRenderSvg.mockReturnValue('<svg>a</svg>');
+            mockParseResult('<svg>a</svg>');
 
             // Fire multiple calls without awaiting
             const p1 = manager.loadFromText('first');
@@ -242,8 +275,8 @@ describe('StateManager', () => {
         });
 
         it('should reflect the last completed call in the snapshot', async () => {
-            // First call succeeds, second call also succeeds with different SVG
-            mockRenderSvg
+            mockParse.mockReturnValue({ model: { errors: [], warnings: [] }, diagram: {} });
+            mockRenderSvgFromDiagram
                 .mockReturnValueOnce('<svg>first</svg>')
                 .mockReturnValueOnce('<svg>second</svg>');
 
@@ -257,7 +290,7 @@ describe('StateManager', () => {
 
     describe('listener cleanup', () => {
         it('should not notify unsubscribed listeners even with multiple subscriptions', async () => {
-            mockRenderSvg.mockReturnValue('<svg></svg>');
+            mockParseResult('<svg></svg>');
             const listener1 = vi.fn();
             const listener2 = vi.fn();
             const listener3 = vi.fn();

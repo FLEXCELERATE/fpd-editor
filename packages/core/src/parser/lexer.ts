@@ -5,7 +5,7 @@ import {
     CONNECTION_OPERATORS_SORTED,
     END_DELIMITER,
     KEYWORDS,
-    PLACEMENT_ANNOTATIONS,
+    PLACEMENT_ANNOTATIONS_SORTED,
     START_DELIMITER,
     TokenType,
 } from './syntax';
@@ -34,6 +34,12 @@ export class Lexer {
     private line = 1;
     private column = 1;
     private tokens: Token[] = [];
+
+    /**
+     * Diagnostics collected while tokenizing. The lexer never throws; callers
+     * (the parser) drain these into `model.errors` after `tokenize()`.
+     */
+    readonly errors: string[] = [];
 
     constructor(source: string) {
         this.source = source;
@@ -168,8 +174,9 @@ export class Lexer {
             }
         }
 
-        // Check placement annotations
-        for (const annotation of PLACEMENT_ANNOTATIONS) {
+        // Check placement annotations (longest first so e.g. `@boundary-top`
+        // wins over `@boundary`).
+        for (const annotation of PLACEMENT_ANNOTATIONS_SORTED) {
             if (this.source.substring(this.pos, this.pos + annotation.length) === annotation) {
                 const endPos = this.pos + annotation.length;
                 if (endPos >= this.source.length || !this.isAlphaNumeric(this.source[endPos])) {
@@ -203,6 +210,10 @@ export class Lexer {
         if (this.pos < this.source.length && this.source[this.pos] === '"') {
             this.pos++;
             this.column++;
+        } else {
+            // End of line or end of input reached without a closing quote.
+            // Record the problem but still emit the token (graceful recovery).
+            this.errors.push(`Line ${startLine}: Unterminated string`);
         }
         this.tokens.push({ type: TokenType.STRING, value, line: startLine, column: startCol });
     }

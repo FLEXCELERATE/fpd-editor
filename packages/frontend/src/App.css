@@ -347,6 +347,12 @@ body,
     margin: 0;
 }
 
+/* Warning variant of the panel (semantic validation issues) */
+.error-panel--warning .error-panel__header,
+.error-panel--warning .error-panel__body {
+    color: #dcb67a;
+}
+
 /* Toast notifications */
 .toast-container {
     position: fixed;

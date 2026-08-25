@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { FpdService, ParseResult } from '@fpd-editor/core';
+import { FpdService, ParseResult, renderSvg } from '@fpd-editor/core';
 
 /**
  * Snapshot of the current diagram state.
@@ -8,6 +8,7 @@ import { FpdService, ParseResult } from '@fpd-editor/core';
 export interface StateSnapshot {
     svg: string;
     errors: string[];
+    warnings: string[];
     version: number;
 }
 
@@ -20,6 +21,7 @@ export interface StateSnapshot {
 export class StateManager {
     private svg = '';
     private errors: string[] = [];
+    private warnings: string[] = [];
     private version = 0;
     private listeners = new Set<(snapshot: StateSnapshot) => void>();
     private outputChannel: vscode.OutputChannel;
@@ -47,7 +49,12 @@ export class StateManager {
 
     /** Get current state snapshot. */
     getSnapshot(): StateSnapshot {
-        return { svg: this.svg, errors: [...this.errors], version: this.version };
+        return {
+            svg: this.svg,
+            errors: [...this.errors],
+            warnings: [...this.warnings],
+            version: this.version,
+        };
     }
 
     /** Get the FpdService instance for direct access (e.g. exports). */
@@ -63,20 +70,32 @@ export class StateManager {
         if (!text.trim()) {
             this.svg = '';
             this.errors = [];
+            this.warnings = [];
             this.version++;
             this.notify();
             return;
         }
 
         try {
-            const svg = this.fpdService.renderSvg(text);
-            this.svg = svg;
-            this.errors = [];
+            // The core parser is non-throwing: syntax/semantic problems are
+            // collected on the model rather than raised. Read them explicitly so
+            // they actually reach the preview (previously the diagram rendered
+            // silently and errors were never surfaced).
+            const { model, diagram } = this.fpdService.parse(text);
+            this.svg = renderSvg(diagram);
+            this.errors = [...model.errors];
+            this.warnings = [...model.warnings];
             this.version++;
             this.notify();
+            if (this.errors.length > 0) {
+                this.outputChannel.appendLine(`Parse errors:\n  ${this.errors.join('\n  ')}`);
+            }
         } catch (error) {
+            // Defensive: an unexpected renderer crash still surfaces something.
             const msg = error instanceof Error ? error.message : String(error);
+            this.svg = '';
             this.errors = [msg];
+            this.warnings = [];
             this.version++;
             this.notify();
             this.outputChannel.appendLine(`Render error: ${msg}`);
