@@ -7,7 +7,15 @@
  */
 
 import { LayoutElement, LayoutConnection, SystemLimitRect } from './layout';
-import { STATE_LABEL_FONT_SIZE, SYSTEM_LIMIT_LABEL_FONT_SIZE } from './designTokens';
+import { SYSTEM_LIMIT_LABEL_FONT_SIZE } from './designTokens';
+import {
+    measureLines,
+    measureText,
+    stateLabelWidth,
+    STATE_LABEL_BLOCK_H,
+    STATE_LABEL_GAP,
+} from './textMetrics';
+import { Obstacle, createRouterGrid, routeConnection, simplify } from './orthogonalRouter';
 
 // ---------- Geometry primitives ----------
 
@@ -63,6 +71,40 @@ export function orthogonalWaypoints(src: Point, tgt: Point, sSide: string, tSide
     }
     if (isVSrc) return [src, [src[0], tgt[1]], tgt];
     return [src, [tgt[0], src[1]], tgt];
+}
+
+/**
+ * What a connection must not be drawn across: every element body, plus every
+ * state's label block. Labels are part of the drawing, so treating them as
+ * obstacles is what keeps edges from crossing text.
+ */
+export function collectObstacles(elements: LayoutElement[]): Obstacle[] {
+    const obstacles: Obstacle[] = [];
+    for (const el of elements) {
+        obstacles.push({
+            id: el.id,
+            x: el.x,
+            y: el.y,
+            width: el.width,
+            height: el.height,
+        });
+        if (el.type !== 'state') {
+            continue;
+        }
+        const labelW = stateLabelWidth(el.id, el.label);
+        if (labelW <= 0) {
+            continue;
+        }
+        const right = el.x - STATE_LABEL_GAP;
+        obstacles.push({
+            id: el.id + '::label',
+            x: right - labelW,
+            y: el.y - STATE_LABEL_BLOCK_H,
+            width: labelW,
+            height: STATE_LABEL_BLOCK_H,
+        });
+    }
+    return obstacles;
 }
 
 // ---------- Routing computation ----------
@@ -165,21 +207,87 @@ export function computeRouting(
         }
     }
 
-    // Step 4: waypoints
-    const routed: RoutedConnection[] = [];
+    // Step 4: waypoints, routed around the obstacles rather than straight
+    // through them. Longer edges are routed first: they have the least freedom,
+    // and the congestion cost then pushes the short ones onto other lanes.
+    const obstacles = collectObstacles(elements);
+    const portXs: number[] = [];
+    const portYs: number[] = [];
     for (let i = 0; i < metas.length; i++) {
+        for (const p of [sourcePorts[i], targetPorts[i]]) {
+            if (!p) continue;
+            portXs.push(p[0]);
+            portYs.push(p[1]);
+        }
+    }
+    const grid = createRouterGrid(obstacles, portXs, portYs);
+
+    const order = metas
+        .map((_, i) => i)
+        .filter((i) => sourcePorts[i] && targetPorts[i])
+        .sort((a, b) => {
+            const span = (i: number) =>
+                Math.abs(sourcePorts[i][0] - targetPorts[i][0]) +
+                Math.abs(sourcePorts[i][1] - targetPorts[i][1]);
+            return span(b) - span(a);
+        });
+
+    const pointsByIndex: Record<number, Point[]> = {};
+    for (const i of order) {
         const m = metas[i];
         const sp = sourcePorts[i];
         const tp = targetPorts[i];
-        if (!sp || !tp) continue;
 
-        const points = m.isDirect
-            ? [sp, tp]
-            : orthogonalWaypoints(sp, tp, m.sourceSide, m.targetSide);
-        routed.push({ conn: m.conn, points, isDirect: m.isDirect });
+        if (m.isDirect) {
+            // Alternative flows are drawn as a straight line by definition.
+            pointsByIndex[i] = [sp, tp];
+            continue;
+        }
+
+        // The plain two-or-three-segment route is both the cheapest to compute
+        // and the clearest to read, so it is used whenever nothing is in its way.
+        // Searching the grid is reserved for edges that actually need to detour.
+        // The endpoints' own bodies are touched by definition; their label
+        // blocks are not — an edge across its own label reads no better than one
+        // across someone else's.
+        const own = new Set([m.conn.sourceId, m.conn.targetId]);
+        const relevant = obstacles.filter((o) => !own.has(o.id));
+        const naive = simplify(orthogonalWaypoints(sp, tp, m.sourceSide, m.targetSide));
+        if (!segmentsBlocked(naive, relevant)) {
+            pointsByIndex[i] = naive;
+            continue;
+        }
+
+        const routedPoints = routeConnection(grid, sp, m.sourceSide, tp, m.targetSide);
+        pointsByIndex[i] = routedPoints ?? naive;
+    }
+
+    const routed: RoutedConnection[] = [];
+    for (let i = 0; i < metas.length; i++) {
+        const points = pointsByIndex[i];
+        if (!points) continue;
+        routed.push({ conn: metas[i].conn, points, isDirect: metas[i].isDirect });
     }
 
     return routed;
+}
+
+/** Does any segment of `points` enter an obstacle? */
+function segmentsBlocked(points: Point[], obstacles: Obstacle[]): boolean {
+    for (let k = 0; k + 1 < points.length; k++) {
+        const [x1, y1] = points[k];
+        const [x2, y2] = points[k + 1];
+        const loX = Math.min(x1, x2);
+        const hiX = Math.max(x1, x2);
+        const loY = Math.min(y1, y2);
+        const hiY = Math.max(y1, y2);
+        for (const o of obstacles) {
+            if (hiX <= o.x || loX >= o.x + o.width) continue;
+            if (hiY <= o.y || loY >= o.y + o.height) continue;
+            return true;
+        }
+    }
+    return false;
 }
 
 // ---------- Content bounds ----------
@@ -195,25 +303,21 @@ export function computeContentBounds(
     elements: LayoutElement[],
     systemLimits: SystemLimitRect[],
 ): ContentBounds {
-    const charW = STATE_LABEL_FONT_SIZE * 0.6;
-    const slCharW = SYSTEM_LIMIT_LABEL_FONT_SIZE * 0.6;
-
     const allX: number[] = [];
     const allY: number[] = [];
     const allRight: number[] = [];
     const allBottom: number[] = [];
 
     for (const e of elements) {
-        allRight.push(e.x + e.width);
         allBottom.push(e.y + e.height);
         if (e.type === 'state') {
-            const longest = Math.max(e.id.length, (e.label || '').length);
-            const labelWidth = longest * charW;
-            const anchorX = e.x + e.width / 2 - 6;
-            allX.push(anchorX - labelWidth);
-            allY.push(e.y - 35);
+            // The label hangs above and to the left of the shape.
+            allX.push(e.x - STATE_LABEL_GAP - stateLabelWidth(e.id, e.label));
+            allRight.push(e.x + e.width);
+            allY.push(e.y - STATE_LABEL_BLOCK_H);
         } else {
             allX.push(e.x);
+            allRight.push(e.x + e.width);
             allY.push(e.y);
         }
     }
@@ -221,7 +325,7 @@ export function computeContentBounds(
     for (const sl of systemLimits) {
         allX.push(sl.x);
         allBottom.push(sl.y + sl.height);
-        const slLabelW = (sl.label || '').length * slCharW;
+        const slLabelW = measureText(sl.label || '', SYSTEM_LIMIT_LABEL_FONT_SIZE);
         allRight.push(sl.x + sl.width + slLabelW);
         allY.push(sl.y - SYSTEM_LIMIT_LABEL_FONT_SIZE - 5);
     }
@@ -246,9 +350,8 @@ export function autoFontSize(
     defaultSize: number,
     minSize: number = 7,
 ): number {
-    const longest = lines.reduce((a, b) => (a.length >= b.length ? a : b), '');
-    const needed = longest.length * defaultSize * 0.6;
+    const needed = measureLines(lines, defaultSize);
     if (needed <= maxWidthPx) return defaultSize;
-    const scaled = longest.length > 0 ? maxWidthPx / longest.length / 0.6 : defaultSize;
-    return Math.max(minSize, scaled);
+    if (needed <= 0) return defaultSize;
+    return Math.max(minSize, (defaultSize * maxWidthPx) / needed);
 }

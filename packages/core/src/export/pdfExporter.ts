@@ -21,8 +21,8 @@ import {
     computeContentBounds,
     type ContentBounds,
     type RoutedConnection,
-    autoFontSize,
 } from '../services/routing';
+import { measureText, fitBoxText, STATE_LABEL_GAP } from '../services/textMetrics';
 
 // ---------------------------------------------------------------------------
 // Public option types
@@ -216,25 +216,51 @@ function drawState(
     const label = el.label || el.id;
     const hasName = label !== el.id;
     const fontSize = STATE_LABEL_FONT_SIZE * scale;
-    const labelX = cx - 6 * scale;
+    // Right-aligned, ending left of the shape, matching the SVG renderer.
+    // pdf-lib draws from the left edge, so subtract the real width.
+    const labelRight = cx - w / 2 - STATE_LABEL_GAP * scale;
+    const rightAligned = (text: string) => labelRight - measureText(text, fontSize);
 
     if (hasName) {
         page.drawText(el.id, {
-            x: labelX - el.id.length * fontSize * 0.5,
+            x: rightAligned(el.id),
             y: cy + h / 2 + 14 * scale,
             size: fontSize,
             color: COLORS['black'],
         });
         page.drawText(label, {
-            x: labelX - label.length * fontSize * 0.5,
+            x: rightAligned(label),
             y: cy + h / 2 + 3 * scale,
             size: fontSize,
             color: COLORS['black'],
         });
     } else {
         page.drawText(el.id, {
-            x: labelX - el.id.length * fontSize * 0.5,
+            x: rightAligned(el.id),
             y: cy + h / 2 + 6 * scale,
+            size: fontSize,
+            color: COLORS['black'],
+        });
+    }
+}
+
+/**
+ * Draw a wrapped, centred block of text inside a box. PDF y grows upwards, so
+ * successive lines step down from the first baseline.
+ */
+function drawBoxText(
+    page: PDFPage,
+    lines: string[],
+    fontSize: number,
+    lineHeight: number,
+    cx: number,
+    cy: number,
+): void {
+    const firstBaseline = cy + ((lines.length - 1) * lineHeight) / 2 - fontSize / 3;
+    for (let i = 0; i < lines.length; i++) {
+        page.drawText(lines[i], {
+            x: cx - measureText(lines[i], fontSize) / 2,
+            y: firstBaseline - i * lineHeight,
             size: fontSize,
             color: COLORS['black'],
         });
@@ -267,40 +293,14 @@ function drawProcessOperator(
 
     const label = el.label || el.id;
     const hasName = label !== el.id;
-    const lines = hasName ? [el.id, label] : [el.id];
-    const fontSize = autoFontSize(
-        lines,
+    const fitted = fitBoxText(
+        hasName ? [el.id, label] : [el.id],
         w - 12 * scale,
+        h - 8 * scale,
         PROCESS_LABEL_FONT_SIZE * scale,
         7 * scale,
     );
-    const cx = px + w / 2;
-    const cy = py + h / 2;
-
-    if (hasName) {
-        const idW = el.id.length * fontSize * 0.5;
-        const labelW = label.length * fontSize * 0.5;
-        page.drawText(el.id, {
-            x: cx - idW / 2,
-            y: cy + fontSize * 0.3,
-            size: fontSize,
-            color: COLORS['black'],
-        });
-        page.drawText(label, {
-            x: cx - labelW / 2,
-            y: cy - fontSize * 0.9,
-            size: fontSize,
-            color: COLORS['black'],
-        });
-    } else {
-        const idW = el.id.length * fontSize * 0.5;
-        page.drawText(el.id, {
-            x: cx - idW / 2,
-            y: cy - fontSize / 3,
-            size: fontSize,
-            color: COLORS['black'],
-        });
-    }
+    drawBoxText(page, fitted.lines, fitted.fontSize, fitted.lineHeight, px + w / 2, py + h / 2);
 }
 
 function drawTechnicalResource(
@@ -336,40 +336,14 @@ function drawTechnicalResource(
 
     const label = el.label || el.id;
     const hasName = label !== el.id;
-    const lines = hasName ? [el.id, label] : [el.id];
-    const fontSize = autoFontSize(
-        lines,
+    const fitted = fitBoxText(
+        hasName ? [el.id, label] : [el.id],
         w - 24 * scale,
+        h - 8 * scale,
         PROCESS_LABEL_FONT_SIZE * scale,
         7 * scale,
     );
-    const cx = px + w / 2;
-    const cy = py + h / 2;
-
-    if (hasName) {
-        const idW = el.id.length * fontSize * 0.5;
-        const labelW = label.length * fontSize * 0.5;
-        page.drawText(el.id, {
-            x: cx - idW / 2,
-            y: cy + fontSize * 0.3,
-            size: fontSize,
-            color: COLORS['black'],
-        });
-        page.drawText(label, {
-            x: cx - labelW / 2,
-            y: cy - fontSize * 0.9,
-            size: fontSize,
-            color: COLORS['black'],
-        });
-    } else {
-        const idW = el.id.length * fontSize * 0.5;
-        page.drawText(el.id, {
-            x: cx - idW / 2,
-            y: cy - fontSize / 3,
-            size: fontSize,
-            color: COLORS['black'],
-        });
-    }
+    drawBoxText(page, fitted.lines, fitted.fontSize, fitted.lineHeight, px + w / 2, py + h / 2);
 }
 
 function drawSystemLimit(
