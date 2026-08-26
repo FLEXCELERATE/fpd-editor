@@ -632,6 +632,154 @@ function _evenSlots(count: number, size: number): SlotExtents[] {
     return Array.from({ length: count }, () => ({ left: half, right: half }));
 }
 
+// ---------- Boundary clusters ----------
+
+/** Vertical step between boundary rows: a state plus the label block above it. */
+const BOUNDARY_ROW_STEP = STATE_H + STATE_LABEL_BLOCK_H + 12;
+
+/**
+ * Clearance between the labels of two states sharing a boundary row. Same as the
+ * gap a label keeps from its own shape, so spacing reads consistently.
+ */
+const BOUNDARY_LABEL_CLEARANCE = STATE_LABEL_GAP;
+
+/** A cluster never grows taller than this, however wide its labels are. */
+const MAX_BOUNDARY_ROWS = 3;
+
+interface BoundaryPlacement {
+    /** Centre x per state id. */
+    x: Record<string, number>;
+    /** 0 = on the system limit edge, 1 = one step further out, and so on. */
+    row: Record<string, number>;
+}
+
+/** The boundary states of one operator, sized but not yet positioned. */
+interface BoundaryCluster {
+    /** Which system limit edge the cluster sits on. */
+    side: 'top' | 'bottom';
+    /** Operator the states hang off; empty when none could be determined. */
+    anchor: string;
+    /**
+     * Extent of the shapes alone. This is what the operator row reserves: labels
+     * hang above the boundary row, not next to the operators, so making the
+     * operators keep a label's width apart only inflates the drawing.
+     */
+    shapeExtents: SlotExtents;
+    /**
+     * Extent including the labels. This is what the clusters are packed against,
+     * so two neighbouring clusters never overlap each other's text.
+     */
+    labelExtents: SlotExtents;
+    members: { state: State; offset: number; row: number }[];
+}
+
+/**
+ * Size the boundary clusters: which states belong together, how they are dealt
+ * across rows, and how far the resulting block reaches either side of its centre.
+ *
+ * Deliberately independent of any coordinate, so the operator row can reserve
+ * room for a cluster *before* the operators are placed. Four inputs need at least
+ * four shape widths, which is wider than one operator's pitch — reserving that
+ * space is what lets every cluster sit centred over its own operator instead of
+ * shoving its neighbours aside.
+ */
+function _buildBoundaryClusters(
+    side: 'top' | 'bottom',
+    group: State[],
+    anchorOf: (state: State) => string | undefined,
+    config: LayoutConfig,
+): BoundaryCluster[] {
+    const grouped = new Map<string, State[]>();
+    for (const state of group) {
+        const key = anchorOf(state) ?? '';
+        const existing = grouped.get(key);
+        if (existing) {
+            existing.push(state);
+        } else {
+            grouped.set(key, [state]);
+        }
+    }
+
+    // The same pitch the rest of the layout uses between neighbouring elements.
+    // Deliberately not the tightest the shapes would allow: a cluster's span is
+    // (n-1) * pitch whatever the row count, so a tighter pitch buys a narrower
+    // cluster only by adding rows, and a pitch barely above the slot width makes
+    // the row count flip on a label a few pixels wider.
+    const basePitch = STATE_MAX_W + config.hGap;
+
+    const clusters: BoundaryCluster[] = [];
+    for (const [anchor, states] of grouped) {
+        const slots = states.map(_stateSlot);
+        const widest = Math.max(...slots.map((s) => s.left + s.right));
+
+        // Enough rows that a row's pitch fits the widest label in the cluster.
+        const need = widest + BOUNDARY_LABEL_CLEARANCE;
+        const rows = Math.min(MAX_BOUNDARY_ROWS, Math.max(1, Math.ceil(need / basePitch)));
+        const pitch = Math.max(basePitch, need / rows);
+
+        const first = -((states.length - 1) * pitch) / 2;
+        const members = states.map((state, i) => ({
+            state,
+            offset: first + i * pitch,
+            row: i % rows,
+        }));
+
+        const shapeExtents: SlotExtents = { left: 0, right: 0 };
+        const labelExtents: SlotExtents = { left: 0, right: 0 };
+        for (let i = 0; i < members.length; i++) {
+            const offset = members[i].offset;
+            shapeExtents.left = Math.max(shapeExtents.left, STATE_MAX_W / 2 - offset);
+            shapeExtents.right = Math.max(shapeExtents.right, offset + STATE_MAX_W / 2);
+            labelExtents.left = Math.max(labelExtents.left, slots[i].left - offset);
+            labelExtents.right = Math.max(labelExtents.right, offset + slots[i].right);
+        }
+
+        clusters.push({ side, anchor, shapeExtents, labelExtents, members });
+    }
+    return clusters;
+}
+
+/**
+ * Position the sized clusters: each centred on its own operator, then packed
+ * against each other as whole units in case two still collide.
+ *
+ * Top and bottom are packed separately — they sit on opposite edges of the
+ * drawing, so letting them compete for the same horizontal space would push a
+ * top cluster aside to make room for a bottom one it can never touch.
+ */
+function _placeBoundaryClustersOnSide(
+    clusters: BoundaryCluster[],
+    centerOfPo: (poId: string) => number | undefined,
+    fallbackCenter: number,
+    config: LayoutConfig,
+): BoundaryPlacement {
+    const ordered = clusters
+        .map((cluster) => ({
+            cluster,
+            desired: (cluster.anchor ? centerOfPo(cluster.anchor) : undefined) ?? fallbackCenter,
+        }))
+        .sort((a, b) => a.desired - b.desired);
+
+    // No recentering: a cluster stays on its own operator unless a neighbour
+    // forces it aside. Recentering would shift every cluster by half the
+    // asymmetry of its label overhang, for no benefit.
+    const centers = _packRow(
+        ordered.map((entry) => entry.desired),
+        ordered.map((entry) => entry.cluster.labelExtents),
+        config.hGap,
+        false,
+    );
+
+    const placement: BoundaryPlacement = { x: {}, row: {} };
+    for (let i = 0; i < ordered.length; i++) {
+        for (const member of ordered[i].cluster.members) {
+            placement.x[member.state.id] = centers[i] + member.offset;
+            placement.row[member.state.id] = member.row;
+        }
+    }
+    return placement;
+}
+
 function _distributeCentered(
     count: number,
     itemSize: number,
@@ -758,7 +906,7 @@ function _computeSystemLimitAndPlaceBoundaries(
     classified: ClassifiedStates,
     config: LayoutConfig,
     sideStateY: Record<string, number>,
-    boundaryX: Record<string, number>,
+    boundaryPlacement: BoundaryPlacement,
     startY: number,
     coreLeftX: number,
 ): { systemLimit: BoundsRect; boundaryElements: LayoutElement[] } | null {
@@ -798,7 +946,7 @@ function _computeSystemLimitAndPlaceBoundaries(
     // operator they belong to, so the limit grows to whatever the packed row
     // needed rather than to an evenly spread row's nominal width.
     for (const state of [...boundaryTop, ...boundaryBottom]) {
-        const center = boundaryX[state.id];
+        const center = boundaryPlacement.x[state.id];
         if (center === undefined) {
             continue;
         }
@@ -843,7 +991,7 @@ function _computeSystemLimitAndPlaceBoundaries(
     const slBottom = systemLimit.y + systemLimit.height;
     const slCenterX = slLeft + systemLimit.width / 2;
 
-    function pushStateElements(states: State[], xs: number[], y: number) {
+    function pushStateElements(states: State[], xs: number[], ys: number[]) {
         for (let i = 0; i < states.length; i++) {
             const s = states[i];
             boundaryElements.push({
@@ -851,7 +999,7 @@ function _computeSystemLimitAndPlaceBoundaries(
                 type: 'state',
                 label: s.label,
                 x: xs[i],
-                y,
+                y: ys[i],
                 width: STATE_MAX_W,
                 height: STATE_H,
                 stateType: s.stateType,
@@ -860,14 +1008,28 @@ function _computeSystemLimitAndPlaceBoundaries(
         }
     }
 
+    // Row 0 sits on the limit edge; further rows step outwards, away from the
+    // diagram, so a cluster grows into free space instead of into the drawing.
     const edgeXs = (states: State[]) =>
-        states.map((st) => (boundaryX[st.id] ?? slCenterX) - STATE_MAX_W / 2);
+        states.map((st) => (boundaryPlacement.x[st.id] ?? slCenterX) - STATE_MAX_W / 2);
+    const edgeYs = (states: State[], baseY: number, direction: -1 | 1) =>
+        states.map(
+            (st) => baseY + direction * (boundaryPlacement.row[st.id] ?? 0) * BOUNDARY_ROW_STEP,
+        );
 
     if (boundaryTop.length > 0) {
-        pushStateElements(boundaryTop, edgeXs(boundaryTop), slTop - STATE_H / 2);
+        pushStateElements(
+            boundaryTop,
+            edgeXs(boundaryTop),
+            edgeYs(boundaryTop, slTop - STATE_H / 2, -1),
+        );
     }
     if (boundaryBottom.length > 0) {
-        pushStateElements(boundaryBottom, edgeXs(boundaryBottom), slBottom - STATE_H / 2);
+        pushStateElements(
+            boundaryBottom,
+            edgeXs(boundaryBottom),
+            edgeYs(boundaryBottom, slBottom - STATE_H / 2, 1),
+        );
     }
 
     function pushSideStates(byPo: Record<string, State[]>, x: number) {
@@ -1122,12 +1284,57 @@ function _computeSingleSystemLayout(
     }
     const coreLeftX = startX + leftSpace;
 
+    // Size the boundary clusters up front. A cluster of four inputs is wider than
+    // one operator's pitch, so the operator row has to reserve room for it —
+    // otherwise the cluster shoves its neighbours aside and an operator with a
+    // single input ends up with it a hundred pixels off to the side.
+    const boundaryClusters: BoundaryCluster[] = [];
+    for (const [side, group, refs, mirrored] of [
+        ['top', classified.boundaryTop, graph.stateToTargetPos, graph.stateToSourcePos],
+        ['bottom', classified.boundaryBottom, graph.stateToSourcePos, graph.stateToTargetPos],
+    ] as ['top' | 'bottom', State[], Record<string, string[]>, Record<string, string[]>][]) {
+        if (group.length === 0) {
+            continue;
+        }
+        // Positions are not known yet, so a state feeding several operators picks
+        // its anchor by rank, then by id — deterministic either way.
+        const anchorOf = (state: State): string | undefined => {
+            const candidates = [...(refs[state.id] ?? []), ...(mirrored[state.id] ?? [])].filter(
+                (id) => poRank[id] !== undefined,
+            );
+            if (candidates.length === 0) {
+                return undefined;
+            }
+            return candidates.sort(
+                (a, b) => (poRank[a] ?? 0) - (poRank[b] ?? 0) || a.localeCompare(b),
+            )[0];
+        };
+        boundaryClusters.push(..._buildBoundaryClusters(side, group, anchorOf, config));
+    }
+
+    /** Space an operator needs around its centre, including its boundary cluster. */
+    const poSlot = (poId: string): SlotExtents => {
+        let left = PROCESS_W / 2;
+        let right = PROCESS_W / 2;
+        for (const cluster of boundaryClusters) {
+            if (cluster.anchor !== poId) {
+                continue;
+            }
+            left = Math.max(left, cluster.shapeExtents.left);
+            right = Math.max(right, cluster.shapeExtents.right);
+        }
+        return { left, right };
+    };
+
     // The core is as wide as its widest rank; every rank is centered in it.
     let maxRankWidth = PROCESS_W;
     for (let rank = 0; rank <= maxRank; rank++) {
-        const count = (posByRank[rank] ?? []).length;
-        if (count > 0) {
-            const width = count * PROCESS_W + (count - 1) * config.hGap;
+        const group = posByRank[rank] ?? [];
+        if (group.length > 0) {
+            const slots = group.map(poSlot);
+            const width =
+                slots.reduce((sum, s) => sum + s.left + s.right, 0) +
+                (group.length - 1) * config.hGap;
             maxRankWidth = Math.max(maxRankWidth, width);
         }
     }
@@ -1142,9 +1349,13 @@ function _computeSingleSystemLayout(
     const centerByPo: Record<string, number> = {};
     for (let rank = 0; rank <= maxRank; rank++) {
         const group = posByRank[rank] ?? [];
-        const xs = _distributeCentered(group.length, PROCESS_W, config.hGap, poCenterX);
+        const xs = _packRow(
+            group.map(() => poCenterX),
+            group.map(poSlot),
+            config.hGap,
+        );
         for (let i = 0; i < group.length; i++) {
-            centerByPo[group[i]] = xs[i] + PROCESS_W / 2;
+            centerByPo[group[i]] = xs[i];
         }
     }
 
@@ -1162,7 +1373,7 @@ function _computeSingleSystemLayout(
             }
             return ns.reduce((sum, n) => sum + centerByPo[n], 0) / ns.length;
         });
-        const centers = _packRow(desired, _evenSlots(group.length, PROCESS_W), config.hGap);
+        const centers = _packRow(desired, group.map(poSlot), config.hGap);
         for (let i = 0; i < group.length; i++) {
             centerByPo[group[i]] = centers[i];
         }
@@ -1292,35 +1503,21 @@ function _computeSingleSystemLayout(
         }
     }
 
-    // Top and bottom boundary states sit over the operator they belong to
-    // instead of being spread evenly across the system limit: distributing them
-    // by count alone put an input above a gap between two unrelated operators
-    // and made every edge cross. Packed on label width so the labels clear.
-    const boundaryX: Record<string, number> = {};
-    for (const [group, refs] of [
-        [classified.boundaryTop, graph.stateToTargetPos],
-        [classified.boundaryBottom, graph.stateToSourcePos],
-    ] as [State[], Record<string, string[]>][]) {
-        if (group.length === 0) {
+    // The clusters were sized before the operators were placed; now that the
+    // operator row has reserved room for them, centre each one over its anchor.
+    const centerOfPo = (poId: string): number | undefined => {
+        const el = poElements[poId];
+        return el ? el.x + el.width / 2 : undefined;
+    };
+    const boundaryPlacement: BoundaryPlacement = { x: {}, row: {} };
+    for (const side of ['top', 'bottom'] as const) {
+        const onSide = boundaryClusters.filter((c) => c.side === side);
+        if (onSide.length === 0) {
             continue;
         }
-        const desired = group.map((state) => {
-            const own = _centerOfPos(refs[state.id] ?? []);
-            if (own !== undefined) {
-                return own;
-            }
-            // A state connected the other way round still belongs somewhere.
-            const other = _centerOfPos(
-                (refs === graph.stateToTargetPos ? graph.stateToSourcePos : graph.stateToTargetPos)[
-                    state.id
-                ] ?? [],
-            );
-            return other ?? poCenterX;
-        });
-        const centers = _packRow(desired, group.map(_stateSlot), config.hGap);
-        for (let i = 0; i < group.length; i++) {
-            boundaryX[group[i].id] = centers[i];
-        }
+        const placed = _placeBoundaryClustersOnSide(onSide, centerOfPo, poCenterX, config);
+        Object.assign(boundaryPlacement.x, placed.x);
+        Object.assign(boundaryPlacement.row, placed.row);
     }
 
     // Phase 5: System limit and boundary state placement
@@ -1343,7 +1540,7 @@ function _computeSingleSystemLayout(
         classified,
         config,
         sideStateY,
-        boundaryX,
+        boundaryPlacement,
         startY,
         coreLeftX,
     );

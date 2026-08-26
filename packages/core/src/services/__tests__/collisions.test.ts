@@ -49,6 +49,12 @@ function makeFlow(sourceRef: string, targetRef: string): Flow {
     };
 }
 
+function findElement(layout: DiagramLayout, id: string) {
+    const el = layout.elements.find((e) => e.id === id);
+    if (!el) throw new Error(`Element '${id}' not found in layout`);
+    return el;
+}
+
 /** The element an obstacle belongs to — a label block shares its state's id. */
 function ownerOf(obstacle: Obstacle): string {
     return obstacle.id.split('::')[0];
@@ -179,9 +185,82 @@ function feedbackModel(): ProcessModel {
     });
 }
 
+/**
+ * Several operators side by side, each with its own boundary input whose label is
+ * wider than the spacing between the operators. The operator row deliberately
+ * reserves only the *shape* span of a boundary cluster, so it is the cluster
+ * packing that has to keep these labels apart.
+ */
+function wideBoundaryLabelModel(n: number): ProcessModel {
+    return buildModel((m) => {
+        m.processOperators.push(makePO('po_merge', 'Zusammenfuehren'));
+        for (let i = 0; i < n; i++) {
+            m.processOperators.push(makePO(`po${i}`, `Stufe ${i}`));
+            m.states.push(
+                makeState(
+                    `in${i}`,
+                    `Einsatzstoff ${i} aus der vorgelagerten Anlage, konditioniert und dosiert`,
+                ),
+            );
+            m.flows.push(makeFlow(`in${i}`, `po${i}`));
+            m.states.push(makeState(`mid${i}`, `Zwischenprodukt ${i}`));
+            m.flows.push(makeFlow(`po${i}`, `mid${i}`));
+            m.flows.push(makeFlow(`mid${i}`, 'po_merge'));
+        }
+    });
+}
+
 describe('drawing collisions', () => {
     it('keeps a narrow fan-in clean', () => {
         expectClean(computeLayout(fanInModel(3, false)));
+    });
+
+    it('keeps boundary labels wider than the operator pitch apart', () => {
+        expectClean(computeLayout(wideBoundaryLabelModel(5)));
+    });
+
+    it('puts a lone boundary input right over its operator', () => {
+        // One input per operator, so nothing competes for the space: each state
+        // should sit on its operator's centre line rather than off to the side.
+        const layout = computeLayout(fanInModel(4, false));
+        for (let i = 0; i < 4; i++) {
+            const input = findElement(layout, `s_in${i}`);
+            const operator = findElement(layout, `po_src${i}`);
+            const offset = input.x + input.width / 2 - (operator.x + operator.width / 2);
+            expect(Math.abs(offset)).toBeLessThan(12);
+        }
+    });
+
+    it('deals a wide input cluster across rows instead of splaying it sideways', () => {
+        // Four inputs to one operator: they cannot fit its width in one row, so
+        // they use more than one and stay near the box they feed.
+        const model = buildModel((m) => {
+            m.processOperators.push(makePO('po', 'Lagern (Kühlen & Rühren)'));
+            m.processOperators.push(makePO('po_next', 'Dosieren'));
+            for (const name of ['Substrat', 'Harnstoff', 'Spurenelemente', 'Antischaummittel']) {
+                m.states.push(makeState(name, `${name} (bereitgestellt)`));
+                m.flows.push(makeFlow(name, 'po'));
+            }
+            m.states.push(makeState('mid', 'Medien (gekühlt, homogenisiert)'));
+            m.flows.push(makeFlow('po', 'mid'));
+            m.flows.push(makeFlow('mid', 'po_next'));
+        });
+
+        const layout = computeLayout(model);
+        const inputs = ['Substrat', 'Harnstoff', 'Spurenelemente', 'Antischaummittel'].map((id) =>
+            findElement(layout, id),
+        );
+        const operator = findElement(layout, 'po');
+
+        // More than one row, and every input within one operator width of it.
+        expect(new Set(inputs.map((e) => e.y)).size).toBeGreaterThan(1);
+        for (const input of inputs) {
+            const offset = input.x + input.width / 2 - (operator.x + operator.width / 2);
+            expect(Math.abs(offset)).toBeLessThan(operator.width * 1.5);
+        }
+        // Distinct x for each, so their drop lines cannot block one another.
+        expect(new Set(inputs.map((e) => e.x)).size).toBe(4);
+        expectClean(layout);
     });
 
     it('keeps a wide fan-in with long labels clean', () => {
