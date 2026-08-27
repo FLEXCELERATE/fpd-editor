@@ -22,7 +22,12 @@ import {
     type ContentBounds,
     type RoutedConnection,
 } from '../services/routing';
-import { measureText, fitBoxText, STATE_LABEL_GAP } from '../services/textMetrics';
+import {
+    measureText,
+    fitBoxText,
+    STATE_LABEL_GAP,
+    STATE_LABEL_BLOCK_H,
+} from '../services/textMetrics';
 
 // ---------------------------------------------------------------------------
 // Public option types
@@ -220,24 +225,26 @@ function drawState(
     // pdf-lib draws from the left edge, so subtract the real width.
     const labelRight = cx - w / 2 - STATE_LABEL_GAP * scale;
     const rightAligned = (text: string) => labelRight - measureText(text, fontSize);
+    // PDF y grows upwards, so a higher lane means a larger y.
+    const laneLift = (el.labelRow ?? 0) * STATE_LABEL_BLOCK_H * scale;
 
     if (hasName) {
         page.drawText(el.id, {
             x: rightAligned(el.id),
-            y: cy + h / 2 + 14 * scale,
+            y: cy + h / 2 + 14 * scale + laneLift,
             size: fontSize,
             color: COLORS['black'],
         });
         page.drawText(label, {
             x: rightAligned(label),
-            y: cy + h / 2 + 3 * scale,
+            y: cy + h / 2 + 3 * scale + laneLift,
             size: fontSize,
             color: COLORS['black'],
         });
     } else {
         page.drawText(el.id, {
             x: rightAligned(el.id),
-            y: cy + h / 2 + 6 * scale,
+            y: cy + h / 2 + 6 * scale + laneLift,
             size: fontSize,
             color: COLORS['black'],
         });
@@ -403,18 +410,17 @@ function drawConnection(
     let dash: number[] | undefined;
     let thickness = STROKE_WIDTH;
 
+    // Dashing marks resource assignment only; flows are solid whatever their
+    // kind, and are told apart by their routing.
     if (conn.isCrossSystem) {
         color = COLORS['crossSystem'];
-        dash = [8, 4];
     } else if (conn.isUsage) {
         color = COLORS['usage'];
         dash = [6, 4];
     } else if (conn.flowType === 'alternativeFlow') {
         color = COLORS['alternativeFlow'];
-        dash = [8, 4];
     } else if (conn.flowType === 'parallelFlow') {
         color = COLORS['parallelFlow'];
-        dash = [2, 3];
     }
 
     drawPolyline(page, pdfPts, color, thickness, dash);

@@ -456,3 +456,160 @@ describe('autoFontSize', () => {
         expect(autoFontSize([], 100, 14)).toBe(14);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Flow kinds are told apart by their routing, not by colour
+// ---------------------------------------------------------------------------
+
+describe('shared ports for parallel and alternative flows', () => {
+    /** Where a connection meets `elementId`. */
+    function portOn(routed: RoutedConnection[], connId: string, atSource: boolean): Point {
+        const route = routed.find((r) => r.conn.id === connId)!;
+        return atSource ? route.points[0] : route.points[route.points.length - 1];
+    }
+
+    it('merges parallel flows into a single port on the shared element', () => {
+        const a = makeEl('a', 0, 0);
+        const b = makeEl('b', 200, 0);
+        const merge = makeEl('merge', 100, 300);
+        const routed = computeRouting(
+            [a, b, merge],
+            [
+                makeConn('a', 'merge', { flowType: 'parallelFlow' }),
+                makeConn('b', 'merge', { flowType: 'parallelFlow' }),
+            ],
+        );
+
+        expect(portOn(routed, 'a_merge', false)).toEqual(portOn(routed, 'b_merge', false));
+    });
+
+    it('branches alternative flows from a single port on the shared element', () => {
+        const src = makeEl('src', 100, 0);
+        const t1 = makeEl('t1', 0, 300);
+        const t2 = makeEl('t2', 200, 300);
+        const routed = computeRouting(
+            [src, t1, t2],
+            [
+                makeConn('src', 't1', { flowType: 'alternativeFlow' }),
+                makeConn('src', 't2', { flowType: 'alternativeFlow' }),
+            ],
+        );
+
+        expect(portOn(routed, 'src_t1', true)).toEqual(portOn(routed, 'src_t2', true));
+    });
+
+    it('gives plain flows their own port on the same element', () => {
+        const a = makeEl('a', 0, 0);
+        const b = makeEl('b', 200, 0);
+        const merge = makeEl('merge', 100, 300);
+        const routed = computeRouting(
+            [a, b, merge],
+            [makeConn('a', 'merge'), makeConn('b', 'merge')],
+        );
+
+        expect(portOn(routed, 'a_merge', false)).not.toEqual(portOn(routed, 'b_merge', false));
+    });
+
+    it('keeps a plain flow out of a parallel bundle on the same element', () => {
+        const a = makeEl('a', 0, 0);
+        const b = makeEl('b', 200, 0);
+        const c = makeEl('c', 400, 0);
+        const merge = makeEl('merge', 200, 300);
+        const routed = computeRouting(
+            [a, b, c, merge],
+            [
+                makeConn('a', 'merge', { flowType: 'parallelFlow' }),
+                makeConn('b', 'merge', { flowType: 'parallelFlow' }),
+                makeConn('c', 'merge'),
+            ],
+        );
+
+        const bundled = portOn(routed, 'a_merge', false);
+        expect(portOn(routed, 'b_merge', false)).toEqual(bundled);
+        expect(portOn(routed, 'c_merge', false)).not.toEqual(bundled);
+    });
+
+    it('draws an alternative flow as a straight line and a parallel one angled', () => {
+        const src = makeEl('src', 100, 0);
+        const alt = makeEl('alt', 0, 300);
+        const par = makeEl('par', 300, 300);
+        const routed = computeRouting(
+            [src, alt, par],
+            [
+                makeConn('src', 'alt', { flowType: 'alternativeFlow' }),
+                makeConn('src', 'par', { flowType: 'parallelFlow' }),
+            ],
+        );
+
+        const straight = routed.find((r) => r.conn.id === 'src_alt')!;
+        expect(straight.isDirect).toBe(true);
+        expect(straight.points).toHaveLength(2);
+
+        const angled = routed.find((r) => r.conn.id === 'src_par')!;
+        expect(angled.isDirect).toBe(false);
+        // An angled route needs a bend, so more than the two endpoints.
+        expect(angled.points.length).toBeGreaterThan(2);
+    });
+});
+
+describe('bundled flows agree on a side', () => {
+    it('shares one port even when the geometry suggests different sides', () => {
+        // 'above' sits over the merge point, 'beside' next to it. Deciding the
+        // side per flow would put one on 'top' and the other on 'right', leaving
+        // them in different port groups and unable to share a point.
+        const above = makeEl('above', 0, 0);
+        const beside = makeEl('beside', 500, 380);
+        const merge = makeEl('merge', 0, 400);
+
+        const routed = computeRouting(
+            [above, beside, merge],
+            [
+                makeConn('above', 'merge', { flowType: 'parallelFlow' }),
+                makeConn('beside', 'merge', { flowType: 'parallelFlow' }),
+            ],
+        );
+
+        const endOf = (id: string) => {
+            const r = routed.find((x) => x.conn.id === id)!;
+            return r.points[r.points.length - 1];
+        };
+        expect(endOf('above_merge')).toEqual(endOf('beside_merge'));
+    });
+
+    it('leaves an explicitly given side alone', () => {
+        const a = makeEl('a', 0, 0);
+        const b = makeEl('b', 200, 0);
+        const merge = makeEl('merge', 100, 300);
+        const routed = computeRouting(
+            [a, b, merge],
+            [
+                makeConn('a', 'merge', { flowType: 'parallelFlow', targetSide: 'left' }),
+                makeConn('b', 'merge', { flowType: 'parallelFlow' }),
+            ],
+        );
+
+        const endOf = (id: string) => {
+            const r = routed.find((x) => x.conn.id === id)!;
+            return r.points[r.points.length - 1];
+        };
+        // The pinned one keeps the left edge; the other is not dragged onto it.
+        expect(endOf('a_merge')[0]).toBe(merge.x);
+        expect(endOf('b_merge')).not.toEqual(endOf('a_merge'));
+    });
+
+    it('does not bundle plain flows onto a common side', () => {
+        const above = makeEl('above', 0, 0);
+        const beside = makeEl('beside', 500, 380);
+        const merge = makeEl('merge', 0, 400);
+        const routed = computeRouting(
+            [above, beside, merge],
+            [makeConn('above', 'merge'), makeConn('beside', 'merge')],
+        );
+
+        const endOf = (id: string) => {
+            const r = routed.find((x) => x.conn.id === id)!;
+            return r.points[r.points.length - 1];
+        };
+        expect(endOf('above_merge')).not.toEqual(endOf('beside_merge'));
+    });
+});

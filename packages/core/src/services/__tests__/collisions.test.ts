@@ -231,7 +231,7 @@ describe('drawing collisions', () => {
         }
     });
 
-    it('deals a wide input cluster across rows instead of splaying it sideways', () => {
+    it('deals a wide input cluster across label lanes instead of splaying it sideways', () => {
         // Four inputs to one operator: they cannot fit its width in one row, so
         // they use more than one and stay near the box they feed.
         const model = buildModel((m) => {
@@ -252,8 +252,10 @@ describe('drawing collisions', () => {
         );
         const operator = findElement(layout, 'po');
 
-        // More than one row, and every input within one operator width of it.
-        expect(new Set(inputs.map((e) => e.y)).size).toBeGreaterThan(1);
+        // All of them stay on the system limit edge — that is what the notation
+        // shows — and it is their labels that move into another lane.
+        expect(new Set(inputs.map((e) => e.y)).size).toBe(1);
+        expect(new Set(inputs.map((e) => e.labelRow ?? 0)).size).toBeGreaterThan(1);
         for (const input of inputs) {
             const offset = input.x + input.width / 2 - (operator.x + operator.width / 2);
             expect(Math.abs(offset)).toBeLessThan(operator.width * 1.5);

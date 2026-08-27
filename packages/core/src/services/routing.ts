@@ -25,15 +25,19 @@ export function centerOf(el: LayoutElement): Point {
     return [el.x + el.width / 2, el.y + el.height / 2];
 }
 
-export function determineSide(fromEl: LayoutElement, toEl: LayoutElement): string {
-    const [fcx, fcy] = centerOf(fromEl);
-    const [tcx, tcy] = centerOf(toEl);
-    const dx = tcx - fcx;
-    const dy = tcy - fcy;
+/** Which side of `el` faces the given point. */
+export function sideTowards(el: LayoutElement, [tx, ty]: Point): string {
+    const [cx, cy] = centerOf(el);
+    const dx = tx - cx;
+    const dy = ty - cy;
     if (Math.abs(dy) >= Math.abs(dx)) {
         return dy >= 0 ? 'bottom' : 'top';
     }
     return dx >= 0 ? 'right' : 'left';
+}
+
+export function determineSide(fromEl: LayoutElement, toEl: LayoutElement): string {
+    return sideTowards(fromEl, centerOf(toEl));
 }
 
 export function portPosition(el: LayoutElement, side: string, index: number, count: number): Point {
@@ -99,7 +103,7 @@ export function collectObstacles(elements: LayoutElement[]): Obstacle[] {
         obstacles.push({
             id: el.id + '::label',
             x: right - labelW,
-            y: el.y - STATE_LABEL_BLOCK_H,
+            y: el.y - STATE_LABEL_BLOCK_H * (1 + (el.labelRow ?? 0)),
             width: labelW,
             height: STATE_LABEL_BLOCK_H,
         });
@@ -156,6 +160,57 @@ export function computeRouting(
         metas.push({ conn, source, target, sourceSide: sSide, targetSide: tSide, isDirect });
     }
 
+    // Step 1b: a bundle of parallel or alternative flows meets its shared element
+    // at one point, so its members must first agree on which side that point is
+    // on. Deciding per flow put two parallel inflows on different sides of the
+    // same operator — 'top' for one, 'right' for the other — and they could then
+    // never share a port. The side is taken from the bundle as a whole.
+    const bundleMembers = new Map<string, PortGroupEntry[]>();
+    for (let i = 0; i < metas.length; i++) {
+        const flowType = metas[i].conn.flowType || 'flow';
+        if (flowType !== 'parallelFlow' && flowType !== 'alternativeFlow') {
+            continue;
+        }
+        // An explicitly given side (cross-system connections set one) wins.
+        if (!metas[i].conn.sourceSide) {
+            const key = `${metas[i].source.id}:source:${flowType}`;
+            const list = bundleMembers.get(key);
+            if (list) list.push({ metaIndex: i, role: 'source' });
+            else bundleMembers.set(key, [{ metaIndex: i, role: 'source' }]);
+        }
+        if (!metas[i].conn.targetSide) {
+            const key = `${metas[i].target.id}:target:${flowType}`;
+            const list = bundleMembers.get(key);
+            if (list) list.push({ metaIndex: i, role: 'target' });
+            else bundleMembers.set(key, [{ metaIndex: i, role: 'target' }]);
+        }
+    }
+
+    for (const members of bundleMembers.values()) {
+        if (members.length < 2) {
+            continue;
+        }
+        const first = metas[members[0].metaIndex];
+        const element = members[0].role === 'source' ? first.source : first.target;
+        let sumX = 0;
+        let sumY = 0;
+        for (const member of members) {
+            const meta = metas[member.metaIndex];
+            const counterpart = member.role === 'source' ? meta.target : meta.source;
+            const [ccx, ccy] = centerOf(counterpart);
+            sumX += ccx;
+            sumY += ccy;
+        }
+        const side = sideTowards(element, [sumX / members.length, sumY / members.length]);
+        for (const member of members) {
+            if (member.role === 'source') {
+                metas[member.metaIndex].sourceSide = side;
+            } else {
+                metas[member.metaIndex].targetSide = side;
+            }
+        }
+    }
+
     // Step 2: group by (elementId, side)
     const portGroups: Record<string, PortGroup> = {};
     for (let i = 0; i < metas.length; i++) {
@@ -195,14 +250,33 @@ export function computeRouting(
             return posA - posB;
         });
 
-        const count = entries.length;
-        for (let idx = 0; idx < entries.length; idx++) {
-            const entry = entries[idx];
-            const port = portPosition(el, side, idx, count);
-            if (entry.role === 'source') {
-                sourcePorts[entry.metaIndex] = port;
+        // Alternative and parallel flows branch from — or merge into — a single
+        // point, so all of them on one side of an element share one port. A plain
+        // flow keeps its own, which is what tells the three apart in the drawing
+        // now that they are all black and solid.
+        const bundles: PortGroupEntry[][] = [];
+        const bundleOf = new Map<string, number>();
+        for (const entry of entries) {
+            const flowType = metas[entry.metaIndex].conn.flowType || 'flow';
+            const shared = flowType === 'alternativeFlow' || flowType === 'parallelFlow';
+            const key = shared ? `${flowType}:${entry.role}` : `own:${entry.metaIndex}`;
+            const existing = bundleOf.get(key);
+            if (existing !== undefined) {
+                bundles[existing].push(entry);
             } else {
-                targetPorts[entry.metaIndex] = port;
+                bundleOf.set(key, bundles.length);
+                bundles.push([entry]);
+            }
+        }
+
+        for (let idx = 0; idx < bundles.length; idx++) {
+            const port = portPosition(el, side, idx, bundles.length);
+            for (const entry of bundles[idx]) {
+                if (entry.role === 'source') {
+                    sourcePorts[entry.metaIndex] = port;
+                } else {
+                    targetPorts[entry.metaIndex] = port;
+                }
             }
         }
     }
@@ -314,7 +388,7 @@ export function computeContentBounds(
             // The label hangs above and to the left of the shape.
             allX.push(e.x - STATE_LABEL_GAP - stateLabelWidth(e.id, e.label));
             allRight.push(e.x + e.width);
-            allY.push(e.y - STATE_LABEL_BLOCK_H);
+            allY.push(e.y - STATE_LABEL_BLOCK_H * (1 + (e.labelRow ?? 0)));
         } else {
             allX.push(e.x);
             allRight.push(e.x + e.width);

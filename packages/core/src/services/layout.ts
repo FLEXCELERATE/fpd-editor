@@ -52,6 +52,13 @@ export interface LayoutElement {
     height: number;
     stateType?: string;
     lineNumber?: number;
+    /**
+     * Which lane the state's label sits in, counted upwards from the shape.
+     * Boundary states of one operator stand at a tight pitch so they all stay on
+     * the system limit; their labels are wider than that pitch, so they are dealt
+     * across lanes instead. Undefined or 0 means directly above the shape.
+     */
+    labelRow?: number;
 }
 
 export interface LayoutConnection {
@@ -634,9 +641,6 @@ function _evenSlots(count: number, size: number): SlotExtents[] {
 
 // ---------- Boundary clusters ----------
 
-/** Vertical step between boundary rows: a state plus the label block above it. */
-const BOUNDARY_ROW_STEP = STATE_H + STATE_LABEL_BLOCK_H + 12;
-
 /**
  * Clearance between the labels of two states sharing a boundary row. Same as the
  * gap a label keeps from its own shape, so spacing reads consistently.
@@ -991,7 +995,7 @@ function _computeSystemLimitAndPlaceBoundaries(
     const slBottom = systemLimit.y + systemLimit.height;
     const slCenterX = slLeft + systemLimit.width / 2;
 
-    function pushStateElements(states: State[], xs: number[], ys: number[]) {
+    function pushStateElements(states: State[], xs: number[], y: number) {
         for (let i = 0; i < states.length; i++) {
             const s = states[i];
             boundaryElements.push({
@@ -999,7 +1003,8 @@ function _computeSystemLimitAndPlaceBoundaries(
                 type: 'state',
                 label: s.label,
                 x: xs[i],
-                y: ys[i],
+                y,
+                labelRow: boundaryPlacement.row[s.id] ?? 0,
                 width: STATE_MAX_W,
                 height: STATE_H,
                 stateType: s.stateType,
@@ -1008,28 +1013,17 @@ function _computeSystemLimitAndPlaceBoundaries(
         }
     }
 
-    // Row 0 sits on the limit edge; further rows step outwards, away from the
-    // diagram, so a cluster grows into free space instead of into the drawing.
+    // Every boundary state sits on the limit edge, as the notation shows them
+    // crossing it. Where a cluster's labels are wider than its pitch, it is the
+    // labels that move into another lane, not the states.
     const edgeXs = (states: State[]) =>
         states.map((st) => (boundaryPlacement.x[st.id] ?? slCenterX) - STATE_MAX_W / 2);
-    const edgeYs = (states: State[], baseY: number, direction: -1 | 1) =>
-        states.map(
-            (st) => baseY + direction * (boundaryPlacement.row[st.id] ?? 0) * BOUNDARY_ROW_STEP,
-        );
 
     if (boundaryTop.length > 0) {
-        pushStateElements(
-            boundaryTop,
-            edgeXs(boundaryTop),
-            edgeYs(boundaryTop, slTop - STATE_H / 2, -1),
-        );
+        pushStateElements(boundaryTop, edgeXs(boundaryTop), slTop - STATE_H / 2);
     }
     if (boundaryBottom.length > 0) {
-        pushStateElements(
-            boundaryBottom,
-            edgeXs(boundaryBottom),
-            edgeYs(boundaryBottom, slBottom - STATE_H / 2, 1),
-        );
+        pushStateElements(boundaryBottom, edgeXs(boundaryBottom), slBottom - STATE_H / 2);
     }
 
     function pushSideStates(byPo: Record<string, State[]>, x: number) {

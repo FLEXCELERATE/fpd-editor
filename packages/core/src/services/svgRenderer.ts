@@ -10,7 +10,7 @@
 
 import { LayoutElement, SystemLimitRect, DiagramLayout } from './layout';
 import { escapeXml } from '../utils';
-import { STATE_LABEL_GAP, fitBoxText } from './textMetrics';
+import { STATE_LABEL_GAP, STATE_LABEL_BLOCK_H, fitBoxText } from './textMetrics';
 import {
     COLORS,
     FONT_FAMILY,
@@ -104,7 +104,10 @@ function renderState(el: LayoutElement): string {
     // span so no port on the top or bottom edge can fall under it. The layout
     // reserves exactly this asymmetric extent.
     const labelX = x - STATE_LABEL_GAP;
-    const idY = hasName ? y - 22 : y - 8;
+    // Boundary states of one operator stand closer together than their labels are
+    // wide, so the labels are dealt across lanes stacked above the shape.
+    const laneLift = (el.labelRow ?? 0) * STATE_LABEL_BLOCK_H;
+    const idY = (hasName ? y - 22 : y - 8) - laneLift;
     let text =
         `<text text-anchor="end" font-size="${STATE_LABEL_FONT_SIZE}" ` +
         `font-family="${FONT_FAMILY}" fill="${COLORS['black']}">` +
@@ -247,7 +250,7 @@ function renderRoutedConnection(routed: RoutedConnection): string {
     if (conn.isCrossSystem) {
         return (
             `<path ${dataAttrs} d="${d}" fill="none" stroke="${COLORS['crossSystem']}" ` +
-            `stroke-width="${STROKE_WIDTH}" stroke-dasharray="8,4" ` +
+            `stroke-width="${STROKE_WIDTH}" ` +
             `marker-end="url(#arrow-crossSystem)"/>\n`
         );
     }
@@ -264,14 +267,14 @@ function renderRoutedConnection(routed: RoutedConnection): string {
     if (flowType === 'alternativeFlow') {
         return (
             `<path ${dataAttrs} d="${d}" fill="none" stroke="${COLORS['alternativeFlow']}" ` +
-            `stroke-width="${STROKE_WIDTH}" stroke-dasharray="8,4" ` +
+            `stroke-width="${STROKE_WIDTH}" ` +
             `marker-end="url(#arrow-alternative)"/>\n`
         );
     }
     if (flowType === 'parallelFlow') {
         return (
             `<path ${dataAttrs} d="${d}" fill="none" stroke="${COLORS['parallelFlow']}" ` +
-            `stroke-width="${STROKE_WIDTH}" stroke-dasharray="2,3" ` +
+            `stroke-width="${STROKE_WIDTH}" ` +
             `marker-end="url(#arrow-parallel)"/>\n`
         );
     }
