@@ -15,7 +15,13 @@ import {
     STATE_LABEL_BLOCK_H,
     STATE_LABEL_GAP,
 } from './textMetrics';
-import { Obstacle, createRouterGrid, routeConnection, simplify } from './orthogonalRouter';
+import {
+    Obstacle,
+    createRouterGrid,
+    routeConnection,
+    markPathOccupancy,
+    simplify,
+} from './orthogonalRouter';
 
 // ---------- Geometry primitives ----------
 
@@ -82,7 +88,17 @@ export function orthogonalWaypoints(src: Point, tgt: Point, sSide: string, tSide
  * state's label block. Labels are part of the drawing, so treating them as
  * obstacles is what keeps edges from crossing text.
  */
-export function collectObstacles(elements: LayoutElement[]): Obstacle[] {
+/**
+ * Clearance a *connection* keeps from a label block.
+ *
+ * The block is an estimate of where the glyphs land, so a line laid flush against
+ * it still grazes the ascenders of the real text. Two labels, on the other hand,
+ * may sit right next to each other — so this margin applies to routing only, not
+ * to whether two labels overlap.
+ */
+export const LABEL_OBSTACLE_MARGIN = 3;
+
+export function collectObstacles(elements: LayoutElement[], labelMargin: number = 0): Obstacle[] {
     const obstacles: Obstacle[] = [];
     for (const el of elements) {
         obstacles.push({
@@ -102,10 +118,10 @@ export function collectObstacles(elements: LayoutElement[]): Obstacle[] {
         const right = el.x - STATE_LABEL_GAP;
         obstacles.push({
             id: el.id + '::label',
-            x: right - labelW,
-            y: el.y - STATE_LABEL_BLOCK_H * (1 + (el.labelRow ?? 0)),
-            width: labelW,
-            height: STATE_LABEL_BLOCK_H,
+            x: right - labelW - labelMargin,
+            y: el.y - STATE_LABEL_BLOCK_H * (1 + (el.labelRow ?? 0)) - labelMargin,
+            width: labelW + labelMargin * 2,
+            height: STATE_LABEL_BLOCK_H + labelMargin * 2,
         });
     }
     return obstacles;
@@ -284,7 +300,7 @@ export function computeRouting(
     // Step 4: waypoints, routed around the obstacles rather than straight
     // through them. Longer edges are routed first: they have the least freedom,
     // and the congestion cost then pushes the short ones onto other lanes.
-    const obstacles = collectObstacles(elements);
+    const obstacles = collectObstacles(elements, LABEL_OBSTACLE_MARGIN);
     const portXs: number[] = [];
     const portYs: number[] = [];
     for (let i = 0; i < metas.length; i++) {
@@ -296,18 +312,16 @@ export function computeRouting(
     }
     const grid = createRouterGrid(obstacles, portXs, portYs);
 
-    const order = metas
-        .map((_, i) => i)
-        .filter((i) => sourcePorts[i] && targetPorts[i])
-        .sort((a, b) => {
-            const span = (i: number) =>
-                Math.abs(sourcePorts[i][0] - targetPorts[i][0]) +
-                Math.abs(sourcePorts[i][1] - targetPorts[i][1]);
-            return span(b) - span(a);
-        });
-
+    const routable = metas.map((_, i) => i).filter((i) => sourcePorts[i] && targetPorts[i]);
     const pointsByIndex: Record<number, Point[]> = {};
-    for (const i of order) {
+
+    // Pass 1: settle everything that needs no detour, and register it on the
+    // grid. The plain two-or-three-segment route is the cheapest to compute and
+    // the clearest to read, so it wins whenever nothing is in its way — but the
+    // search has to know where those lines run, or it will lay its own across
+    // them. On a real diagram they are more than half of all connections.
+    const deferred: number[] = [];
+    for (const i of routable) {
         const m = metas[i];
         const sp = sourcePorts[i];
         const tp = targetPorts[i];
@@ -315,25 +329,46 @@ export function computeRouting(
         if (m.isDirect) {
             // Alternative flows are drawn as a straight line by definition.
             pointsByIndex[i] = [sp, tp];
+            markPathOccupancy(grid, pointsByIndex[i]);
             continue;
         }
 
-        // The plain two-or-three-segment route is both the cheapest to compute
-        // and the clearest to read, so it is used whenever nothing is in its way.
-        // Searching the grid is reserved for edges that actually need to detour.
-        // The endpoints' own bodies are touched by definition; their label
-        // blocks are not — an edge across its own label reads no better than one
-        // across someone else's.
+        // The endpoints' own bodies are touched by definition; their label blocks
+        // are not — an edge across its own label reads no better than one across
+        // someone else's.
         const own = new Set([m.conn.sourceId, m.conn.targetId]);
         const relevant = obstacles.filter((o) => !own.has(o.id));
         const naive = simplify(orthogonalWaypoints(sp, tp, m.sourceSide, m.targetSide));
         if (!segmentsBlocked(naive, relevant)) {
             pointsByIndex[i] = naive;
-            continue;
+            markPathOccupancy(grid, naive);
+        } else {
+            deferred.push(i);
         }
+    }
 
+    // Pass 2: search a way around the obstacles for the rest, longest first —
+    // those have the least freedom, and the congestion and crossing penalties
+    // then push the shorter ones onto other lanes.
+    deferred.sort((a, b) => {
+        const span = (i: number) =>
+            Math.abs(sourcePorts[i][0] - targetPorts[i][0]) +
+            Math.abs(sourcePorts[i][1] - targetPorts[i][1]);
+        return span(b) - span(a);
+    });
+
+    for (const i of deferred) {
+        const m = metas[i];
+        const sp = sourcePorts[i];
+        const tp = targetPorts[i];
         const routedPoints = routeConnection(grid, sp, m.sourceSide, tp, m.targetSide);
-        pointsByIndex[i] = routedPoints ?? naive;
+        if (routedPoints) {
+            pointsByIndex[i] = routedPoints;
+        } else {
+            const fallback = simplify(orthogonalWaypoints(sp, tp, m.sourceSide, m.targetSide));
+            pointsByIndex[i] = fallback;
+            markPathOccupancy(grid, fallback);
+        }
     }
 
     const routed: RoutedConnection[] = [];

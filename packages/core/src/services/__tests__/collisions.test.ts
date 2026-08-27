@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { computeLayout, DiagramLayout } from '../layout';
-import { computeRouting, collectObstacles } from '../routing';
+import { computeRouting, collectObstacles, LABEL_OBSTACLE_MARGIN } from '../routing';
 import type { Obstacle } from '../orthogonalRouter';
 import { createProcessModel, ProcessModel } from '../../models/processModel';
 import { State, ProcessOperator, Flow } from '../../models/fpdModel';
@@ -83,7 +83,8 @@ function findOverlaps(layout: DiagramLayout): string[] {
 
 /** No connection may be drawn across an element or label it does not belong to. */
 function findCrossings(layout: DiagramLayout): string[] {
-    const obstacles = collectObstacles(layout.elements);
+    // With the routing margin, so a line grazing a label counts as a crossing.
+    const obstacles = collectObstacles(layout.elements, LABEL_OBSTACLE_MARGIN);
     const routed = computeRouting(layout.elements, layout.connections);
     const hits: string[] = [];
 

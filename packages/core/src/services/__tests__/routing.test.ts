@@ -613,3 +613,83 @@ describe('bundled flows agree on a side', () => {
         expect(endOf('above_merge')).not.toEqual(endOf('beside_merge'));
     });
 });
+
+// ---------------------------------------------------------------------------
+// A line meets a box square on
+// ---------------------------------------------------------------------------
+
+describe('port stubs stay perpendicular to the box edge', () => {
+    /** Which edge of `el` the point sits on, if any. */
+    function edgeOf(el: LayoutElement, [px, py]: Point): 'vertical' | 'horizontal' | null {
+        const eps = 0.5;
+        const onSide = Math.abs(px - el.x) < eps || Math.abs(px - (el.x + el.width)) < eps;
+        const onCap = Math.abs(py - el.y) < eps || Math.abs(py - (el.y + el.height)) < eps;
+        if (onSide && !onCap) return 'vertical';
+        if (onCap && !onSide) return 'horizontal';
+        return null;
+    }
+
+    function isHorizontal(a: Point, b: Point): boolean {
+        return Math.abs(a[1] - b[1]) < 0.01;
+    }
+
+    /**
+     * A line ending on a left or right edge has to arrive horizontally, and one
+     * ending on a top or bottom edge vertically. Otherwise the arrowhead points
+     * along the edge it lands on — the line runs down the side of the box and the
+     * arrow appears to graze it rather than enter it.
+     */
+    function expectSquareEnds(elements: LayoutElement[], connections: LayoutConnection[]): void {
+        const byId = new Map(elements.map((e) => [e.id, e]));
+        const odd: string[] = [];
+
+        for (const route of computeRouting(elements, connections)) {
+            if (route.isDirect || route.points.length < 2) continue;
+            const first = route.points[0];
+            const second = route.points[1];
+            const last = route.points[route.points.length - 1];
+            const beforeLast = route.points[route.points.length - 2];
+
+            const source = byId.get(route.conn.sourceId);
+            const target = byId.get(route.conn.targetId);
+
+            const startEdge = source ? edgeOf(source, first) : null;
+            if (startEdge === 'vertical' && !isHorizontal(first, second)) {
+                odd.push(`${route.conn.id} leaves a side edge vertically`);
+            } else if (startEdge === 'horizontal' && isHorizontal(first, second)) {
+                odd.push(`${route.conn.id} leaves a top/bottom edge horizontally`);
+            }
+
+            const endEdge = target ? edgeOf(target, last) : null;
+            if (endEdge === 'vertical' && !isHorizontal(beforeLast, last)) {
+                odd.push(`${route.conn.id} enters a side edge vertically`);
+            } else if (endEdge === 'horizontal' && isHorizontal(beforeLast, last)) {
+                odd.push(`${route.conn.id} enters a top/bottom edge horizontally`);
+            }
+        }
+
+        expect(odd).toEqual([]);
+    }
+
+    it('enters a side port horizontally even when a detour is needed', () => {
+        // The stub used to collapse when a grid line coincided with the port,
+        // leaving the vertical segment before it as the last one.
+        const source = makeEl('src', 0, 0, 150, 80);
+        const blocker = makeEl('blocker', 40, 150, 200, 60);
+        const target = makeEl('tgt', 300, 260, 60, 50);
+        expectSquareEnds([source, blocker, target], [makeConn('src', 'tgt')]);
+    });
+
+    it('keeps every end square on a crowded graph', () => {
+        const elements: LayoutElement[] = [];
+        const connections: LayoutConnection[] = [];
+        for (let i = 0; i < 5; i++) {
+            elements.push(makeEl(`a${i}`, i * 200, 0, 150, 80));
+            elements.push(makeEl(`b${i}`, i * 200 + 30, 400, 60, 50));
+            connections.push(makeConn(`a${i}`, `b${i}`));
+            // Cross-wire the neighbours to force detours.
+            if (i > 0) connections.push(makeConn(`a${i}`, `b${i - 1}`));
+        }
+        expectSquareEnds(elements, connections);
+    });
+});

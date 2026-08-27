@@ -37,6 +37,13 @@ const OUTER_LANE_STEP = 22;
 const BEND_COST = 90;
 const CONGESTION_COST = 55;
 
+/**
+ * Penalty for running through a point another connection already passes through
+ * at right angles. Crossings are what make a dense diagram hard to follow, and
+ * unlike overlap they cost nothing to the router unless they are priced in.
+ */
+const CROSSING_COST = 400;
+
 interface Axis {
     /** Sorted, de-duplicated coordinates. */
     values: number[];
@@ -50,8 +57,12 @@ export interface RouterGrid {
     freeH: Uint8Array;
     /** Segment from (x[i], y[j]) to (x[i], y[j+1]) is free. */
     freeV: Uint8Array;
+    /** Segments already carrying a connection, per direction. */
     useH: Uint16Array;
     useV: Uint16Array;
+    /** Nodes a connection already runs through, per direction. */
+    nodeH: Uint16Array;
+    nodeV: Uint16Array;
     obstacles: Obstacle[];
     /**
      * Search scratch, reused across routes. Every entry is stamped with the
@@ -67,10 +78,17 @@ export interface RouterGrid {
     };
 }
 
+/**
+ * Grid coordinates are rounded so near-identical values collapse to one line.
+ * Obstacle bounds go through the same rounding, so a line lying on an edge
+ * compares exactly equal to it instead of missing by a rounding error.
+ */
+function round2(value: number): number {
+    return Math.round(value * 100) / 100;
+}
+
 function makeAxis(raw: number[]): Axis {
-    const values = Array.from(new Set(raw.map((v) => Math.round(v * 100) / 100))).sort(
-        (a, b) => a - b,
-    );
+    const values = Array.from(new Set(raw.map(round2))).sort((a, b) => a - b);
     const index = new Map<number, number>();
     for (let i = 0; i < values.length; i++) {
         index.set(values[i], i);
@@ -96,25 +114,42 @@ function nearestIndex(axis: Axis, value: number): number {
     return best;
 }
 
+/** An obstacle's edges, rounded onto the grid. */
+interface Bounds {
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+}
+
+function toBounds(obstacles: Obstacle[]): Bounds[] {
+    return obstacles.map((o) => ({
+        x1: round2(o.x),
+        y1: round2(o.y),
+        x2: round2(o.x + o.width),
+        y2: round2(o.y + o.height),
+    }));
+}
+
 /** Does the horizontal segment at `y` from `x1` to `x2` enter any obstacle? */
-function horizontalBlocked(obstacles: Obstacle[], y: number, x1: number, x2: number): boolean {
+function horizontalBlocked(bounds: Bounds[], y: number, x1: number, x2: number): boolean {
     const lo = Math.min(x1, x2);
     const hi = Math.max(x1, x2);
-    for (const o of obstacles) {
-        if (y <= o.y || y >= o.y + o.height) continue;
-        if (hi <= o.x || lo >= o.x + o.width) continue;
+    for (const b of bounds) {
+        if (y <= b.y1 || y >= b.y2) continue;
+        if (hi <= b.x1 || lo >= b.x2) continue;
         return true;
     }
     return false;
 }
 
-/** Does the vertical segment at `x` from `y1` to `y2` enter any obstacle? */
-function verticalBlocked(obstacles: Obstacle[], x: number, y1: number, y2: number): boolean {
+/** Does the vertical segment at `x` from `y1` to `y2` touch any obstacle? */
+function verticalBlocked(bounds: Bounds[], x: number, y1: number, y2: number): boolean {
     const lo = Math.min(y1, y2);
     const hi = Math.max(y1, y2);
-    for (const o of obstacles) {
-        if (x <= o.x || x >= o.x + o.width) continue;
-        if (hi <= o.y || lo >= o.y + o.height) continue;
+    for (const b of bounds) {
+        if (x <= b.x1 || x >= b.x2) continue;
+        if (hi <= b.y1 || lo >= b.y2) continue;
         return true;
     }
     return false;
@@ -153,11 +188,12 @@ export function createRouterGrid(
 
     const freeH = new Uint8Array(nx * ny);
     const freeV = new Uint8Array(nx * ny);
+    const bounds = toBounds(obstacles);
 
     for (let j = 0; j < ny; j++) {
         const y = yAxis.values[j];
         for (let i = 0; i + 1 < nx; i++) {
-            if (!horizontalBlocked(obstacles, y, xAxis.values[i], xAxis.values[i + 1])) {
+            if (!horizontalBlocked(bounds, y, xAxis.values[i], xAxis.values[i + 1])) {
                 freeH[j * nx + i] = 1;
             }
         }
@@ -165,7 +201,7 @@ export function createRouterGrid(
     for (let i = 0; i < nx; i++) {
         const x = xAxis.values[i];
         for (let j = 0; j + 1 < ny; j++) {
-            if (!verticalBlocked(obstacles, x, yAxis.values[j], yAxis.values[j + 1])) {
+            if (!verticalBlocked(bounds, x, yAxis.values[j], yAxis.values[j + 1])) {
                 freeV[j * nx + i] = 1;
             }
         }
@@ -179,6 +215,8 @@ export function createRouterGrid(
         freeV,
         useH: new Uint16Array(nx * ny),
         useV: new Uint16Array(nx * ny),
+        nodeH: new Uint16Array(nx * ny),
+        nodeV: new Uint16Array(nx * ny),
         obstacles,
         scratch: {
             dist: new Float64Array(stateCount),
@@ -188,6 +226,52 @@ export function createRouterGrid(
             generation: 0,
         },
     };
+}
+
+/**
+ * Record that a connection runs along `points`, so later routes can be steered
+ * away from overlapping or crossing it.
+ *
+ * Called for every accepted route, including the plain ones that never went
+ * through the search. Without that the router would only know about the edges it
+ * routed itself — barely half of them on a real diagram — and would happily lay
+ * new lines across the rest.
+ */
+export function markPathOccupancy(grid: RouterGrid, points: Point[]): void {
+    const { xAxis, yAxis, useH, useV, nodeH, nodeV } = grid;
+    const nx = xAxis.values.length;
+    const bump = (arr: Uint16Array, index: number) => {
+        if (arr[index] < 0xffff) arr[index] += 1;
+    };
+
+    for (let k = 0; k + 1 < points.length; k++) {
+        const [x1, y1] = points[k];
+        const [x2, y2] = points[k + 1];
+        const horizontal = Math.abs(y1 - y2) < 0.01;
+        const vertical = Math.abs(x1 - x2) < 0.01;
+        // A diagonal (an alternative flow runs straight) occupies no lane.
+        if (horizontal === vertical) {
+            continue;
+        }
+
+        if (horizontal) {
+            const j = nearestIndex(yAxis, y1);
+            const from = nearestIndex(xAxis, Math.min(x1, x2));
+            const to = nearestIndex(xAxis, Math.max(x1, x2));
+            for (let i = from; i <= to; i++) {
+                bump(nodeH, j * nx + i);
+                if (i < to) bump(useH, j * nx + i);
+            }
+        } else {
+            const i = nearestIndex(xAxis, x1);
+            const from = nearestIndex(yAxis, Math.min(y1, y2));
+            const to = nearestIndex(yAxis, Math.max(y1, y2));
+            for (let j = from; j <= to; j++) {
+                bump(nodeV, j * nx + i);
+                if (j < to) bump(useV, j * nx + i);
+            }
+        }
+    }
 }
 
 /** Minimal binary heap over (priority, state) pairs. */
@@ -323,23 +407,32 @@ export function routeConnection(
             const nj = j + dy;
             if (ni < 0 || ni >= nx || nj < 0 || nj >= ny) continue;
 
+            const nextNode = nj * nx + ni;
             let ok: boolean;
             let step: number;
             let congestion: number;
+            let crossings: number;
             if (dx !== 0) {
                 const cell = j * nx + Math.min(i, ni);
                 ok = freeH[cell] === 1;
                 step = Math.abs(xAxis.values[ni] - xAxis.values[i]);
                 congestion = useH[cell];
+                // Moving horizontally crosses whatever runs vertically there.
+                crossings = grid.nodeV[nextNode];
             } else {
                 const cell = Math.min(j, nj) * nx + i;
                 ok = freeV[cell] === 1;
                 step = Math.abs(yAxis.values[nj] - yAxis.values[j]);
                 congestion = useV[cell];
+                crossings = grid.nodeH[nextNode];
             }
             if (!ok) continue;
 
-            const cost = step + (nd === dir ? 0 : BEND_COST) + congestion * CONGESTION_COST;
+            const cost =
+                step +
+                (nd === dir ? 0 : BEND_COST) +
+                congestion * CONGESTION_COST +
+                crossings * CROSSING_COST;
             const nextState = (nj * nx + ni) * 4 + nd;
             const nextDist = distanceOf(state) + cost;
             if (nextDist < distanceOf(nextState)) {
@@ -353,7 +446,6 @@ export function routeConnection(
 
     if (goalState < 0) return null;
 
-    // Walk back, marking congestion as we go.
     const nodes: Point[] = [];
     let cur = goalState;
     while (cur >= 0) {
@@ -361,24 +453,13 @@ export function routeConnection(
         const i = node % nx;
         const j = (node - i) / nx;
         nodes.push([xAxis.values[i], yAxis.values[j]]);
-        const parent = stamp[cur] === generation ? prev[cur] : -1;
-        if (parent >= 0) {
-            const pNode = parent >> 2;
-            const pi = pNode % nx;
-            const pj = (pNode - pi) / nx;
-            if (pj === j) {
-                const cell = j * nx + Math.min(i, pi);
-                if (useH[cell] < 0xffff) useH[cell] += 1;
-            } else {
-                const cell = Math.min(j, pj) * nx + i;
-                if (useV[cell] < 0xffff) useV[cell] += 1;
-            }
-        }
-        cur = parent;
+        cur = stamp[cur] === generation ? prev[cur] : -1;
     }
     nodes.reverse();
 
-    return simplify([source, ...nodes, target]);
+    const points = simplify([source, ...nodes, target]);
+    markPathOccupancy(grid, points);
+    return points;
 }
 
 /**
@@ -387,16 +468,22 @@ export function routeConnection(
  */
 function stubNode(grid: RouterGrid, port: Point, dir: number): [number, number] | null {
     const { xAxis, yAxis } = grid;
+    // The port's own coordinate is on the grid, and axis values are rounded, so a
+    // plain inequality can pick a line that coincides with the port. The stub
+    // would then have zero length, `simplify` would drop it, and the segment
+    // before it would become the last one — an arrow entering a box's side while
+    // running vertically along it. Require a real gap instead.
+    const MIN_STUB = 1;
     if (dir === 2 || dir === 3) {
         const i = nearestIndex(xAxis, port[0]);
         const values = yAxis.values;
         if (dir === 2) {
             for (let j = 0; j < values.length; j++) {
-                if (values[j] > port[1]) return [i, j];
+                if (values[j] > port[1] + MIN_STUB) return [i, j];
             }
         } else {
             for (let j = values.length - 1; j >= 0; j--) {
-                if (values[j] < port[1]) return [i, j];
+                if (values[j] < port[1] - MIN_STUB) return [i, j];
             }
         }
         return null;
@@ -405,11 +492,11 @@ function stubNode(grid: RouterGrid, port: Point, dir: number): [number, number] 
     const values = xAxis.values;
     if (dir === 0) {
         for (let i = 0; i < values.length; i++) {
-            if (values[i] > port[0]) return [i, j];
+            if (values[i] > port[0] + MIN_STUB) return [i, j];
         }
     } else {
         for (let i = values.length - 1; i >= 0; i--) {
-            if (values[i] < port[0]) return [i, j];
+            if (values[i] < port[0] - MIN_STUB) return [i, j];
         }
     }
     return null;
