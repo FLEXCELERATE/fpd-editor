@@ -321,10 +321,15 @@ export function renderSvg(diagram: DiagramLayout): string {
     // Defs
     parts.push(renderMarkerDefs());
 
-    // White background
+    // White background. It exists so the SVG is opaque as a standalone file, and
+    // is explicitly transparent to the pointer: consumers inject this content into
+    // their own canvas, where a rect over the whole diagram would otherwise
+    // swallow every drag and leave panning working only on the few gaps between
+    // elements.
     parts.push(
         `<rect x="${bounds.x}" y="${bounds.y}" ` +
-            `width="${bounds.width}" height="${bounds.height}" fill="#fff"/>\n`,
+            `width="${bounds.width}" height="${bounds.height}" fill="#fff" ` +
+            `pointer-events="none"/>\n`,
     );
 
     // System limits

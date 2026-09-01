@@ -7,7 +7,7 @@
  * fragment — nothing is sent to a server.
  */
 
-import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string';
+import { decompressFromEncodedURIComponent } from 'lz-string';
 
 const STORAGE_KEY = 'fpd-editor.document';
 const HASH_PREFIX = '#fpd=';
@@ -41,11 +41,4 @@ export function saveSource(source: string): void {
     } catch {
         // Best-effort only.
     }
-}
-
-/** Build a URL that opens this document in any browser, encoded in the fragment. */
-export function buildShareUrl(source: string): string {
-    const url = new URL(window.location.href);
-    url.hash = `fpd=${compressToEncodedURIComponent(source)}`;
-    return url.toString();
 }

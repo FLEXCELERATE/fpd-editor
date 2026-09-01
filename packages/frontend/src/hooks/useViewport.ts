@@ -234,9 +234,13 @@ export function useViewport(): UseViewportResult {
     }, []);
 
     const handleMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-        // Only pan on left mouse button and on the SVG background (not elements)
+        // Left button only. Panning starts anywhere on the canvas, including on
+        // top of an element: nothing in the diagram is draggable, so requiring
+        // bare background meant a drag did nothing over most of the picture —
+        // and with the renderer's opaque background rect in the way, over almost
+        // all of it. Clicking without moving still reaches the double-click and
+        // hover handlers.
         if (e.button !== 0) return;
-        if ((e.target as Element) !== e.currentTarget) return;
 
         e.preventDefault();
         setIsPanning(true);
