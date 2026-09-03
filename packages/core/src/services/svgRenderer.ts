@@ -10,6 +10,7 @@
 
 import { LayoutElement, SystemLimitRect, DiagramLayout } from './layout';
 import { escapeXml } from '../utils';
+import { STATE_LABEL_GAP, STATE_LABEL_BLOCK_H, fitBoxText } from './textMetrics';
 import {
     COLORS,
     FONT_FAMILY,
@@ -18,13 +19,7 @@ import {
     PROCESS_LABEL_FONT_SIZE,
     SYSTEM_LIMIT_LABEL_FONT_SIZE,
 } from './designTokens';
-import {
-    type Point,
-    type RoutedConnection,
-    computeRouting,
-    computeContentBounds,
-    autoFontSize,
-} from './routing';
+import { type Point, type RoutedConnection, computeRouting, computeContentBounds } from './routing';
 
 // ---------- SVG element renderers ----------
 
@@ -105,9 +100,14 @@ function renderState(el: LayoutElement): string {
             `stroke="${COLORS['black']}" stroke-width="${STROKE_WIDTH}"/>\n`;
     }
 
-    // Label above shape (matching frontend: text-anchor="end")
-    const labelX = x + w / 2 - 6;
-    const idY = hasName ? y - 22 : y - 8;
+    // Label above and to the left of the shape, clear of its whole horizontal
+    // span so no port on the top or bottom edge can fall under it. The layout
+    // reserves exactly this asymmetric extent.
+    const labelX = x - STATE_LABEL_GAP;
+    // Boundary states of one operator stand closer together than their labels are
+    // wide, so the labels are dealt across lanes stacked above the shape.
+    const laneLift = (el.labelRow ?? 0) * STATE_LABEL_BLOCK_H;
+    const idY = (hasName ? y - 22 : y - 8) - laneLift;
     let text =
         `<text text-anchor="end" font-size="${STATE_LABEL_FONT_SIZE}" ` +
         `font-family="${FONT_FAMILY}" fill="${COLORS['black']}">` +
@@ -124,35 +124,52 @@ function renderState(el: LayoutElement): string {
     return `<g ${attrs}>${shape}${text}</g>\n`;
 }
 
+function renderBoxText(
+    lines: string[],
+    fontSize: number,
+    lineHeight: number,
+    cx: number,
+    cy: number,
+): string {
+    // Vertically centre the block: the first baseline sits half a block above
+    // the middle, plus a baseline correction of a third of the font size.
+    const firstBaseline = cy - ((lines.length - 1) * lineHeight) / 2 + fontSize / 3;
+    let spans = `<tspan x="${cx}" y="${firstBaseline}">${lines[0]}</tspan>`;
+    for (let i = 1; i < lines.length; i++) {
+        spans += `<tspan x="${cx}" dy="${lineHeight}">${lines[i]}</tspan>`;
+    }
+    return (
+        `<text text-anchor="middle" font-size="${fontSize}" ` +
+        `font-family="${FONT_FAMILY}" fill="${COLORS['black']}">${spans}</text>\n`
+    );
+}
+
 function renderProcessOperator(el: LayoutElement): string {
     const { x, y, width: w, height: h } = el;
     const eid = escapeXml(el.id);
     const label = escapeXml(el.label || el.id);
     const hasName = label !== eid;
-    const lines = hasName ? [eid, label] : [eid];
-    const fs = autoFontSize(lines, w - 12, PROCESS_LABEL_FONT_SIZE);
+    // Wrap before shrinking: a two-word name used to be rendered at 7px in a box
+    // with most of its height unused.
+    const fitted = fitBoxText(
+        hasName ? [eid, label] : [eid],
+        w - 12,
+        h - 8,
+        PROCESS_LABEL_FONT_SIZE,
+    );
 
     const shape =
         `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="0" ry="0" ` +
         `fill="${COLORS['processOperator']}" ` +
         `stroke="${COLORS['black']}" stroke-width="${STROKE_WIDTH}"/>\n`;
 
-    const cx = x + w / 2;
-    let text: string;
-    if (hasName) {
-        const idY = y + h / 2 - fs * 0.6;
-        text =
-            `<text text-anchor="middle" font-size="${fs}" ` +
-            `font-family="${FONT_FAMILY}" fill="${COLORS['black']}">` +
-            `<tspan x="${cx}" y="${idY}">${eid}</tspan>` +
-            `<tspan x="${cx}" dy="${fs * 1.2}">${label}</tspan>` +
-            `</text>\n`;
-    } else {
-        text =
-            `<text x="${cx}" y="${y + h / 2}" text-anchor="middle" ` +
-            `dominant-baseline="middle" font-size="${fs}" ` +
-            `font-family="${FONT_FAMILY}" fill="${COLORS['black']}">${eid}</text>\n`;
-    }
+    const text = renderBoxText(
+        fitted.lines,
+        fitted.fontSize,
+        fitted.lineHeight,
+        x + w / 2,
+        y + h / 2,
+    );
 
     const lineNum = el.lineNumber || '';
     const attrs =
@@ -166,30 +183,25 @@ function renderTechnicalResource(el: LayoutElement): string {
     const eid = escapeXml(el.id);
     const label = escapeXml(el.label || el.id);
     const hasName = label !== eid;
-    const lines = hasName ? [eid, label] : [eid];
-    const fs = autoFontSize(lines, w - 24, PROCESS_LABEL_FONT_SIZE);
+    const fitted = fitBoxText(
+        hasName ? [eid, label] : [eid],
+        w - 24,
+        h - 8,
+        PROCESS_LABEL_FONT_SIZE,
+    );
 
     const shape =
         `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="40" ry="40" ` +
         `fill="${COLORS['technicalResource']}" ` +
         `stroke="${COLORS['black']}" stroke-width="${STROKE_WIDTH}"/>\n`;
 
-    const cx = x + w / 2;
-    let text: string;
-    if (hasName) {
-        const idY = y + h / 2 - fs * 0.6;
-        text =
-            `<text text-anchor="middle" font-size="${fs}" ` +
-            `font-family="${FONT_FAMILY}" fill="${COLORS['black']}">` +
-            `<tspan x="${cx}" y="${idY}">${eid}</tspan>` +
-            `<tspan x="${cx}" dy="${fs * 1.2}">${label}</tspan>` +
-            `</text>\n`;
-    } else {
-        text =
-            `<text x="${cx}" y="${y + h / 2}" text-anchor="middle" ` +
-            `dominant-baseline="middle" font-size="${fs}" ` +
-            `font-family="${FONT_FAMILY}" fill="${COLORS['black']}">${eid}</text>\n`;
-    }
+    const text = renderBoxText(
+        fitted.lines,
+        fitted.fontSize,
+        fitted.lineHeight,
+        x + w / 2,
+        y + h / 2,
+    );
 
     const lineNum = el.lineNumber || '';
     const attrs =
@@ -238,7 +250,7 @@ function renderRoutedConnection(routed: RoutedConnection): string {
     if (conn.isCrossSystem) {
         return (
             `<path ${dataAttrs} d="${d}" fill="none" stroke="${COLORS['crossSystem']}" ` +
-            `stroke-width="${STROKE_WIDTH}" stroke-dasharray="8,4" ` +
+            `stroke-width="${STROKE_WIDTH}" ` +
             `marker-end="url(#arrow-crossSystem)"/>\n`
         );
     }
@@ -255,14 +267,14 @@ function renderRoutedConnection(routed: RoutedConnection): string {
     if (flowType === 'alternativeFlow') {
         return (
             `<path ${dataAttrs} d="${d}" fill="none" stroke="${COLORS['alternativeFlow']}" ` +
-            `stroke-width="${STROKE_WIDTH}" stroke-dasharray="8,4" ` +
+            `stroke-width="${STROKE_WIDTH}" ` +
             `marker-end="url(#arrow-alternative)"/>\n`
         );
     }
     if (flowType === 'parallelFlow') {
         return (
             `<path ${dataAttrs} d="${d}" fill="none" stroke="${COLORS['parallelFlow']}" ` +
-            `stroke-width="${STROKE_WIDTH}" stroke-dasharray="2,3" ` +
+            `stroke-width="${STROKE_WIDTH}" ` +
             `marker-end="url(#arrow-parallel)"/>\n`
         );
     }
@@ -309,10 +321,15 @@ export function renderSvg(diagram: DiagramLayout): string {
     // Defs
     parts.push(renderMarkerDefs());
 
-    // White background
+    // White background. It exists so the SVG is opaque as a standalone file, and
+    // is explicitly transparent to the pointer: consumers inject this content into
+    // their own canvas, where a rect over the whole diagram would otherwise
+    // swallow every drag and leave panning working only on the few gaps between
+    // elements.
     parts.push(
         `<rect x="${bounds.x}" y="${bounds.y}" ` +
-            `width="${bounds.width}" height="${bounds.height}" fill="#fff"/>\n`,
+            `width="${bounds.width}" height="${bounds.height}" fill="#fff" ` +
+            `pointer-events="none"/>\n`,
     );
 
     // System limits

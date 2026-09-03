@@ -31,7 +31,8 @@ function exportStateLine(
     return line;
 }
 
-function exportElementsForSystem(
+/** Element declarations belonging to one system (or to none, for `undefined`). */
+function exportDeclarations(
     model: ProcessModel,
     systemId: string | undefined,
     indent: string,
@@ -65,9 +66,16 @@ function exportElementsForSystem(
         }
     }
 
-    if (lines.length > 0) {
-        lines.push('');
-    }
+    return lines;
+}
+
+/** Flows and usages belonging to one system (or to none, for `undefined`). */
+function exportConnections(
+    model: ProcessModel,
+    systemId: string | undefined,
+    indent: string,
+): string[] {
+    const lines: string[] = [];
 
     // Flows
     for (const flow of model.flows) {
@@ -88,6 +96,19 @@ function exportElementsForSystem(
     return lines;
 }
 
+function exportElementsForSystem(
+    model: ProcessModel,
+    systemId: string | undefined,
+    indent: string,
+): string[] {
+    const declarations = exportDeclarations(model, systemId, indent);
+    const connections = exportConnections(model, systemId, indent);
+    if (declarations.length > 0 && connections.length > 0) {
+        return [...declarations, '', ...connections];
+    }
+    return [...declarations, ...connections];
+}
+
 export function exportText(model: ProcessModel): string {
     const lines: string[] = [];
     lines.push('@startfpd');
@@ -99,7 +120,20 @@ export function exportText(model: ProcessModel): string {
     lines.push('');
 
     if (model.systemLimits.length > 0) {
-        // Multi-system export: wrap elements in system blocks
+        // Multi-system export: wrap elements in system blocks.
+        //
+        // Elements that belong to no system are written at the top level. They
+        // used to be dropped here — only cross-system *flows* were emitted — so
+        // exporting a document whose states sit outside a system block silently
+        // destroyed it: the declarations vanished, and re-reading the file then
+        // dropped the flows that referenced them too. Declarations come first so
+        // the system blocks below can refer to them.
+        const looseDeclarations = exportDeclarations(model, undefined, '');
+        if (looseDeclarations.length > 0) {
+            lines.push(...looseDeclarations);
+            lines.push('');
+        }
+
         for (const sl of model.systemLimits) {
             lines.push(`system "${escapeLabel(sl.label)}" {`);
             const systemLines = exportElementsForSystem(model, sl.id, '  ');
@@ -108,14 +142,10 @@ export function exportText(model: ProcessModel): string {
             lines.push('');
         }
 
-        // Cross-system connections (flows with systemId undefined)
-        const crossFlows = model.flows.filter((f) => f.systemId === undefined);
-        if (crossFlows.length > 0) {
-            for (const flow of crossFlows) {
-                const flowType = flow.flowType || 'flow';
-                const operator = FLOW_TYPE_OPERATORS[flowType] || '-->';
-                lines.push(`${flow.sourceRef} ${operator} ${flow.targetRef}`);
-            }
+        // Cross-system flows and usages.
+        const looseConnections = exportConnections(model, undefined, '');
+        if (looseConnections.length > 0) {
+            lines.push(...looseConnections);
             lines.push('');
         }
     } else {

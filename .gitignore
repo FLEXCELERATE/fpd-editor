@@ -12,6 +12,9 @@ logs/security/
 # Claude Code local config
 .claude/
 
+# Temp Files
+temp/
+
 # Node.js dependencies
 node_modules/
 

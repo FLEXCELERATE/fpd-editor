@@ -348,7 +348,7 @@ describe('renderSvg', () => {
             expect(svg).toContain(`<marker id="${endMarker}"`);
         });
 
-        it('renders cross-system connections with a dedicated marker and dashed stroke', () => {
+        it('renders cross-system connections with a dedicated marker, undashed', () => {
             const a = makeElement('a', 'state', 100, 0);
             const b = makeElement('b', 'state', 100, 300);
             const layout = makeLayout([a, b], [makeConnection('a', 'b', { isCrossSystem: true })]);
@@ -358,7 +358,9 @@ describe('renderSvg', () => {
             const marker = extractMarkerEnd(path);
             expect(marker).toBe('arrow-crossSystem');
             expect(svg).toContain(`<marker id="${marker}"`);
-            expect(path).toContain('stroke-dasharray');
+            // Dashing is reserved for resource assignment; a cross-system flow is
+            // still a flow, so it is drawn solid and black like any other.
+            expect(path).not.toContain('stroke-dasharray');
         });
 
         it('renders alternative and parallel flows with markers distinct from the regular flow marker', () => {
