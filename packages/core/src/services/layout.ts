@@ -14,6 +14,7 @@
 
 import { State, ProcessOperator, TechnicalResource, Flow, Usage } from '../models/fpdModel';
 import { ProcessModel } from '../models/processModel';
+import { stateLabelWidth, STATE_LABEL_GAP, STATE_LABEL_BLOCK_H } from './textMetrics';
 
 // ---------- Public interfaces ----------
 
@@ -51,6 +52,13 @@ export interface LayoutElement {
     height: number;
     stateType?: string;
     lineNumber?: number;
+    /**
+     * Which lane the state's label sits in, counted upwards from the shape.
+     * Boundary states of one operator stand at a tight pitch so they all stay on
+     * the system limit; their labels are wider than that pitch, so they are dealt
+     * across lanes instead. Undefined or 0 means directly above the shape.
+     */
+    labelRow?: number;
 }
 
 export interface LayoutConnection {
@@ -90,8 +98,14 @@ const PROCESS_H = 80;
 const RESOURCE_W = 150;
 const RESOURCE_H = 80;
 
-// Internal gap between PO rows with intermediate states
-const INTERNAL_V_GAP = 40;
+// Gap below a row of operators before the intermediate states beneath it. It
+// has to clear those states' label blocks, which sit above their shapes, plus
+// enough room for a routing lane between the row and the labels — otherwise the
+// label covers the operator's own ports and edges cannot leave the box at all.
+const INTERNAL_V_GAP_ABOVE = STATE_LABEL_BLOCK_H + 22;
+
+// Gap below the intermediate states before the next row of operators.
+const INTERNAL_V_GAP_BELOW = 40;
 
 // Extra vertical space when boundary states sit on top/bottom edges
 const BOUNDARY_EXTRA_V = 40;
@@ -112,6 +126,8 @@ interface ConnectivityGraph {
 interface StateAffinity {
     category: string;
     affiliatedRank: number;
+    /** PO a boundary-left/right state hangs off; undefined for other categories. */
+    affiliatedPoId: string | undefined;
     sourceRank: number | undefined;
     targetRank: number | undefined;
 }
@@ -214,14 +230,21 @@ function _buildConnectivityGraph(
 
 // ---------- Phase 1: Topological sort of POs ----------
 
-function _topologicalSortPos(
+interface PoPrecedence {
+    poSuccessors: Record<string, Set<string>>;
+    poPredecessors: Record<string, Set<string>>;
+}
+
+/**
+ * Precedence between process operators: A precedes B when a state carries a
+ * flow out of A and into B.
+ */
+function _buildPoPrecedence(
     processOperators: ProcessOperator[],
     states: State[],
     graph: ConnectivityGraph,
-): [string[], Record<string, number>] {
+): PoPrecedence {
     const poIds = new Set(processOperators.map((p) => p.id));
-
-    // Build PO precedence graph
     const poSuccessors: Record<string, Set<string>> = {};
     const poPredecessors: Record<string, Set<string>> = {};
     for (const p of processOperators) {
@@ -243,6 +266,78 @@ function _topologicalSortPos(
             }
         }
     }
+
+    return { poSuccessors, poPredecessors };
+}
+
+/**
+ * Order the operators inside each rank so that connected operators end up near
+ * each other — the ordering phase of a layered layout.
+ *
+ * Without it a rank keeps the arbitrary (alphabetical) order the topological
+ * sort produced, which is why an input state could sit above the gap between two
+ * operators it has nothing to do with while its own consumer sat elsewhere in
+ * the row. Repeated barycentre sweeps, alternating downwards and upwards, move
+ * each operator to the average position of its neighbours in the adjacent rank.
+ */
+function _orderRanksByBarycenter(
+    posByRank: Record<number, string[]>,
+    maxRank: number,
+    precedence: PoPrecedence,
+    sweeps: number = 4,
+): void {
+    const indexOf: Record<string, number> = {};
+    const reindex = () => {
+        for (let rank = 0; rank <= maxRank; rank++) {
+            const group = posByRank[rank] ?? [];
+            for (let i = 0; i < group.length; i++) {
+                indexOf[group[i]] = i;
+            }
+        }
+    };
+    reindex();
+
+    const sortRank = (rank: number, neighbours: Record<string, Set<string>>) => {
+        const group = posByRank[rank];
+        if (!group || group.length < 2) {
+            return;
+        }
+        const barycenter: Record<string, number> = {};
+        for (const poId of group) {
+            const ns = Array.from(neighbours[poId] ?? []).filter((n) => indexOf[n] !== undefined);
+            // An operator with no neighbour in that direction keeps its place.
+            barycenter[poId] =
+                ns.length > 0
+                    ? ns.reduce((sum, n) => sum + indexOf[n], 0) / ns.length
+                    : indexOf[poId];
+        }
+        const previous = new Map(group.map((id, i) => [id, i]));
+        group.sort(
+            (a, b) =>
+                barycenter[a] - barycenter[b] || (previous.get(a) ?? 0) - (previous.get(b) ?? 0),
+        );
+        reindex();
+    };
+
+    for (let sweep = 0; sweep < sweeps; sweep++) {
+        if (sweep % 2 === 0) {
+            for (let rank = 1; rank <= maxRank; rank++) {
+                sortRank(rank, precedence.poPredecessors);
+            }
+        } else {
+            for (let rank = maxRank - 1; rank >= 0; rank--) {
+                sortRank(rank, precedence.poSuccessors);
+            }
+        }
+    }
+}
+
+function _topologicalSortPos(
+    processOperators: ProcessOperator[],
+    states: State[],
+    graph: ConnectivityGraph,
+): [string[], Record<string, number>, PoPrecedence] {
+    const { poSuccessors, poPredecessors } = _buildPoPrecedence(processOperators, states, graph);
 
     // Kahn's algorithm with cycle breaking
     const inDegree: Record<string, number> = {};
@@ -277,12 +372,14 @@ function _topologicalSortPos(
                     inDegree[succ] = (inDegree[succ] ?? 1) - 1;
                 }
             }
-            // Each PO gets its own rank so it receives a unique row position.
-            currentRank += 1;
         }
+
+        // One rank per topological wave, not per operator: every PO in `ready`
+        // shares a rank so parallel branches can be laid out side by side.
+        currentRank += 1;
     }
 
-    return [poOrder, poRank];
+    return [poOrder, poRank, { poSuccessors, poPredecessors }];
 }
 
 // ---------- Phase 2: Classify states ----------
@@ -403,16 +500,23 @@ function _assignStateAffinities(
         const targetPos = graph.stateToTargetPos[state.id] || [];
 
         let affiliatedRank = 0;
+        let affiliatedPoId: string | undefined = undefined;
         let sourceRank: number | undefined = undefined;
         let targetRank: number | undefined = undefined;
 
         if (category === 'boundary-left') {
             if (targetPos.length > 0) {
-                affiliatedRank = Math.min(...targetPos.map((pid) => poRank[pid] ?? 0));
+                // Attach to the earliest consuming PO, not just to its rank: a rank
+                // can hold several POs once parallel branches are laid out.
+                const earliest = _minBy(targetPos, (pid) => poRank[pid] ?? 0);
+                affiliatedPoId = earliest;
+                affiliatedRank = poRank[earliest] ?? 0;
             }
         } else if (category === 'boundary-right') {
             if (sourcePos.length > 0) {
-                affiliatedRank = Math.max(...sourcePos.map((pid) => poRank[pid] ?? 0));
+                const latest = _maxBy(sourcePos, (pid) => poRank[pid] ?? 0);
+                affiliatedPoId = latest;
+                affiliatedRank = poRank[latest] ?? 0;
             }
         } else if (category === 'internal') {
             if (sourcePos.length > 0) {
@@ -427,6 +531,7 @@ function _assignStateAffinities(
         affinities[state.id] = {
             category,
             affiliatedRank,
+            affiliatedPoId,
             sourceRank,
             targetRank,
         };
@@ -436,6 +541,248 @@ function _assignStateAffinities(
 }
 
 // ---------- Helpers ----------
+
+function _minBy<T>(items: T[], score: (item: T) => number): T {
+    let best = items[0];
+    let bestScore = score(best);
+    for (const item of items) {
+        const s = score(item);
+        if (s < bestScore) {
+            best = item;
+            bestScore = s;
+        }
+    }
+    return best;
+}
+
+function _maxBy<T>(items: T[], score: (item: T) => number): T {
+    let best = items[0];
+    let bestScore = score(best);
+    for (const item of items) {
+        const s = score(item);
+        if (s > bestScore) {
+            best = item;
+            bestScore = s;
+        }
+    }
+    return best;
+}
+
+/**
+ * How far an item reaches either side of its own centre. Slots are asymmetric
+ * because a state's label hangs to the left of its shape.
+ */
+interface SlotExtents {
+    left: number;
+    right: number;
+}
+
+/**
+ * Place items with the given extents as close to their desired centres as
+ * possible without overlapping, keeping their relative order.
+ *
+ * Items are swept in ascending desired order and pushed away from the previous
+ * one when they would collide. With `recenter` the packed run is shifted back so
+ * it stays centred on the mean desired position (the sweep itself only ever
+ * pushes in the positive direction). Returns **centres** in input order — the
+ * caller places the shape and its label relative to that centre.
+ */
+function _packRow(
+    desiredCenters: number[],
+    slots: SlotExtents[],
+    gap: number,
+    recenter: boolean = true,
+): number[] {
+    const n = desiredCenters.length;
+    if (n === 0) {
+        return [];
+    }
+
+    const order = desiredCenters
+        .map((_, i) => i)
+        .sort((a, b) => desiredCenters[a] - desiredCenters[b] || a - b);
+
+    const centers = new Array<number>(n);
+    let cursor = Number.NEGATIVE_INFINITY;
+    for (const i of order) {
+        const leading = Math.max(desiredCenters[i] - slots[i].left, cursor);
+        centers[i] = leading + slots[i].left;
+        cursor = centers[i] + slots[i].right + gap;
+    }
+
+    if (!recenter) {
+        return centers;
+    }
+
+    const meanDesired = desiredCenters.reduce((a, b) => a + b, 0) / n;
+    const first = order[0];
+    const last = order[n - 1];
+    const runStart = centers[first] - slots[first].left;
+    const runEnd = centers[last] + slots[last].right;
+    const shift = meanDesired - (runStart + runEnd) / 2;
+    return centers.map((c) => c + shift);
+}
+
+/**
+ * Horizontal space a state needs around its centre. The shape is symmetric, but
+ * the label hangs above and to the left and is routinely three times as wide —
+ * packing on the shape alone is what made labels collide.
+ */
+function _stateSlot(state: State): SlotExtents {
+    const labelReach = STATE_MAX_W / 2 + STATE_LABEL_GAP + stateLabelWidth(state.id, state.label);
+    return { left: labelReach, right: STATE_MAX_W / 2 };
+}
+
+/** A symmetric slot, for items whose extent is just their size. */
+function _evenSlots(count: number, size: number): SlotExtents[] {
+    const half = size / 2;
+    return Array.from({ length: count }, () => ({ left: half, right: half }));
+}
+
+// ---------- Boundary clusters ----------
+
+/**
+ * Clearance between the labels of two states sharing a boundary row. Same as the
+ * gap a label keeps from its own shape, so spacing reads consistently.
+ */
+const BOUNDARY_LABEL_CLEARANCE = STATE_LABEL_GAP;
+
+/** A cluster never grows taller than this, however wide its labels are. */
+const MAX_BOUNDARY_ROWS = 3;
+
+interface BoundaryPlacement {
+    /** Centre x per state id. */
+    x: Record<string, number>;
+    /** 0 = on the system limit edge, 1 = one step further out, and so on. */
+    row: Record<string, number>;
+}
+
+/** The boundary states of one operator, sized but not yet positioned. */
+interface BoundaryCluster {
+    /** Which system limit edge the cluster sits on. */
+    side: 'top' | 'bottom';
+    /** Operator the states hang off; empty when none could be determined. */
+    anchor: string;
+    /**
+     * Extent of the shapes alone. This is what the operator row reserves: labels
+     * hang above the boundary row, not next to the operators, so making the
+     * operators keep a label's width apart only inflates the drawing.
+     */
+    shapeExtents: SlotExtents;
+    /**
+     * Extent including the labels. This is what the clusters are packed against,
+     * so two neighbouring clusters never overlap each other's text.
+     */
+    labelExtents: SlotExtents;
+    members: { state: State; offset: number; row: number }[];
+}
+
+/**
+ * Size the boundary clusters: which states belong together, how they are dealt
+ * across rows, and how far the resulting block reaches either side of its centre.
+ *
+ * Deliberately independent of any coordinate, so the operator row can reserve
+ * room for a cluster *before* the operators are placed. Four inputs need at least
+ * four shape widths, which is wider than one operator's pitch — reserving that
+ * space is what lets every cluster sit centred over its own operator instead of
+ * shoving its neighbours aside.
+ */
+function _buildBoundaryClusters(
+    side: 'top' | 'bottom',
+    group: State[],
+    anchorOf: (state: State) => string | undefined,
+    config: LayoutConfig,
+): BoundaryCluster[] {
+    const grouped = new Map<string, State[]>();
+    for (const state of group) {
+        const key = anchorOf(state) ?? '';
+        const existing = grouped.get(key);
+        if (existing) {
+            existing.push(state);
+        } else {
+            grouped.set(key, [state]);
+        }
+    }
+
+    // The same pitch the rest of the layout uses between neighbouring elements.
+    // Deliberately not the tightest the shapes would allow: a cluster's span is
+    // (n-1) * pitch whatever the row count, so a tighter pitch buys a narrower
+    // cluster only by adding rows, and a pitch barely above the slot width makes
+    // the row count flip on a label a few pixels wider.
+    const basePitch = STATE_MAX_W + config.hGap;
+
+    const clusters: BoundaryCluster[] = [];
+    for (const [anchor, states] of grouped) {
+        const slots = states.map(_stateSlot);
+        const widest = Math.max(...slots.map((s) => s.left + s.right));
+
+        // Enough rows that a row's pitch fits the widest label in the cluster.
+        const need = widest + BOUNDARY_LABEL_CLEARANCE;
+        const rows = Math.min(MAX_BOUNDARY_ROWS, Math.max(1, Math.ceil(need / basePitch)));
+        const pitch = Math.max(basePitch, need / rows);
+
+        const first = -((states.length - 1) * pitch) / 2;
+        const members = states.map((state, i) => ({
+            state,
+            offset: first + i * pitch,
+            row: i % rows,
+        }));
+
+        const shapeExtents: SlotExtents = { left: 0, right: 0 };
+        const labelExtents: SlotExtents = { left: 0, right: 0 };
+        for (let i = 0; i < members.length; i++) {
+            const offset = members[i].offset;
+            shapeExtents.left = Math.max(shapeExtents.left, STATE_MAX_W / 2 - offset);
+            shapeExtents.right = Math.max(shapeExtents.right, offset + STATE_MAX_W / 2);
+            labelExtents.left = Math.max(labelExtents.left, slots[i].left - offset);
+            labelExtents.right = Math.max(labelExtents.right, offset + slots[i].right);
+        }
+
+        clusters.push({ side, anchor, shapeExtents, labelExtents, members });
+    }
+    return clusters;
+}
+
+/**
+ * Position the sized clusters: each centred on its own operator, then packed
+ * against each other as whole units in case two still collide.
+ *
+ * Top and bottom are packed separately — they sit on opposite edges of the
+ * drawing, so letting them compete for the same horizontal space would push a
+ * top cluster aside to make room for a bottom one it can never touch.
+ */
+function _placeBoundaryClustersOnSide(
+    clusters: BoundaryCluster[],
+    centerOfPo: (poId: string) => number | undefined,
+    fallbackCenter: number,
+    config: LayoutConfig,
+): BoundaryPlacement {
+    const ordered = clusters
+        .map((cluster) => ({
+            cluster,
+            desired: (cluster.anchor ? centerOfPo(cluster.anchor) : undefined) ?? fallbackCenter,
+        }))
+        .sort((a, b) => a.desired - b.desired);
+
+    // No recentering: a cluster stays on its own operator unless a neighbour
+    // forces it aside. Recentering would shift every cluster by half the
+    // asymmetry of its label overhang, for no benefit.
+    const centers = _packRow(
+        ordered.map((entry) => entry.desired),
+        ordered.map((entry) => entry.cluster.labelExtents),
+        config.hGap,
+        false,
+    );
+
+    const placement: BoundaryPlacement = { x: {}, row: {} };
+    for (let i = 0; i < ordered.length; i++) {
+        for (const member of ordered[i].cluster.members) {
+            placement.x[member.state.id] = centers[i] + member.offset;
+            placement.row[member.state.id] = member.row;
+        }
+    }
+    return placement;
+}
 
 function _distributeCentered(
     count: number,
@@ -460,9 +807,16 @@ function _distributeCentered(
 interface ClassifiedStates {
     boundaryTop: State[];
     boundaryBottom: State[];
-    boundaryLeft: Record<number, State[]>;
-    boundaryRight: Record<number, State[]>;
-    internalsByGap: Record<string, State[]>;
+    /** boundary-left states keyed by the PO they hang off. */
+    boundaryLeft: Record<string, State[]>;
+    /** boundary-right states keyed by the PO they hang off. */
+    boundaryRight: Record<string, State[]>;
+    /**
+     * Forward-edge internal states keyed by the rank of their source PO: every
+     * such state is drawn in the single intermediate band below that rank, so the
+     * band — not the source/target rank pair — is what decides placement.
+     */
+    internalsByBand: Record<number, State[]>;
     backwardInternals: State[];
     disconnectedStates: State[];
     hasIntermediatesBelow: Set<number>;
@@ -474,8 +828,8 @@ function _groupStatesByCategory(
 ): ClassifiedStates {
     const boundaryTop: State[] = [];
     const boundaryBottom: State[] = [];
-    const boundaryLeft: Record<number, State[]> = {};
-    const boundaryRight: Record<number, State[]> = {};
+    const boundaryLeft: Record<string, State[]> = {};
+    const boundaryRight: Record<string, State[]> = {};
     const internalStates: State[] = [];
     const disconnectedStates: State[] = [];
 
@@ -491,17 +845,25 @@ function _groupStatesByCategory(
         } else if (cat === 'boundary-bottom') {
             boundaryBottom.push(state);
         } else if (cat === 'boundary-left') {
-            const rank = aff.affiliatedRank;
-            if (!boundaryLeft[rank]) {
-                boundaryLeft[rank] = [];
+            const key = aff.affiliatedPoId;
+            if (key === undefined) {
+                disconnectedStates.push(state);
+                continue;
             }
-            boundaryLeft[rank].push(state);
+            if (!boundaryLeft[key]) {
+                boundaryLeft[key] = [];
+            }
+            boundaryLeft[key].push(state);
         } else if (cat === 'boundary-right') {
-            const rank = aff.affiliatedRank;
-            if (!boundaryRight[rank]) {
-                boundaryRight[rank] = [];
+            const key = aff.affiliatedPoId;
+            if (key === undefined) {
+                disconnectedStates.push(state);
+                continue;
             }
-            boundaryRight[rank].push(state);
+            if (!boundaryRight[key]) {
+                boundaryRight[key] = [];
+            }
+            boundaryRight[key].push(state);
         } else if (cat === 'internal') {
             internalStates.push(state);
         } else {
@@ -509,35 +871,32 @@ function _groupStatesByCategory(
         }
     }
 
-    const internalsByGap: Record<string, State[]> = {};
+    const internalsByBand: Record<number, State[]> = {};
     const backwardInternals: State[] = [];
     for (const state of internalStates) {
         const aff = affinities[state.id];
         const sRank = aff.sourceRank !== undefined ? aff.sourceRank : aff.affiliatedRank;
         const tRank = aff.targetRank !== undefined ? aff.targetRank : sRank + 1;
         if (sRank < tRank) {
-            const key = `${sRank}-${tRank}`;
-            if (!internalsByGap[key]) {
-                internalsByGap[key] = [];
+            if (!internalsByBand[sRank]) {
+                internalsByBand[sRank] = [];
             }
-            internalsByGap[key].push(state);
+            internalsByBand[sRank].push(state);
         } else {
             backwardInternals.push(state);
         }
     }
 
-    const hasIntermediatesBelow = new Set<number>();
-    for (const key of Object.keys(internalsByGap)) {
-        const sRank = parseInt(key.split('-')[0], 10);
-        hasIntermediatesBelow.add(sRank);
-    }
+    const hasIntermediatesBelow = new Set<number>(
+        Object.keys(internalsByBand).map((rank) => parseInt(rank, 10)),
+    );
 
     return {
         boundaryTop,
         boundaryBottom,
         boundaryLeft,
         boundaryRight,
-        internalsByGap,
+        internalsByBand,
         backwardInternals,
         disconnectedStates,
         hasIntermediatesBelow,
@@ -550,7 +909,8 @@ function _computeSystemLimitAndPlaceBoundaries(
     coreElements: LayoutElement[],
     classified: ClassifiedStates,
     config: LayoutConfig,
-    poRowY: Record<number, number>,
+    sideStateY: Record<string, number>,
+    boundaryPlacement: BoundaryPlacement,
     startY: number,
     coreLeftX: number,
 ): { systemLimit: BoundsRect; boundaryElements: LayoutElement[] } | null {
@@ -577,31 +937,25 @@ function _computeSystemLimitAndPlaceBoundaries(
     }
 
     // Horizontal space for left/right boundaries
-    const leftValues = Object.values(boundaryLeft);
-    const rightValues = Object.values(boundaryRight);
-    const maxLeftCount = leftValues.length > 0 ? Math.max(...leftValues.map((v) => v.length)) : 0;
-    const maxRightCount =
-        rightValues.length > 0 ? Math.max(...rightValues.map((v) => v.length)) : 0;
-    if (maxLeftCount > 0) {
+    const hasLeft = Object.values(boundaryLeft).some((v) => v.length > 0);
+    const hasRight = Object.values(boundaryRight).some((v) => v.length > 0);
+    if (hasLeft) {
         slMinX -= STATE_MAX_W / 2 + config.hGap;
     }
-    if (maxRightCount > 0) {
+    if (hasRight) {
         slMaxX += STATE_MAX_W / 2 + config.hGap;
     }
 
-    // Horizontal space for top/bottom boundaries
-    const topW =
-        boundaryTop.length > 0 ? boundaryTop.length * (STATE_MAX_W + config.hGap) - config.hGap : 0;
-    const botW =
-        boundaryBottom.length > 0
-            ? boundaryBottom.length * (STATE_MAX_W + config.hGap) - config.hGap
-            : 0;
-    const maxBw = Math.max(topW, botW);
-    const coreW = slMaxX - slMinX;
-    if (maxBw > coreW) {
-        const extra = (maxBw - coreW) / 2;
-        slMinX -= extra;
-        slMaxX += extra;
+    // Horizontal space for top/bottom boundaries. Their x is fixed by the
+    // operator they belong to, so the limit grows to whatever the packed row
+    // needed rather than to an evenly spread row's nominal width.
+    for (const state of [...boundaryTop, ...boundaryBottom]) {
+        const center = boundaryPlacement.x[state.id];
+        if (center === undefined) {
+            continue;
+        }
+        slMinX = Math.min(slMinX, center - STATE_MAX_W / 2);
+        slMaxX = Math.max(slMaxX, center + STATE_MAX_W / 2);
     }
 
     // Vertical space for top/bottom boundaries
@@ -613,19 +967,17 @@ function _computeSystemLimitAndPlaceBoundaries(
     }
 
     // Expand for left/right boundary state positions
-    const allSideBoundaries: [string, State[]][] = [
-        ...Object.entries(boundaryLeft),
-        ...Object.entries(boundaryRight),
+    const allSideStates: State[] = [
+        ...Object.values(boundaryLeft).flat(),
+        ...Object.values(boundaryRight).flat(),
     ];
-    for (const [rankStr, sideStates] of allSideBoundaries) {
-        const rank = parseInt(rankStr, 10);
-        const poY = poRowY[rank] ?? startY;
-        const rowCenterY = poY + PROCESS_H / 2;
-        const ys = _distributeCentered(sideStates.length, STATE_H, config.hGap, rowCenterY);
-        if (ys.length > 0) {
-            slMinY = Math.min(slMinY, ys[0]);
-            slMaxY = Math.max(slMaxY, ys[ys.length - 1] + STATE_H);
+    for (const state of allSideStates) {
+        const y = sideStateY[state.id];
+        if (y === undefined) {
+            continue;
         }
+        slMinY = Math.min(slMinY, y);
+        slMaxY = Math.max(slMaxY, y + STATE_H);
     }
 
     const systemLimit: BoundsRect = {
@@ -652,6 +1004,7 @@ function _computeSystemLimitAndPlaceBoundaries(
                 label: s.label,
                 x: xs[i],
                 y,
+                labelRow: boundaryPlacement.row[s.id] ?? 0,
                 width: STATE_MAX_W,
                 height: STATE_H,
                 stateType: s.stateType,
@@ -659,61 +1012,40 @@ function _computeSystemLimitAndPlaceBoundaries(
             });
         }
     }
+
+    // Every boundary state sits on the limit edge, as the notation shows them
+    // crossing it. Where a cluster's labels are wider than its pitch, it is the
+    // labels that move into another lane, not the states.
+    const edgeXs = (states: State[]) =>
+        states.map((st) => (boundaryPlacement.x[st.id] ?? slCenterX) - STATE_MAX_W / 2);
 
     if (boundaryTop.length > 0) {
-        pushStateElements(
-            boundaryTop,
-            _distributeCentered(boundaryTop.length, STATE_MAX_W, config.hGap, slCenterX),
-            slTop - STATE_H / 2,
-        );
+        pushStateElements(boundaryTop, edgeXs(boundaryTop), slTop - STATE_H / 2);
     }
     if (boundaryBottom.length > 0) {
-        pushStateElements(
-            boundaryBottom,
-            _distributeCentered(boundaryBottom.length, STATE_MAX_W, config.hGap, slCenterX),
-            slBottom - STATE_H / 2,
-        );
+        pushStateElements(boundaryBottom, edgeXs(boundaryBottom), slBottom - STATE_H / 2);
     }
 
-    for (const [rankStr, leftStates] of Object.entries(boundaryLeft)) {
-        const rank = parseInt(rankStr, 10);
-        const rowCenterY = (poRowY[rank] ?? startY) + PROCESS_H / 2;
-        const ys = _distributeCentered(leftStates.length, STATE_H, config.hGap, rowCenterY);
-        for (let i = 0; i < leftStates.length; i++) {
-            const s = leftStates[i];
-            boundaryElements.push({
-                id: s.id,
-                type: 'state',
-                label: s.label,
-                x: slLeft - STATE_MAX_W / 2,
-                y: ys[i],
-                width: STATE_MAX_W,
-                height: STATE_H,
-                stateType: s.stateType,
-                lineNumber: s.lineNumber,
-            });
+    function pushSideStates(byPo: Record<string, State[]>, x: number) {
+        for (const sideStates of Object.values(byPo)) {
+            for (const s of sideStates) {
+                boundaryElements.push({
+                    id: s.id,
+                    type: 'state',
+                    label: s.label,
+                    x,
+                    y: sideStateY[s.id] ?? startY,
+                    width: STATE_MAX_W,
+                    height: STATE_H,
+                    stateType: s.stateType,
+                    lineNumber: s.lineNumber,
+                });
+            }
         }
     }
 
-    for (const [rankStr, rightStates] of Object.entries(boundaryRight)) {
-        const rank = parseInt(rankStr, 10);
-        const rowCenterY = (poRowY[rank] ?? startY) + PROCESS_H / 2;
-        const ys = _distributeCentered(rightStates.length, STATE_H, config.hGap, rowCenterY);
-        for (let i = 0; i < rightStates.length; i++) {
-            const s = rightStates[i];
-            boundaryElements.push({
-                id: s.id,
-                type: 'state',
-                label: s.label,
-                x: slRight - STATE_MAX_W / 2,
-                y: ys[i],
-                width: STATE_MAX_W,
-                height: STATE_H,
-                stateType: s.stateType,
-                lineNumber: s.lineNumber,
-            });
-        }
-    }
+    pushSideStates(boundaryLeft, slLeft - STATE_MAX_W / 2);
+    pushSideStates(boundaryRight, slRight - STATE_MAX_W / 2);
 
     return { systemLimit, boundaryElements };
 }
@@ -848,13 +1180,20 @@ function _computeSingleSystemLayout(
 
     // Phase 0–3: Build graph, topological sort, classify states
     const graph = _buildConnectivityGraph(states, processOperators, flows, usages);
-    const [poOrder, poRank] = _topologicalSortPos(processOperators, states, graph);
+    // POs with no flow and no usage get their own row below the graph further down;
+    // keeping them out of the ranks stops them from being pulled into rank 0 (they
+    // have no predecessors) and sitting among unrelated connected operators.
+    const usagePoIds = new Set(Object.values(graph.trToPo));
+    const _isConnectedPo = (p: ProcessOperator): boolean =>
+        graph.allFlowRefs.has(p.id) || usagePoIds.has(p.id);
+    const rankedPos = processOperators.filter(_isConnectedPo);
+    const [poOrder, poRank, precedence] = _topologicalSortPos(rankedPos, states, graph);
     const rankValues = Object.values(poRank);
     const maxRank = rankValues.length > 0 ? Math.max(...rankValues) : -1;
     const affinities = _assignStateAffinities(states, graph, poRank, maxRank);
     const classified = _groupStatesByCategory(states, affinities);
 
-    const { boundaryLeft, internalsByGap, backwardInternals, disconnectedStates } = classified;
+    const { boundaryLeft, internalsByBand, backwardInternals, disconnectedStates } = classified;
     const elements: LayoutElement[] = [];
 
     // Phase 4: Compute coordinates
@@ -863,11 +1202,36 @@ function _computeSingleSystemLayout(
     const topBoundaryHeight = classified.boundaryTop.length > 0 ? STATE_H + config.vGap : 0;
     let currentY = startY + topBoundaryHeight;
 
-    // 4a) Compute PO row Y positions
+    // 4a) Group POs into topological ranks, then compute row Y positions.
+    // A rank holds every PO of one topological wave; they are laid out side by
+    // side in 4b, so anything derived per rank has to account for all of them.
+    const posByRank: Record<number, string[]> = {};
+    for (const poId of poOrder) {
+        const rank = poRank[poId] ?? 0;
+        if (!posByRank[rank]) {
+            posByRank[rank] = [];
+        }
+        posByRank[rank].push(poId);
+    }
+    _orderRanksByBarycenter(posByRank, maxRank, precedence);
+
+    /** Total number of side-boundary states hanging off a whole rank. */
+    function _sideCountOfRank(rank: number, byPo: Record<string, State[]>): number {
+        let total = 0;
+        for (const poId of posByRank[rank] ?? []) {
+            total += (byPo[poId] ?? []).length;
+        }
+        return total;
+    }
+
     const poRowY: Record<number, number> = {};
+    // y of the intermediate-state band below a rank, where that rank has one.
+    const bandY: Record<number, number> = {};
     for (let rank = 0; rank <= maxRank; rank++) {
-        const leftCount = (boundaryLeft[rank] || []).length;
-        const rightCount = (classified.boundaryRight[rank] || []).length;
+        // Side states of every PO in the rank share the system limit edge, so
+        // they stack instead of overlapping: the row must fit their sum.
+        const leftCount = _sideCountOfRank(rank, boundaryLeft);
+        const rightCount = _sideCountOfRank(rank, classified.boundaryRight);
         const maxSideCount = Math.max(leftCount, rightCount);
         const sideHeight =
             maxSideCount > 0 ? maxSideCount * (STATE_H + config.hGap) - config.hGap : 0;
@@ -877,13 +1241,34 @@ function _computeSingleSystemLayout(
         currentY += rowHeight;
 
         if (classified.hasIntermediatesBelow.has(rank)) {
-            currentY += INTERNAL_V_GAP + STATE_H + INTERNAL_V_GAP;
+            bandY[rank] = currentY + INTERNAL_V_GAP_ABOVE;
+            currentY += INTERNAL_V_GAP_ABOVE + STATE_H + INTERNAL_V_GAP_BELOW;
         } else if (rank < maxRank) {
             currentY += config.vGap;
         }
     }
 
-    // 4b) Position POs
+    // Side-boundary states sit on the left/right system limit edge, so their x is
+    // fixed and only y distinguishes them. Walk the rank's POs in layout order and
+    // give each PO's states a contiguous vertical block, so a rank with several
+    // POs no longer piles all of their side states on one row center.
+    const sideStateY: Record<string, number> = {};
+    for (let rank = 0; rank <= maxRank; rank++) {
+        const group = posByRank[rank] ?? [];
+        const rowCenterY = (poRowY[rank] ?? startY) + PROCESS_H / 2;
+        for (const byPo of [boundaryLeft, classified.boundaryRight]) {
+            const ordered: State[] = [];
+            for (const poId of group) {
+                ordered.push(...(byPo[poId] ?? []));
+            }
+            const ys = _distributeCentered(ordered.length, STATE_H, config.hGap, rowCenterY);
+            for (let i = 0; i < ordered.length; i++) {
+                sideStateY[ordered[i].id] = ys[i];
+            }
+        }
+    }
+
+    // 4b) Position POs: one row per rank, POs of a rank spread horizontally
     let leftSpace = 0;
     if (Object.keys(boundaryLeft).length > 0) {
         leftSpace += STATE_MAX_W + config.hGap;
@@ -892,41 +1277,175 @@ function _computeSingleSystemLayout(
         leftSpace += STATE_MAX_W + config.hGap;
     }
     const coreLeftX = startX + leftSpace;
-    const poCenterX = coreLeftX + PROCESS_W / 2;
 
-    const poElements: Record<string, LayoutElement> = {};
-    for (const poId of poOrder) {
-        const po = processOperators.find((p) => p.id === poId)!;
-        const el: LayoutElement = {
-            id: po.id,
-            type: 'processOperator',
-            label: po.label,
-            x: coreLeftX,
-            y: poRowY[poRank[poId] ?? 0] ?? startY,
-            width: PROCESS_W,
-            height: PROCESS_H,
-            lineNumber: po.lineNumber,
+    // Size the boundary clusters up front. A cluster of four inputs is wider than
+    // one operator's pitch, so the operator row has to reserve room for it —
+    // otherwise the cluster shoves its neighbours aside and an operator with a
+    // single input ends up with it a hundred pixels off to the side.
+    const boundaryClusters: BoundaryCluster[] = [];
+    for (const [side, group, refs, mirrored] of [
+        ['top', classified.boundaryTop, graph.stateToTargetPos, graph.stateToSourcePos],
+        ['bottom', classified.boundaryBottom, graph.stateToSourcePos, graph.stateToTargetPos],
+    ] as ['top' | 'bottom', State[], Record<string, string[]>, Record<string, string[]>][]) {
+        if (group.length === 0) {
+            continue;
+        }
+        // Positions are not known yet, so a state feeding several operators picks
+        // its anchor by rank, then by id — deterministic either way.
+        const anchorOf = (state: State): string | undefined => {
+            const candidates = [...(refs[state.id] ?? []), ...(mirrored[state.id] ?? [])].filter(
+                (id) => poRank[id] !== undefined,
+            );
+            if (candidates.length === 0) {
+                return undefined;
+            }
+            return candidates.sort(
+                (a, b) => (poRank[a] ?? 0) - (poRank[b] ?? 0) || a.localeCompare(b),
+            )[0];
         };
-        elements.push(el);
-        poElements[po.id] = el;
+        boundaryClusters.push(..._buildBoundaryClusters(side, group, anchorOf, config));
     }
 
-    // 4c) Position forward-edge internal states
-    for (const [key, gapStates] of Object.entries(internalsByGap)) {
-        const parts = key.split('-');
-        const sRank = parseInt(parts[0], 10);
-        const tRank = parseInt(parts[1], 10);
-        const sourcePOY = poRowY[sRank] ?? startY;
-        const nextRowY = poRowY[Math.min(sRank + 1, tRank)] ?? poRowY[tRank] ?? startY;
-        const midY = (sourcePOY + PROCESS_H + nextRowY) / 2 - STATE_H / 2;
-        const xs = _distributeCentered(gapStates.length, STATE_MAX_W, config.hGap, poCenterX);
-        for (let i = 0; i < gapStates.length; i++) {
-            const s = gapStates[i];
+    /** Space an operator needs around its centre, including its boundary cluster. */
+    const poSlot = (poId: string): SlotExtents => {
+        let left = PROCESS_W / 2;
+        let right = PROCESS_W / 2;
+        for (const cluster of boundaryClusters) {
+            if (cluster.anchor !== poId) {
+                continue;
+            }
+            left = Math.max(left, cluster.shapeExtents.left);
+            right = Math.max(right, cluster.shapeExtents.right);
+        }
+        return { left, right };
+    };
+
+    // The core is as wide as its widest rank; every rank is centered in it.
+    let maxRankWidth = PROCESS_W;
+    for (let rank = 0; rank <= maxRank; rank++) {
+        const group = posByRank[rank] ?? [];
+        if (group.length > 0) {
+            const slots = group.map(poSlot);
+            const width =
+                slots.reduce((sum, s) => sum + s.left + s.right, 0) +
+                (group.length - 1) * config.hGap;
+            maxRankWidth = Math.max(maxRankWidth, width);
+        }
+    }
+    const poCenterX = coreLeftX + maxRankWidth / 2;
+
+    // Start from every rank evenly centred in the core, then pull each operator
+    // towards the average position of its neighbours in the adjacent rank — the
+    // coordinate-assignment phase of a layered layout. Without it every rank sits
+    // rigidly on the core centre, so a two-operator rank far down the graph is
+    // centred under an eight-operator rank it barely connects to and its edges
+    // travel further than they need to.
+    const centerByPo: Record<string, number> = {};
+    for (let rank = 0; rank <= maxRank; rank++) {
+        const group = posByRank[rank] ?? [];
+        const xs = _packRow(
+            group.map(() => poCenterX),
+            group.map(poSlot),
+            config.hGap,
+        );
+        for (let i = 0; i < group.length; i++) {
+            centerByPo[group[i]] = xs[i];
+        }
+    }
+
+    const refineRank = (rank: number, neighbours: Record<string, Set<string>>) => {
+        const group = posByRank[rank] ?? [];
+        if (group.length === 0) {
+            return;
+        }
+        const desired = group.map((poId) => {
+            const ns = Array.from(neighbours[poId] ?? []).filter(
+                (n) => centerByPo[n] !== undefined,
+            );
+            if (ns.length === 0) {
+                return centerByPo[poId];
+            }
+            return ns.reduce((sum, n) => sum + centerByPo[n], 0) / ns.length;
+        });
+        const centers = _packRow(desired, group.map(poSlot), config.hGap);
+        for (let i = 0; i < group.length; i++) {
+            centerByPo[group[i]] = centers[i];
+        }
+    };
+
+    for (let sweep = 0; sweep < 2; sweep++) {
+        if (sweep % 2 === 0) {
+            for (let rank = 1; rank <= maxRank; rank++) {
+                refineRank(rank, precedence.poPredecessors);
+            }
+        } else {
+            for (let rank = maxRank - 1; rank >= 0; rank--) {
+                refineRank(rank, precedence.poSuccessors);
+            }
+        }
+    }
+
+    const poById = new Map(rankedPos.map((p) => [p.id, p]));
+    const poElements: Record<string, LayoutElement> = {};
+    for (let rank = 0; rank <= maxRank; rank++) {
+        for (const poId of posByRank[rank] ?? []) {
+            const po = poById.get(poId)!;
+            const el: LayoutElement = {
+                id: po.id,
+                type: 'processOperator',
+                label: po.label,
+                x: centerByPo[poId] - PROCESS_W / 2,
+                y: poRowY[rank] ?? startY,
+                width: PROCESS_W,
+                height: PROCESS_H,
+                lineNumber: po.lineNumber,
+            };
+            elements.push(el);
+            poElements[po.id] = el;
+        }
+    }
+
+    /** Horizontal center of a set of POs, or undefined if none are placed. */
+    function _centerOfPos(poIds: string[]): number | undefined {
+        let sum = 0;
+        let count = 0;
+        for (const id of poIds) {
+            const el = poElements[id];
+            if (el) {
+                sum += el.x + el.width / 2;
+                count += 1;
+            }
+        }
+        return count > 0 ? sum / count : undefined;
+    }
+
+    // 4c) Position forward-edge internal states.
+    // All states of a band share one row, so they must be packed together —
+    // packing per source/target rank pair would let states of different pairs
+    // that happen to land in the same band overlap. Horizontally each state wants
+    // to sit between its own source and target POs, wherever in their ranks those
+    // sit, so states of unrelated parallel edges no longer share one center.
+    for (const [bandStr, bandStates] of Object.entries(internalsByBand)) {
+        const sRank = parseInt(bandStr, 10);
+        const midY = bandY[sRank] ?? (poRowY[sRank] ?? startY) + PROCESS_H + INTERNAL_V_GAP_ABOVE;
+
+        const desired = bandStates.map((state) => {
+            const srcCenter = _centerOfPos(graph.stateToSourcePos[state.id] ?? []);
+            const tgtCenter = _centerOfPos(graph.stateToTargetPos[state.id] ?? []);
+            if (srcCenter !== undefined && tgtCenter !== undefined) {
+                return (srcCenter + tgtCenter) / 2;
+            }
+            return srcCenter ?? tgtCenter ?? poCenterX;
+        });
+        const centers = _packRow(desired, bandStates.map(_stateSlot), config.hGap);
+
+        for (let i = 0; i < bandStates.length; i++) {
+            const s = bandStates[i];
             elements.push({
                 id: s.id,
                 type: 'state',
                 label: s.label,
-                x: xs[i],
+                x: centers[i] - STATE_MAX_W / 2,
                 y: midY,
                 width: STATE_MAX_W,
                 height: STATE_H,
@@ -936,24 +1455,40 @@ function _computeSingleSystemLayout(
         }
     }
 
-    // 4d) Position backward-edge (feedback) internal states
+    // 4d) Position backward-edge (feedback) internal states.
+    // They all share the single column left of the core, so several feedbacks
+    // spanning the same rank interval would land on the same y — pack them.
     const backwardIds = new Set(backwardInternals.map((s) => s.id));
     if (backwardInternals.length > 0) {
         const feedbackX = coreLeftX - STATE_MAX_W - config.hGap;
-        for (const state of backwardInternals) {
+        const desiredY = backwardInternals.map((state) => {
             const aff = affinities[state.id];
             const sRankVal = aff.sourceRank !== undefined ? aff.sourceRank : 0;
             const tRankVal = aff.targetRank !== undefined ? aff.targetRank : 0;
             const minR = Math.min(sRankVal, tRankVal);
             const maxR = Math.max(sRankVal, tRankVal);
-            const midY =
-                ((poRowY[minR] ?? startY) + PROCESS_H + (poRowY[maxR] ?? startY)) / 2 - STATE_H / 2;
+            const from = (poRowY[minR] ?? startY) + PROCESS_H;
+            const to = poRowY[maxR] ?? startY;
+            // Bias towards the lower end so the label block above the state
+            // clears the row it hangs below.
+            return Math.max((from + to) / 2, from + STATE_LABEL_BLOCK_H + STATE_H / 2);
+        });
+        // No recentering: only push down where states would collide, so a
+        // feedback state stays in the rank interval it belongs to.
+        const ys = _packRow(
+            desiredY,
+            _evenSlots(backwardInternals.length, STATE_H),
+            config.hGap,
+            false,
+        );
+        for (let i = 0; i < backwardInternals.length; i++) {
+            const state = backwardInternals[i];
             elements.push({
                 id: state.id,
                 type: 'state',
                 label: state.label,
                 x: feedbackX,
-                y: midY,
+                y: ys[i] - STATE_H / 2,
                 width: STATE_MAX_W,
                 height: STATE_H,
                 stateType: state.stateType,
@@ -962,10 +1497,27 @@ function _computeSingleSystemLayout(
         }
     }
 
+    // The clusters were sized before the operators were placed; now that the
+    // operator row has reserved room for them, centre each one over its anchor.
+    const centerOfPo = (poId: string): number | undefined => {
+        const el = poElements[poId];
+        return el ? el.x + el.width / 2 : undefined;
+    };
+    const boundaryPlacement: BoundaryPlacement = { x: {}, row: {} };
+    for (const side of ['top', 'bottom'] as const) {
+        const onSide = boundaryClusters.filter((c) => c.side === side);
+        if (onSide.length === 0) {
+            continue;
+        }
+        const placed = _placeBoundaryClustersOnSide(onSide, centerOfPo, poCenterX, config);
+        Object.assign(boundaryPlacement.x, placed.x);
+        Object.assign(boundaryPlacement.row, placed.row);
+    }
+
     // Phase 5: System limit and boundary state placement
     const internalIds = new Set<string>();
-    for (const key of Object.keys(internalsByGap)) {
-        for (const s of internalsByGap[key]) {
+    for (const bandStates of Object.values(internalsByBand)) {
+        for (const s of bandStates) {
             internalIds.add(s.id);
         }
     }
@@ -981,7 +1533,8 @@ function _computeSingleSystemLayout(
         coreElements,
         classified,
         config,
-        poRowY,
+        sideStateY,
+        boundaryPlacement,
         startY,
         coreLeftX,
     );
@@ -1015,7 +1568,7 @@ function _computeSingleSystemLayout(
     }
 
     // Disconnected elements
-    const disconnectedPos = processOperators.filter((p) => !graph.allFlowRefs.has(p.id));
+    const disconnectedPos = processOperators.filter((p) => !_isConnectedPo(p));
     if (disconnectedStates.length > 0 || disconnectedPos.length > 0) {
         const maxElY =
             elements.length > 0 ? Math.max(...elements.map((e) => e.y + e.height)) : startY;

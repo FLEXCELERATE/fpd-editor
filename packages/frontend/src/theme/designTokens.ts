@@ -24,10 +24,10 @@ export const colors = {
     /** Connection/flow arrow colors */
     connections: {
         flow: '#000000',
-        alternativeFlow: '#f5a623',
-        parallelFlow: '#4a90d9',
+        alternativeFlow: '#000000',
+        parallelFlow: '#000000',
         usage: '#888889',
-        crossSystem: '#9b59b6',
+        crossSystem: '#000000',
     },
 
     /** Common colors */

@@ -92,7 +92,7 @@ describe('FpdService', () => {
             expect(svg).toContain('<svg');
         });
 
-        it('renders alternative and parallel flows with distinct styling', () => {
+        it('renders every flow black and solid, distinguished by routing', () => {
             const source = [
                 '@startfpd',
                 'product a "A"',
@@ -107,12 +107,20 @@ describe('FpdService', () => {
 
             const svg = service.renderSvg(source);
 
-            // Alternative flow uses its own colour + marker.
-            expect(svg).toContain('#f5a623');
+            // Every flow is black and solid: the kinds are told apart by their
+            // routing, not by colour, and dashing marks resource assignment only.
             expect(svg).toContain('url(#arrow-alternative)');
-            // Parallel flow uses its own colour + marker.
-            expect(svg).toContain('#4a90d9');
             expect(svg).toContain('url(#arrow-parallel)');
+            expect(svg).not.toContain('#f5a623');
+            expect(svg).not.toContain('#4a90d9');
+            for (const marker of ['arrow-flow', 'arrow-alternative', 'arrow-parallel']) {
+                const path = svg
+                    .split('\n')
+                    .find((line) => line.includes(`url(#${marker})`) && line.includes('<path'));
+                expect(path).toBeDefined();
+                expect(path).toContain('stroke="#000000"');
+                expect(path).not.toContain('stroke-dasharray');
+            }
         });
     });
 

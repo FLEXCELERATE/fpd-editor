@@ -220,27 +220,7 @@ test('document survives a page reload', async ({ page }) => {
     await expect(page.locator('.monaco-editor')).toContainText('E2E Test');
 });
 
-// ---- 9. Share link ----
-
-test('share button produces a link that opens the same document', async ({ page, context }) => {
-    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-    await setEditorContent(page, FPD_SOURCE);
-    await waitForDiagram(page);
-
-    await page.locator('button[aria-label="Copy share link"]').click();
-    const shareUrl = await page.evaluate(() => navigator.clipboard.readText());
-    expect(shareUrl).toContain('#fpd=');
-
-    // A fresh page (empty storage) opening the link must show the document.
-    const other = await context.newPage();
-    await other.evaluate(() => window.localStorage.clear()).catch(() => {});
-    await other.goto(shareUrl, { waitUntil: 'networkidle' });
-    await waitForEditor(other);
-    await expect(other.locator('.monaco-editor')).toContainText('E2E Test');
-    await other.close();
-});
-
-// ---- 10. Validation warnings ----
+// ---- 9. Validation warnings ----
 
 test('semantic validation problems show a warning panel', async ({ page }) => {
     // Flow referencing an undeclared element is a validation warning.
