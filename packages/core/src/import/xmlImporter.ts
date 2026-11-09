@@ -463,12 +463,29 @@ function parseXmlHsu(root: XmlElement): ProcessModel {
         }
     }
 
+    // The exporter binds usages through per-element <usages>/<usage id> refs, not <flows>.
+    const usageOperators: Record<string, string> = {}; // usage_id -> process operator id
+    const usageResources: Record<string, string> = {}; // usage_id -> technical resource id
+    const collectUsageRefs = (
+        elem: XmlElement,
+        elemId: string,
+        into: Record<string, string>,
+    ): void => {
+        for (const usagesElem of findChildren(elem, 'usages')) {
+            for (const ref of findChildren(usagesElem, 'usage')) {
+                const uid = ref.attrs['id'] ?? '';
+                if (uid) into[uid] = elemId;
+            }
+        }
+    };
+
     // Parse process operators
     const poContainers = findAll(root, 'processOperators');
     for (const container of poContainers) {
         for (const poElem of findChildren(container, 'processOperator')) {
             const { uniqueId, longName, shortName } = parseIdentification(poElem);
             if (!uniqueId) continue;
+            collectUsageRefs(poElem, uniqueId, usageOperators);
             model.processOperators.push({
                 id: uniqueId,
                 identification: { uniqueIdent: uniqueId, longName, shortName },
@@ -483,6 +500,7 @@ function parseXmlHsu(root: XmlElement): ProcessModel {
         for (const trElem of findChildren(container, 'technicalResource')) {
             const { uniqueId, longName, shortName } = parseIdentification(trElem);
             if (!uniqueId) continue;
+            collectUsageRefs(trElem, uniqueId, usageResources);
             model.technicalResources.push({
                 id: uniqueId,
                 identification: { uniqueIdent: uniqueId, longName, shortName },
@@ -541,7 +559,10 @@ function parseXmlHsu(root: XmlElement): ProcessModel {
             // Determine which is PO and which is TR
             let poRef: string;
             let trRef: string;
-            if (poIds.has(src)) {
+            if (!src && !tgt) {
+                poRef = usageOperators[fid] ?? '';
+                trRef = usageResources[fid] ?? '';
+            } else if (poIds.has(src)) {
                 poRef = src;
                 trRef = tgt;
             } else if (poIds.has(tgt)) {

@@ -16,8 +16,8 @@ The extension uses esbuild to bundle all source code (including `@fpd-editor/cor
 # 1. Install all dependencies
 pnpm install
 
-# 2. Build the core package (extension dependency)
-pnpm turbo build --filter=@fpd-editor/core
+# 2. Build core and the CLI (extension dependencies; the CLI lands in skill/fpd/bin/)
+pnpm turbo build --filter=fpd-vscode-extension
 
 # 3. Package the extension as .vsix
 cd packages/vscode-extension
@@ -86,6 +86,7 @@ Included (see `.vscodeignore` for exclusions):
 | `language-configuration.json`  | Language settings (comments, brackets, etc.) |
 | `media/preview.css`            | Webview preview stylesheet                   |
 | `images/`                      | Extension icon and file icon                 |
+| `skill/fpd/`                   | AI skill (`SKILL.md` + bundled `fpd` CLI)    |
 | `README.md`                    | Marketplace listing                          |
 | `CHANGELOG.md`                 | Version history                              |
 | `LICENSE.txt`                  | MIT License                                  |

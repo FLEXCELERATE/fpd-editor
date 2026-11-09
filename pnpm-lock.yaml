@@ -81,6 +81,37 @@ importers:
         specifier: ^4.1.2
         version: 4.1.2(@types/node@20.19.37)(jsdom@25.0.1)(vite@6.4.2(@types/node@20.19.37)(tsx@4.21.0)(yaml@2.8.3))
 
+  packages/cli:
+    dependencies:
+      '@fpd-editor/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@fpd-editor/eslint-config':
+        specifier: workspace:*
+        version: link:../../tooling/eslint-config
+      '@fpd-editor/tsconfig':
+        specifier: workspace:*
+        version: link:../../tooling/tsconfig
+      '@types/node':
+        specifier: ^20.x
+        version: 20.19.37
+      '@vitest/coverage-v8':
+        specifier: ^4.1.4
+        version: 4.1.4(vitest@4.1.4)
+      esbuild:
+        specifier: ^0.27.4
+        version: 0.27.4
+      eslint:
+        specifier: ^8.57.1
+        version: 8.57.1
+      typescript:
+        specifier: ^5.6.0
+        version: 5.6.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@20.19.37)(@vitest/coverage-v8@4.1.4)(jsdom@25.0.1)(vite@6.4.2(@types/node@20.19.37)(tsx@4.21.0)(yaml@2.8.3))
+
   packages/core:
     dependencies:
       pdf-lib:
@@ -179,6 +210,9 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
+      '@fpd-editor/cli':
+        specifier: workspace:*
+        version: link:../cli
       '@fpd-editor/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/tsconfig

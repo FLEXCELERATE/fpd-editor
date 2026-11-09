@@ -2,8 +2,9 @@
 
 # FPD VS Code Extension Packaging Script
 #
-# Builds the shared core package, bundles the extension with esbuild, and
-# produces a VSIX. Mirrors the "Verify VSIX packaging" step in CI.
+# Builds the shared core package and the CLI bundle for the AI skill, bundles
+# the extension with esbuild, and produces a VSIX. Mirrors the "Verify VSIX
+# packaging" step in CI.
 #
 # Run from the packages/vscode-extension directory.
 
@@ -28,8 +29,8 @@ REPO_ROOT="$(cd ../.. && pwd)"
 echo "[1/4] Installing workspace dependencies..."
 pnpm install --frozen-lockfile
 
-echo "[2/4] Building the shared core package..."
-pnpm --filter @fpd-editor/core build
+echo "[2/4] Building core and the CLI (-> skill/fpd/bin/fpd.mjs)..."
+pnpm --filter "fpd-vscode-extension^..." build
 
 echo "[3/4] Creating production bundle (esbuild -> dist/extension.js)..."
 pnpm run package

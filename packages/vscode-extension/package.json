@@ -131,6 +131,7 @@
         "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch"
     },
     "devDependencies": {
+        "@fpd-editor/cli": "workspace:*",
         "@fpd-editor/tsconfig": "workspace:*",
         "@types/node": "^20.x",
         "@types/vscode": "^1.85.0",
