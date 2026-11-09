@@ -229,7 +229,7 @@ PO1 <..> TR1
 
 ### Industry Example: FLEXCELERATE DosingModule_v01
 
-The following excerpt is based on FLEXCELERATE's DosingModule_v01 — a dosing module FPD from a modular pharmaceutical production project. The full example is available in [docs/examples/dosing-module.fpd](docs/examples/dosing-module.fpd).
+The following excerpt is based on FLEXCELERATE's DosingModule_v01 — an example dosing module FPD. The full example is available in [docs/examples/dosing-module.fpd](docs/examples/dosing-module.fpd).
 
 ```fpd
 @startfpd

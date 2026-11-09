@@ -127,7 +127,7 @@ function expectClean(layout: DiagramLayout): void {
 /** Wide fan-in: n operators feeding one, each through its own state. */
 function fanInModel(n: number, longLabels: boolean): ProcessModel {
     return buildModel((m) => {
-        m.processOperators.push(makePO('po_merge', 'Fermentieren'));
+        m.processOperators.push(makePO('po_merge', 'Kristallisieren'));
         for (let i = 0; i < n; i++) {
             m.processOperators.push(makePO(`po_src${i}`, `Prozessschritt Nummer ${i}`));
             m.states.push(
@@ -144,7 +144,7 @@ function fanInModel(n: number, longLabels: boolean): ProcessModel {
             );
             m.flows.push(makeFlow(`s_in${i}`, `po_src${i}`));
         }
-        m.states.push(makeState('s_out', 'Fermentationsbrühe (unbehandelt)'));
+        m.states.push(makeState('s_out', 'Kristallsuspension (unbehandelt)'));
         m.flows.push(makeFlow('po_merge', 's_out'));
     });
 }
@@ -236,19 +236,19 @@ describe('drawing collisions', () => {
         // Four inputs to one operator: they cannot fit its width in one row, so
         // they use more than one and stay near the box they feed.
         const model = buildModel((m) => {
-            m.processOperators.push(makePO('po', 'Lagern (Kühlen & Rühren)'));
+            m.processOperators.push(makePO('po', 'Lagern (Kühlen & Mischen)'));
             m.processOperators.push(makePO('po_next', 'Dosieren'));
-            for (const name of ['Substrat', 'Harnstoff', 'Spurenelemente', 'Antischaummittel']) {
+            for (const name of ['Rohstoff', 'Farbstoff', 'Additivgemisch', 'Reinigungsmittel']) {
                 m.states.push(makeState(name, `${name} (bereitgestellt)`));
                 m.flows.push(makeFlow(name, 'po'));
             }
-            m.states.push(makeState('mid', 'Medien (gekühlt, homogenisiert)'));
+            m.states.push(makeState('mid', 'Gemisch (gekühlt, vorbehandelt)'));
             m.flows.push(makeFlow('po', 'mid'));
             m.flows.push(makeFlow('mid', 'po_next'));
         });
 
         const layout = computeLayout(model);
-        const inputs = ['Substrat', 'Harnstoff', 'Spurenelemente', 'Antischaummittel'].map((id) =>
+        const inputs = ['Rohstoff', 'Farbstoff', 'Additivgemisch', 'Reinigungsmittel'].map((id) =>
             findElement(layout, id),
         );
         const operator = findElement(layout, 'po');
