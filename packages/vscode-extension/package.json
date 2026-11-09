@@ -27,7 +27,10 @@
         "diagram"
     ],
     "extensionDependencies": [],
-    "activationEvents": [],
+    "activationEvents": [
+        "workspaceContains:.claude/skills/fpd/SKILL.md",
+        "workspaceContains:.agents/skills/fpd/SKILL.md"
+    ],
     "main": "./dist/extension.js",
     "contributes": {
         "languages": [
@@ -71,6 +74,10 @@
             {
                 "command": "fpd.export.text",
                 "title": "FPD: Export FPD Text"
+            },
+            {
+                "command": "fpd.skill.install",
+                "title": "FPD: Install AI Skill"
             }
         ],
         "menus": {

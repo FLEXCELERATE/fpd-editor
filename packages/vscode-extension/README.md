@@ -57,6 +57,24 @@ Export your diagrams in multiple formats via Command Palette (`Ctrl+Shift+P`):
 - **FPD: Export VDI 3682 XML** — Structured VDI 3682 XML format
 - **FPD: Export FPD Text** — Plain `.fpd` text file
 
+### AI Skill
+
+Let AI agents such as Claude Code, GitHub Copilot or Codex write, edit, validate and export FPDs in your project. The skill (`SKILL.md`) teaches the agent the FPD syntax and the VDI 3682 rules; the bundled `fpd` CLI checks the `.fpd` text and renders SVG, PDF or VDI 3682 XML.
+
+1. Run **FPD: Install AI Skill** from the Command Palette.
+2. Pick **Claude Code**, **Other AI agents**, or both.
+3. Commit the new folder so your team gets the skill too.
+4. Ask in the agent's chat, e.g. _"Create an FPD for the dosing module in spec.md"_.
+
+| Choice          | Folder               | Read by                                         |
+| --------------- | -------------------- | ----------------------------------------------- |
+| Claude Code     | `.claude/skills/fpd` | Claude Code, GitHub Copilot                     |
+| Other AI agents | `.agents/skills/fpd` | GitHub Copilot, Codex, Gemini CLI, Mistral Vibe |
+
+Requires Node.js 20+ on `PATH`; the agent runs the CLI with `node`.
+
+**Updates:** The skill carries the extension version. When you open a project with an older copy, the extension offers to update it; commit the changed files afterwards. Only `SKILL.md` and `bin/fpd.mjs` are written, other files in the folder stay untouched.
+
 ## Installation
 
 ### From VS Code Marketplace (recommended)
@@ -187,12 +205,13 @@ Configure the extension in VS Code settings (`Ctrl+,`):
 
 Access these commands via Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`):
 
-| Command                    | Description                     |
-| -------------------------- | ------------------------------- |
-| `FPD: Show Preview`        | Open live diagram preview panel |
-| `FPD: Export SVG`          | Export diagram as SVG image     |
-| `FPD: Export VDI 3682 XML` | Export diagram as VDI 3682 XML  |
-| `FPD: Export FPD Text`     | Export diagram as FPD text file |
+| Command                    | Description                        |
+| -------------------------- | ---------------------------------- |
+| `FPD: Show Preview`        | Open live diagram preview panel    |
+| `FPD: Export SVG`          | Export diagram as SVG image        |
+| `FPD: Export VDI 3682 XML` | Export diagram as VDI 3682 XML     |
+| `FPD: Export FPD Text`     | Export diagram as FPD text file    |
+| `FPD: Install AI Skill`    | Copy the AI skill into the project |
 
 ## Troubleshooting
 
