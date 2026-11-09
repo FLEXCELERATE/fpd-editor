@@ -14,7 +14,7 @@ Rich syntax highlighting for `.fpd` files with TextMate grammar support:
 
 - **Keywords**: `product`, `energy`, `information`, `process_operator`, `technical_resource`, `system`, `title`
 - **Operators**: `-->` (flow), `-.->` (alternative flow), `==>` (parallel flow), `<..>` (usage)
-- **Annotations**: `@boundary`, `@internal`
+- **Annotations**: `@boundary`, `@boundary-top/-bottom/-left/-right`, `@internal`
 - **Block delimiters**: `@startfpd`, `@endfpd`
 - **Comments**: `//` line comments
 - **Strings**: Double-quoted labels
@@ -54,6 +54,7 @@ Side-by-side diagram preview that updates as you type:
 Export your diagrams in multiple formats via Command Palette (`Ctrl+Shift+P`):
 
 - **FPD: Export SVG** — Scalable vector graphics
+- **FPD: Export PDF** — Printable PDF document
 - **FPD: Export VDI 3682 XML** — Structured VDI 3682 XML format
 - **FPD: Export FPD Text** — Plain `.fpd` text file
 
@@ -133,7 +134,7 @@ The diagram preview will open in a side panel and update automatically as you ty
 
 ### 3. Export Your Diagram
 
-Press `Ctrl+Shift+P` and run one of the export commands (SVG, XML, or Text).
+Press `Ctrl+Shift+P` and run one of the export commands (SVG, PDF, XML, or Text).
 
 ## FPD Language Syntax
 
@@ -178,10 +179,16 @@ system "SystemName" {
 
 ### Annotations
 
-| Annotation  | Description                    |
-| ----------- | ------------------------------ |
-| `@boundary` | Marks system boundary elements |
-| `@internal` | Marks internal elements        |
+| Annotation         | Description                                        |
+| ------------------ | -------------------------------------------------- |
+| `@boundary`        | Marks system boundary elements                     |
+| `@boundary-top`    | Marks a system boundary element on the top edge    |
+| `@boundary-bottom` | Marks a system boundary element on the bottom edge |
+| `@boundary-left`   | Marks a system boundary element on the left edge   |
+| `@boundary-right`  | Marks a system boundary element on the right edge  |
+| `@internal`        | Marks internal elements                            |
+
+Usage: `product P1 "Label" @boundary-left`
 
 ### Comments
 
@@ -209,6 +216,7 @@ Access these commands via Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`):
 | -------------------------- | ---------------------------------- |
 | `FPD: Show Preview`        | Open live diagram preview panel    |
 | `FPD: Export SVG`          | Export diagram as SVG image        |
+| `FPD: Export PDF`          | Export diagram as PDF document     |
 | `FPD: Export VDI 3682 XML` | Export diagram as VDI 3682 XML     |
 | `FPD: Export FPD Text`     | Export diagram as FPD text file    |
 | `FPD: Install AI Skill`    | Copy the AI skill into the project |
