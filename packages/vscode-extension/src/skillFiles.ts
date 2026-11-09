@@ -11,7 +11,7 @@ export type SkillTarget = keyof typeof TARGETS;
 
 /** Replaces the `CLI: ` line of the shipped SKILL.md. */
 const CLI_LINES: Record<SkillTarget, string> = {
-    claude: 'CLI: `node "${CLAUDE_SKILL_DIR}/bin/fpd.mjs"` (Node 20+).',
+    claude: 'CLI: `node "${CLAUDE_SKILL_DIR}/bin/fpd.mjs"`; the skill folder is `.claude/skills/fpd` in the project root (Node 20+).',
     agents: 'CLI: `node .agents/skills/fpd/bin/fpd.mjs`, run from the project root (Node 20+).',
 };
 

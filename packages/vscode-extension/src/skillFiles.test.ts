@@ -25,7 +25,8 @@ CLI: \`node "<skill-dir>/bin/fpd.mjs"\`, see below.
 More text.
 `;
 
-const CLAUDE_CLI = 'CLI: `node "${CLAUDE_SKILL_DIR}/bin/fpd.mjs"` (Node 20+).';
+const CLAUDE_CLI =
+    'CLI: `node "${CLAUDE_SKILL_DIR}/bin/fpd.mjs"`; the skill folder is `.claude/skills/fpd` in the project root (Node 20+).';
 const AGENTS_CLI =
     'CLI: `node .agents/skills/fpd/bin/fpd.mjs`, run from the project root (Node 20+).';
 
