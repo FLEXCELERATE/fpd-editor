@@ -1,10 +1,4 @@
-# Auto Claude data directory
-.auto-claude/
-
-# Auto Claude generated files
-.auto-claude-security.json
-.auto-claude-status
-.claude_settings.json
+# Local worktrees and security files
 .worktrees/
 .security-key
 logs/security/
@@ -22,6 +16,9 @@ node_modules/
 dist/
 out/
 *.vsix
+
+# CLI bundle for the AI skill (built by packages/cli)
+packages/vscode-extension/skill/fpd/bin/
 
 # TypeScript build info
 *.tsbuildinfo

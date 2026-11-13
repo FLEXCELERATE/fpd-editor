@@ -121,7 +121,7 @@ export class FpdDiagnosticsProvider {
             // Validate element declarations (with optional label and optional annotation)
             // Matches: product P1 "Label" @boundary  OR  product P1 "Label"  OR  product P1
             const elementMatch = line.match(
-                /^(product|energy|information|process_operator|technical_resource)\s+(\w+)(?:\s+"([^"]*)")?(?:\s+(@boundary|@internal))?$/,
+                /^(product|energy|information|process_operator|technical_resource)\s+(\w+)(?:\s+"([^"]*)")?(?:\s+(@boundary(?:-(?:top|bottom|left|right))?|@internal))?$/,
             );
             if (elementMatch) {
                 const [, elementType, elementId, , annotation] = elementMatch;
@@ -252,7 +252,7 @@ export class FpdDiagnosticsProvider {
                         lineNumber,
                         0,
                         line.length,
-                        'Invalid element declaration syntax. Expected: <type> <ID> ["<Label>"] [@boundary|@internal]',
+                        'Invalid element declaration syntax. Expected: <type> <ID> ["<Label>"] [@boundary|@boundary-top|@boundary-bottom|@boundary-left|@boundary-right|@internal]',
                         vscode.DiagnosticSeverity.Error,
                     ),
                 );

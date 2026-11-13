@@ -37,7 +37,8 @@ fpd-editor/
 │   ├── core/               @fpd-editor/core — shared parser, layout, renderer, exporters
 │   ├── backend/            @fpd-editor/backend — Fastify REST API
 │   ├── frontend/           React + Vite web UI (Monaco editor, SVG diagram)
-│   └── vscode-extension/   VS Code extension with language support + preview
+│   ├── vscode-extension/   VS Code extension with language support + preview
+│   └── cli/                @fpd-editor/cli — `fpd` command line, bundled into the VS Code extension's AI skill
 ├── tooling/
 │   ├── tsconfig/           Shared TypeScript configs
 │   ├── eslint-config/      Shared ESLint config
@@ -106,8 +107,8 @@ See [packages/vscode-extension/README.md](packages/vscode-extension/README.md) f
 ### Building & Publishing the Extension
 
 ```bash
-# 1. Build core (dependency of the extension)
-pnpm turbo build --filter=@fpd-editor/core
+# 1. Build core and the CLI (dependencies of the extension)
+pnpm turbo build --filter=fpd-vscode-extension
 
 # 2. Package as .vsix
 cd packages/vscode-extension
@@ -119,6 +120,22 @@ npx vsce publish --no-dependencies
 ```
 
 > `--no-dependencies` is required because `vsce` uses `npm` internally, which doesn't resolve pnpm workspace dependencies.
+
+## AI Skill (CLI)
+
+The `fpd` CLI lets AI agents such as Claude Code or GitHub Copilot write, edit, validate and export FPDs in any project — no editor or backend needed. The agent writes the `.fpd` text; the CLI checks it and renders SVG, PDF or VDI 3682 XML. A skill file (`SKILL.md`) teaches the agent the syntax and the VDI 3682 rules.
+
+The skill and the bundled CLI ship with the VS Code extension, which copies them into your project (see [VS Code Extension](#vs-code-extension) → AI Skill). Requires Node.js 20+. Then just ask, e.g. _"Create an FPD for the dosing module in spec.md"_ or _"Export anlage.fpd as PDF and XML"_.
+
+The CLI also works on its own:
+
+```bash
+node packages/vscode-extension/skill/fpd/bin/fpd.mjs check  docs/examples/dosing-module.fpd
+node packages/vscode-extension/skill/fpd/bin/fpd.mjs render docs/examples/dosing-module.fpd --format svg,pdf,xml --out-dir out
+node packages/vscode-extension/skill/fpd/bin/fpd.mjs import out/dosing-module.xml -o roundtrip.fpd
+```
+
+The source lives in `packages/cli` and `packages/vscode-extension/skill/fpd/SKILL.md`; `pnpm turbo build` bundles the CLI into `packages/vscode-extension/skill/fpd/bin/fpd.mjs`.
 
 ## Usage
 
@@ -212,7 +229,7 @@ PO1 <..> TR1
 
 ### Industry Example: FLEXCELERATE DosingModule_v01
 
-The following excerpt is based on FLEXCELERATE's DosingModule_v01 — a dosing module FPD from a modular pharmaceutical production project. The full example is available in [docs/examples/dosing-module.fpd](docs/examples/dosing-module.fpd).
+The following excerpt is based on FLEXCELERATE's DosingModule_v01 — an example dosing module FPD. The full example is available in [docs/examples/dosing-module.fpd](docs/examples/dosing-module.fpd).
 
 ```fpd
 @startfpd

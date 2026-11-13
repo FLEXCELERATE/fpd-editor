@@ -1,0 +1,24 @@
+{
+    "name": "@fpd-editor/cli",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "tsc -p tsconfig.json --noEmit && esbuild src/bin.ts --bundle --minify --platform=node --format=esm --target=node20 --legal-comments=eof --outfile=../vscode-extension/skill/fpd/bin/fpd.mjs",
+        "lint": "eslint src",
+        "test": "vitest run"
+    },
+    "dependencies": {
+        "@fpd-editor/core": "workspace:*"
+    },
+    "devDependencies": {
+        "@fpd-editor/eslint-config": "workspace:*",
+        "@fpd-editor/tsconfig": "workspace:*",
+        "@types/node": "^20.x",
+        "@vitest/coverage-v8": "^4.1.4",
+        "esbuild": "^0.27.4",
+        "eslint": "^8.57.1",
+        "typescript": "^5.6.0",
+        "vitest": "^4.1.4"
+    }
+}

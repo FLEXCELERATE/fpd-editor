@@ -4,6 +4,7 @@ import * as path from 'path';
 import { registerCompletionProvider } from './completionProvider';
 import { registerDiagnosticsProvider } from './diagnosticsProvider';
 import { PreviewPanel } from './previewPanel';
+import { registerSkillInstaller } from './skillInstaller';
 import { StateManager } from './stateManager';
 
 let stateManager: StateManager | null = null;
@@ -101,6 +102,9 @@ export function activate(context: vscode.ExtensionContext) {
     // Register language features
     registerCompletionProvider(context);
     registerDiagnosticsProvider(context);
+
+    // AI skill: install command and update hint
+    registerSkillInstaller(context, outputChannel);
 
     // Command: Show Preview
     context.subscriptions.push(
