@@ -4,7 +4,7 @@
 
 ### Patch Changes
 
-- [#3](https://github.com/FLEXCELERATE/fpd-editor/pull/3) [`63d32b1`](https://github.com/FLEXCELERATE/fpd-editor/commit/63d32b1741f27e313261de131c7753583192b78f) Thanks [@anselm-klose](https://github.com/anselm-klose)! - Fix a batch of correctness, security, and robustness issues found in a deep code review:
+- [#3](https://github.com/FLEXCELERATE/fpd-editor/pull/3) [`63d32b1`](https://github.com/FLEXCELERATE/fpd-editor/commit/63d32b1741f27e313261de131c7753583192b78f) - Fix a batch of correctness, security, and robustness issues found in a deep code review:
     - **core (layout):** flows in diagrams without `system` blocks were rendered twice (once as a spurious cross-system arrow). Cross-system is now determined by endpoints being in different systems.
     - **core (import):** guard the hand-rolled XML parser against pathologically nested input that could freeze the event loop (denial of service); deeply nested or oversized documents are now rejected up front.
     - **core (lexer):** directional placement annotations (`@boundary-top/-bottom/-left/-right`) are now tokenized correctly instead of matching `@boundary` plus stray text.
@@ -13,7 +13,7 @@
     - **frontend:** mouse-wheel zoom now activates, undo/redo no longer conflicts with Monaco's internal history, and zoom-to-fit / pan use the correct viewBox coordinate system.
     - **vscode-extension:** parse errors and validation warnings are now surfaced in the preview instead of being silently discarded.
 
-- [#3](https://github.com/FLEXCELERATE/fpd-editor/pull/3) [`63d32b1`](https://github.com/FLEXCELERATE/fpd-editor/commit/63d32b1741f27e313261de131c7753583192b78f) Thanks [@anselm-klose](https://github.com/anselm-klose)! - Architecture: the web app now runs entirely in the browser, plus a batch of robustness fixes and new features.
+- [#3](https://github.com/FLEXCELERATE/fpd-editor/pull/3) [`63d32b1`](https://github.com/FLEXCELERATE/fpd-editor/commit/63d32b1741f27e313261de131c7753583192b78f) - Architecture: the web app now runs entirely in the browser, plus a batch of robustness fixes and new features.
     - **frontend (architecture):** parsing, rendering, import, and export use `@fpd-editor/core` directly in the browser — no backend round-trips, near-instant preview (debounce 500ms → 150ms), documents never leave the machine. The Fastify backend remains available as an optional standalone REST API. Monaco is now served from the bundle instead of a third-party CDN (works offline / air-gapped).
     - **frontend (features):** documents are auto-saved to localStorage and restored on reload; a Share button copies a URL with the (compressed) document in the fragment; validation warnings are shown in a warning panel; placing the editor cursor on an element highlights it in the diagram.
     - **frontend (a11y):** Ctrl/Cmd+±/0 no longer hijack browser page zoom globally — diagram zoom applies only while the diagram pane is focused.
@@ -28,7 +28,7 @@
 
 ### Patch Changes
 
-- [#1](https://github.com/FLEXCELERATE/fpd-editor/pull/1) [`0f10817`](https://github.com/FLEXCELERATE/fpd-editor/commit/0f10817271e540f2f09d5ab7d3606c87c7f8bdbf) Thanks [@anselm-klose](https://github.com/anselm-klose)! - Code quality improvements: extract shared routing/design tokens, add layout tests, decompose layout engine, harden backend security, add pre-commit hooks, coverage reporting, and VSIX build verification in CI.
+- [#1](https://github.com/FLEXCELERATE/fpd-editor/pull/1) [`0f10817`](https://github.com/FLEXCELERATE/fpd-editor/commit/0f10817271e540f2f09d5ab7d3606c87c7f8bdbf) - Code quality improvements: extract shared routing/design tokens, add layout tests, decompose layout engine, harden backend security, add pre-commit hooks, coverage reporting, and VSIX build verification in CI.
 
 - Updated dependencies [[`0f10817`](https://github.com/FLEXCELERATE/fpd-editor/commit/0f10817271e540f2f09d5ab7d3606c87c7f8bdbf)]:
     - @fpd-editor/core@0.3.0

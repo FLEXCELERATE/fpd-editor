@@ -14,8 +14,8 @@ describe('measureText', () => {
     });
 
     it('scales linearly with font size', () => {
-        const at10 = measureText('Fermentieren', 10);
-        const at20 = measureText('Fermentieren', 20);
+        const at10 = measureText('Kristallisieren', 10);
+        const at20 = measureText('Kristallisieren', 20);
         expect(at20).toBeCloseTo(at10 * 2, 6);
     });
 
@@ -58,8 +58,8 @@ describe('stateLabelWidth', () => {
     });
 
     it('measures only the id when the name repeats it', () => {
-        expect(stateLabelWidth('Restmedium', 'Restmedium')).toBeCloseTo(
-            measureText('Restmedium', 11),
+        expect(stateLabelWidth('Restwasser', 'Restwasser')).toBeCloseTo(
+            measureText('Restwasser', 11),
             6,
         );
     });
@@ -79,7 +79,7 @@ describe('wrapText', () => {
     });
 
     it('breaks on spaces so every line fits', () => {
-        const lines = wrapText('Schaumbildung Regulieren', 100, 13);
+        const lines = wrapText('Füllstandshöhe Regulieren', 100, 13);
         expect(lines.length).toBeGreaterThan(1);
         for (const line of lines) {
             expect(measureText(line, 13)).toBeLessThanOrEqual(100);
@@ -112,15 +112,15 @@ describe('fitBoxText', () => {
     });
 
     it('wraps at full size rather than shrinking the font', () => {
-        // The old behaviour shrank 'Lagern (Kühlen & Rühren)' to 7px in a 150px
+        // The old behaviour shrank 'Lagern (Kühlen & Mischen)' to 7px in a 150px
         // box that had room for three full-size lines.
-        const fitted = fitBoxText(['LagernMedien', 'Lagern (Kühlen & Rühren)'], 138, 72, 13);
+        const fitted = fitBoxText(['LagernAnsatz', 'Lagern (Kühlen & Mischen)'], 138, 72, 13);
         expect(fitted.fontSize).toBe(13);
         expect(fitted.lines.length).toBeGreaterThan(2);
     });
 
     it('never returns lines wider than the box', () => {
-        const fitted = fitBoxText(['SchaumRegeln', 'Schaumbildung Regulieren'], 138, 72, 13);
+        const fitted = fitBoxText(['NiveauRegeln', 'Füllstandshöhe Regulieren'], 138, 72, 13);
         for (const line of fitted.lines) {
             expect(measureText(line, fitted.fontSize)).toBeLessThanOrEqual(138);
         }

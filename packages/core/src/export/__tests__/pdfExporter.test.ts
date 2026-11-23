@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { PDFPage } from 'pdf-lib';
 import { exportPdf } from '../pdfExporter';
 import { computeLayout, DiagramLayout } from '../../services/layout';
 import { createProcessModel, ProcessModel } from '../../models/processModel';
@@ -151,5 +152,60 @@ describe('exportPdf', () => {
             author: 'Tester',
         });
         expectValidPdf(bytes);
+    });
+});
+
+/** End points of every segment in an absolute M/L/A/Z path, in path coordinates. */
+function pathPoints(path: string): [number, number][] {
+    const points: [number, number][] = [];
+    for (const [, cmd, args] of path.matchAll(/([MLAZ])([^MLAZ]*)/g)) {
+        const nums = args.trim().split(/\s+/).filter(Boolean).map(Number);
+        if (cmd === 'A') {
+            for (let i = 0; i + 6 < nums.length; i += 7) points.push([nums[i + 5], nums[i + 6]]);
+        } else {
+            for (let i = 0; i + 1 < nums.length; i += 2) points.push([nums[i], nums[i + 1]]);
+        }
+    }
+    return points;
+}
+
+describe('exportPdf drawSvgPath shapes', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    // drawSvgPath maps a path point (px, py) to (x + px, y - py) on the page.
+    it('draws arrowheads, diamonds, hexagons and resources on the page', async () => {
+        const spy = vi.spyOn(PDFPage.prototype, 'drawSvgPath');
+        const layout = buildLayout((m) => {
+            m.states.push(makeState('p1', 'product'));
+            m.states.push(makeState('e1', 'energy'));
+            m.states.push(makeState('i1', 'information'));
+            m.states.push(makeState('p2', 'product'));
+            m.processOperators.push(makePO('po1'));
+            m.technicalResources.push(makeTR('tr1'));
+            m.flows.push(makeFlow('p1', 'po1'));
+            m.flows.push(makeFlow('e1', 'po1'));
+            m.flows.push(makeFlow('i1', 'po1'));
+            m.flows.push(makeFlow('po1', 'p2'));
+            m.usages.push(makeUsage('po1', 'tr1'));
+        });
+
+        await exportPdf(layout);
+
+        // 4 flow arrowheads + 2 usage arrowheads + diamond + hexagon + resource
+        expect(spy.mock.calls.length).toBe(9);
+        spy.mock.calls.forEach(([path, options], i) => {
+            const page = spy.mock.contexts[i] as PDFPage;
+            const { width, height } = page.getSize();
+            for (const [px, py] of pathPoints(path)) {
+                const x = (options?.x ?? 0) + px;
+                const y = (options?.y ?? 0) - py;
+                expect(x).toBeGreaterThanOrEqual(0);
+                expect(x).toBeLessThanOrEqual(width);
+                expect(y).toBeGreaterThanOrEqual(0);
+                expect(y).toBeLessThanOrEqual(height);
+            }
+        });
     });
 });

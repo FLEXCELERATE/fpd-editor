@@ -6,3 +6,4 @@ out/
 coverage/
 .turbo/
 node_modules/
+packages/vscode-extension/skill/fpd/bin/
