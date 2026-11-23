@@ -1,5 +1,13 @@
 # @fpd-editor/backend
 
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [d80bece]
+- Updated dependencies [f5fb6de]
+    - @fpd-editor/core@0.4.1
+
 ## 0.4.0
 
 ### Patch Changes

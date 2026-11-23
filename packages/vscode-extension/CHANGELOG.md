@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.0
+
+### Minor Changes
+
+- 9a6c0b3: Add the command "FPD: Install AI Skill", which copies the FPD AI skill into `.claude/skills/fpd` and/or `.agents/skills/fpd` of the open project and offers an update when an installed copy is older than the extension.
+
+### Patch Changes
+
+- 1d17392: Diagnostics no longer flag `@boundary-top`, `@boundary-bottom`, `@boundary-left` and `@boundary-right` on element declarations as invalid syntax, and syntax highlighting now colors the full annotation.
+- Updated dependencies [d80bece]
+- Updated dependencies [f5fb6de]
+    - @fpd-editor/core@0.4.1
+
 ## 0.5.0
 
 ### Minor Changes
