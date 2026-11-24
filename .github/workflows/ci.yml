@@ -57,7 +57,9 @@ jobs:
                   pnpm exec vsce package --no-dependencies --skip-license
 
     e2e:
-        runs-on: ubuntu-latest
+        # Playwright 1.59 cannot install Chromium on ubuntu-latest (26.04).
+        # Back to ubuntu-latest once Playwright is upgraded.
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
               with:
