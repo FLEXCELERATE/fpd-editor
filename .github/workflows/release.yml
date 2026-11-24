@@ -58,13 +58,39 @@ jobs:
               run: |
                   VERSION=$(node -e "console.log(require('./packages/vscode-extension/package.json').version)")
                   echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
                   if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
-                      echo "v$VERSION is already released; nothing to do."
-                      echo "release=false" >> "$GITHUB_OUTPUT"
+                      TAGGED=true
                   else
-                      echo "v$VERSION is not released yet."
-                      echo "release=true" >> "$GITHUB_OUTPUT"
+                      TAGGED=false
                   fi
+
+                  # Ask the Marketplace what it actually serves. The two halves of
+                  # a release fail independently -- an expired VSCE_PAT leaves the
+                  # tag and GitHub release in place with nothing published -- so
+                  # each is gated on its own state and can be re-driven alone.
+                  LIVE=$(curl -sS -X POST                       'https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery'                       -H 'Content-Type: application/json'                       -H 'Accept: application/json;api-version=3.0-preview.1'                       -d '{"filters":[{"criteria":[{"filterType":7,"value":"FLEXCELERATE.fpd-vscode-extension"}]}],"flags":914}'                       | node -e "
+                        let raw = '';
+                        process.stdin.on('data', (c) => (raw += c));
+                        process.stdin.on('end', () => {
+                          try {
+                            const ext = JSON.parse(raw).results[0].extensions;
+                            console.log(ext.length ? ext[0].versions[0].version : 'none');
+                          } catch { console.log('unknown'); }
+                        });
+                      ") || LIVE=unknown
+
+                  if [ "$LIVE" = "$VERSION" ]; then PUBLISHED=true; else PUBLISHED=false; fi
+
+                  echo "tagged=$TAGGED" >> "$GITHUB_OUTPUT"
+                  echo "published=$PUBLISHED" >> "$GITHUB_OUTPUT"
+                  if [ "$TAGGED" = false ] || [ "$PUBLISHED" = false ]; then
+                      echo "release=true" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "release=false" >> "$GITHUB_OUTPUT"
+                  fi
+
+                  echo "version $VERSION | tagged=$TAGGED | marketplace=$LIVE" >> "$GITHUB_STEP_SUMMARY"
 
             - name: Build VSIX
               if: steps.gate.outputs.release == 'true'
@@ -76,7 +102,7 @@ jobs:
                   echo "vsix_path=$(ls *.vsix)" >> "$GITHUB_OUTPUT"
 
             - name: Create GitHub Release
-              if: steps.vsix.outputs.vsix_path
+              if: steps.vsix.outputs.vsix_path && steps.gate.outputs.tagged == 'false'
               uses: softprops/action-gh-release@v2
               with:
                   tag_name: v${{ steps.gate.outputs.version }}
@@ -87,14 +113,14 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Publish to VS Code Marketplace
-              if: steps.vsix.outputs.vsix_path
+              if: steps.vsix.outputs.vsix_path && steps.gate.outputs.published == 'false'
               working-directory: packages/vscode-extension
               run: pnpm exec vsce publish --no-dependencies --skip-license
               env:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
             - name: Publish to Open VSX Registry
-              if: steps.vsix.outputs.vsix_path && env.OVSX_PAT != ''
+              if: steps.vsix.outputs.vsix_path && steps.gate.outputs.published == 'false' && env.OVSX_PAT != ''
               working-directory: packages/vscode-extension
               run: npx ovsx publish ${{ steps.vsix.outputs.vsix_path }} -p $OVSX_PAT
               env:

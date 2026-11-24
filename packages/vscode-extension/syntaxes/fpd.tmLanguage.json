@@ -45,7 +45,7 @@
                 },
                 {
                     "name": "keyword.annotation.fpd",
-                    "match": "@(boundary|internal)\\b",
+                    "match": "@(boundary(?:-(?:top|bottom|left|right))?|internal)\\b",
                     "comment": "Placement annotations for states"
                 }
             ]

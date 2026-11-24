@@ -131,10 +131,7 @@ describe('importXml (HSU format)', () => {
         expect(types).toEqual(['energy', 'information', 'product']);
     });
 
-    it('imports technical resources (usages lost in HSU round-trip)', () => {
-        // HSU format stores usage bindings in per-element <usages> (not <flows>),
-        // but the importer reconstructs src/tgt only from <flows> exit/entry.
-        // So usages are lost in the round-trip — but TRs themselves are preserved.
+    it('imports technical resources and their usages', () => {
         const xml = modelToXml((m) => {
             m.states.push(makeState('s1'));
             m.processOperators.push(makePO('po1'));
@@ -146,8 +143,15 @@ describe('importXml (HSU format)', () => {
         const result = importXml(xml);
         expect(result.model.technicalResources).toHaveLength(1);
         expect(result.model.flows).toHaveLength(1);
-        // Known limitation: usages don't survive the HSU round-trip
-        expect(result.model.usages).toHaveLength(0);
+        expect(result.model.usages).toEqual([
+            {
+                id: 'usage_po1_tr1',
+                processOperatorRef: 'po1',
+                technicalResourceRef: 'tr1',
+                systemId: result.model.systemLimits[0]?.id,
+            },
+        ]);
+        expect(result.source).toContain('po1 <..> tr1');
     });
 
     it('preserves system limit title', () => {
@@ -199,14 +203,12 @@ describe('importXml (HSU format)', () => {
         expect(result.model.processOperators).toHaveLength(2);
         expect(result.model.technicalResources).toHaveLength(2);
         expect(result.model.flows).toHaveLength(5);
-        // Usages don't survive HSU round-trip (no entry/exit in <usages>)
-        // but all other elements and connections are preserved
+        expect(
+            result.model.usages.map((u) => `${u.processOperatorRef}-${u.technicalResourceRef}`),
+        ).toEqual(['cut-laser', 'assemble-robot']);
     });
 
-    it('usage-only model (no flows) loses usages in HSU round-trip', () => {
-        // This documents a known limitation: HSU format stores usage
-        // bindings only in per-element <usages> (not <flows>), but the
-        // importer reconstructs sources/targets from <flows> exit/entry.
+    it('keeps usages of a model without any flows', () => {
         const xml = modelToXml((m) => {
             m.processOperators.push(makePO('po1'));
             m.technicalResources.push(makeTR('tr1'));
@@ -216,8 +218,7 @@ describe('importXml (HSU format)', () => {
         const result = importXml(xml);
         expect(result.model.processOperators).toHaveLength(1);
         expect(result.model.technicalResources).toHaveLength(1);
-        // Known limitation: usages without flows on the same PO are lost
-        expect(result.model.usages).toHaveLength(0);
+        expect(result.model.usages).toHaveLength(1);
     });
 });
 

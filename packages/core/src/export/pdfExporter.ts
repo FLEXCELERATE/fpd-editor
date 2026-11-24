@@ -124,6 +124,11 @@ function toPdfX(diagramX: number, bounds: ContentBounds, scale: number, offsetX:
     return (diagramX - bounds.x) * scale + offsetX;
 }
 
+/** drawSvgPath maps a path point (px, py) to (x + px, y - py), so PDF-space y is negated. */
+function svgPathY(pdfY: number): number {
+    return -pdfY;
+}
+
 function drawPolyline(
     page: PDFPage,
     pts: Point[],
@@ -156,7 +161,9 @@ function drawArrowhead(page: PDFPage, tip: Point, prev: Point, color: RGB, size:
     const left = [base[0] + (px * size) / 2, base[1] + (py * size) / 2];
     const right = [base[0] - (px * size) / 2, base[1] - (py * size) / 2];
 
-    const path = `M ${tip[0]} ${tip[1]} L ${left[0]} ${left[1]} L ${right[0]} ${right[1]} Z`;
+    const path =
+        `M ${tip[0]} ${svgPathY(tip[1])} L ${left[0]} ${svgPathY(left[1])} ` +
+        `L ${right[0]} ${svgPathY(right[1])} Z`;
     page.drawSvgPath(path, { x: 0, y: 0, color, borderColor: color, borderWidth: 0.5 });
 }
 
@@ -182,7 +189,9 @@ function drawState(
 
     if (stateType === 'energy') {
         // Diamond
-        const path = `M ${cx} ${cy + h / 2} L ${cx + w / 2} ${cy} L ${cx} ${cy - h / 2} L ${cx - w / 2} ${cy} Z`;
+        const path =
+            `M ${cx} ${svgPathY(cy + h / 2)} L ${cx + w / 2} ${svgPathY(cy)} ` +
+            `L ${cx} ${svgPathY(cy - h / 2)} L ${cx - w / 2} ${svgPathY(cy)} Z`;
         page.drawSvgPath(path, {
             x: 0,
             y: 0,
@@ -194,9 +203,9 @@ function drawState(
         // Hexagon
         const qw = w * 0.25;
         const path =
-            `M ${cx - w / 2 + qw} ${cy + h / 2} L ${cx + w / 2 - qw} ${cy + h / 2} ` +
-            `L ${cx + w / 2} ${cy} L ${cx + w / 2 - qw} ${cy - h / 2} ` +
-            `L ${cx - w / 2 + qw} ${cy - h / 2} L ${cx - w / 2} ${cy} Z`;
+            `M ${cx - w / 2 + qw} ${svgPathY(cy + h / 2)} L ${cx + w / 2 - qw} ${svgPathY(cy + h / 2)} ` +
+            `L ${cx + w / 2} ${svgPathY(cy)} L ${cx + w / 2 - qw} ${svgPathY(cy - h / 2)} ` +
+            `L ${cx - w / 2 + qw} ${svgPathY(cy - h / 2)} L ${cx - w / 2} ${svgPathY(cy)} Z`;
         page.drawSvgPath(path, {
             x: 0,
             y: 0,
@@ -327,12 +336,13 @@ function drawTechnicalResource(
     // Rounded rectangle (pdf-lib drawRectangle doesn't support borderRadius,
     // so we approximate with an SVG path with arcs)
     const r = Math.min(20 * scale, w / 2, h / 2);
+    // Negating y mirrors the path, so the arcs sweep the other way (0) to stay convex.
     const path =
-        `M ${px + r} ${py} ` +
-        `L ${px + w - r} ${py} A ${r} ${r} 0 0 1 ${px + w} ${py + r} ` +
-        `L ${px + w} ${py + h - r} A ${r} ${r} 0 0 1 ${px + w - r} ${py + h} ` +
-        `L ${px + r} ${py + h} A ${r} ${r} 0 0 1 ${px} ${py + h - r} ` +
-        `L ${px} ${py + r} A ${r} ${r} 0 0 1 ${px + r} ${py} Z`;
+        `M ${px + r} ${svgPathY(py)} ` +
+        `L ${px + w - r} ${svgPathY(py)} A ${r} ${r} 0 0 0 ${px + w} ${svgPathY(py + r)} ` +
+        `L ${px + w} ${svgPathY(py + h - r)} A ${r} ${r} 0 0 0 ${px + w - r} ${svgPathY(py + h)} ` +
+        `L ${px + r} ${svgPathY(py + h)} A ${r} ${r} 0 0 0 ${px} ${svgPathY(py + h - r)} ` +
+        `L ${px} ${svgPathY(py + r)} A ${r} ${r} 0 0 0 ${px + r} ${svgPathY(py)} Z`;
     page.drawSvgPath(path, {
         x: 0,
         y: 0,
